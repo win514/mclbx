@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="zh-CN"@@MANUAL_THEME@@>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mclbx 使用说明书</title>
+<style>
+/* 说明书：按文档站排版，浅色、可打印；和应用界面（深色）刻意区分开。
+   内容分块：正文段落 ≤ 4 行，参数与症状一律用表格，便于检索。 */
+:root{
+  --ink:#1B2430; --ink-2:#4A5A6B; --ink-3:#78889A;
+  --line:#DFE6EC; --line-2:#EDF2F6;
+  --bg:#FFFFFF; --bg-2:#F6F9FB; --bg-3:#EEF4F8;
+  --acc:#0F7A55; --acc-bg:#E7F5EF;
+  --warn:#9A6206; --warn-bg:#FDF3E2;
+  --bad:#A3283C;  --bad-bg:#FBEDEF;
+  --mono:"Cascadia Mono",Consolas,"Microsoft YaHei UI",monospace;
+  --sans:"Microsoft YaHei UI","Segoe UI",sans-serif;
+}
+/* 暗色分支：界面用深色主题时，说明书不该是"一整页白" —— 那在暗环境里是刺眼的。
+   它只换这一组变量，版式与浅色完全一致。
+   这份文件是**独立分发**的（可以直接打开、也可以打印），所以它不依赖应用界面的任何东西：
+   主题由 /manual?theme=… 传进来，见 manual.go 的 serveManual。 */
+:root[data-theme="dark"]{
+  --ink:#E8EEF5; --ink-2:#B7C4D2; --ink-3:#93A2B3;
+  --line:#2A3949; --line-2:#1E2A37;
+  --bg:#0E141B; --bg-2:#131B24; --bg-3:#18222D;
+  --acc:#5FD3A6; --acc-bg:#12301F;
+  --warn:#FFC470; --warn-bg:#2A2113;
+  --bad:#FF8A9E;  --bad-bg:#2A151C;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font:15px/1.75 var(--sans);
+  -webkit-font-smoothing:antialiased}
+.doc{max-width:880px;margin:0 auto;padding:52px 28px 90px}
+
+/* 封面 */
+.cover{border-bottom:2px solid var(--ink);padding-bottom:24px;margin-bottom:8px}
+.cover .kick{font:600 12px/1 var(--mono);letter-spacing:.16em;color:var(--acc)}
+.cover h1{font-size:34px;line-height:1.25;margin:12px 0 10px;letter-spacing:-.01em}
+.cover p{color:var(--ink-2);max-width:60ch}
+.meta{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:16px;font-size:12.5px;color:var(--ink-3)}
+.meta b{color:var(--ink-2);font-weight:600}
+
+/* 目录 */
+.toc{background:var(--bg-2);border:1px solid var(--line);border-radius:10px;
+  padding:18px 22px;margin:26px 0 8px}
+.toc h2{font-size:12px;letter-spacing:.14em;color:var(--ink-3);font-weight:600;margin-bottom:10px}
+.toc ol{list-style:none;columns:2;column-gap:28px}
+.toc li{margin:3px 0;break-inside:avoid}
+.toc a{color:var(--ink);text-decoration:none;font-size:13.5px}
+.toc a:hover{color:var(--acc);text-decoration:underline}
+.toc i{font-style:normal;color:var(--ink-3);font-family:var(--mono);font-size:12px;margin-right:8px}
+
+/* 正文层级 */
+h2{font-size:23px;margin:44px 0 4px;padding-top:14px;border-top:1px solid var(--line-2);letter-spacing:-.005em}
+h2:first-of-type{border-top:0}
+h3{font-size:16.5px;margin:26px 0 8px}
+h4{font-size:14px;margin:18px 0 6px;color:var(--ink-2)}
+p{margin:9px 0;max-width:74ch}
+ul,ol{margin:9px 0 9px 22px}
+li{margin:5px 0;max-width:72ch}
+code{font:12.5px/1.5 var(--mono);background:var(--bg-3);padding:2px 6px;border-radius:4px;
+  border:1px solid var(--line);white-space:nowrap}
+a{color:var(--acc)}
+strong{font-weight:600}
+.lead{color:var(--ink-2);font-size:15.5px}
+
+/* 表格 */
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px}
+th,td{text-align:left;vertical-align:top;padding:9px 12px;border-bottom:1px solid var(--line)}
+th{background:var(--bg-2);font-weight:600;font-size:12.5px;color:var(--ink-2);
+  border-bottom:1px solid var(--line);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td code{white-space:normal}
+table.boxed{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+
+/* 提示块 */
+.note{border-left:3px solid var(--acc);background:var(--acc-bg);padding:11px 16px;
+  border-radius:0 8px 8px 0;margin:14px 0;font-size:13.5px;color:#0B3D2B}
+.note.warn{border-color:#D08A18;background:var(--warn-bg);color:#5A3B04}
+.note.bad{border-color:#C2425A;background:var(--bad-bg);color:#67182A}
+.note b{font-weight:600}
+
+/* 步骤 */
+.steps{counter-reset:n;list-style:none;margin:14px 0 14px 0}
+.steps li{counter-increment:n;position:relative;padding-left:38px;margin:12px 0}
+.steps li::before{content:counter(n);position:absolute;left:0;top:2px;width:24px;height:24px;
+  border-radius:50%;background:var(--acc);color:#fff;font:600 12.5px/24px var(--mono);text-align:center}
+.steps b{display:block;font-weight:600}
+.steps span{color:var(--ink-2);font-size:13.5px}
+
+/* 操作列表 */
+table.ops td:first-child{white-space:nowrap;font-weight:600}
+table.ops .grp{background:var(--bg-2);font-weight:600;font-size:12.5px;color:var(--acc);
+  letter-spacing:.08em;padding:7px 12px}
+table.ops td .f{display:block;font:12px/1.6 var(--mono);color:var(--ink-3)}
+table.ops td .d{display:block;color:var(--ink-2);font-size:12.5px;margin-top:3px}
+
+pre.cli{background:#0E1620;color:#D6E4F0;border-radius:10px;padding:18px 20px;overflow:auto;
+  font:12.5px/1.72 var(--mono);margin:14px 0;tab-size:2}
+pre.cli b{color:#7CF0C4;font-weight:400}
+.hint{font-size:12.5px;color:var(--ink-3);margin-top:-4px}
+
+footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);
+  font-size:12.5px;color:var(--ink-3)}
+@media print{
+  body{font-size:11pt} .doc{max-width:none;padding:0}
+  h2{page-break-after:avoid} table,pre.cli,.note{page-break-inside:avoid}
+  .toc{break-inside:avoid} a{color:inherit;text-decoration:none}
+  /* 打印一律用浅色：暗色分支是给屏幕看的，打成黑底白字既费墨又难读 */
+  :root[data-theme="dark"]{
+    --ink:#1B2430; --ink-2:#4A5A6B; --ink-3:#78889A;
+    --line:#DFE6EC; --line-2:#EDF2F6;
+    --bg:#FFFFFF; --bg-2:#F6F9FB; --bg-3:#EEF4F8;
+    --acc:#0F7A55; --acc-bg:#E7F5EF;
+    --warn:#9A6206; --warn-bg:#FDF3E2;
+    --bad:#A3283C;  --bad-bg:#FBEDEF;
+  }
+}
+</style>
+</head>
+<body>
+<div class="doc">
+
+<div class="cover">
+  <div class="kick">使用说明书</div>
+  <h1>mclbx 联机工具</h1>
+  <p class="lead">让 Minecraft Java 版的联机不依赖网络环境：玩家不需要安装任何东西，房主不需要进路由器后台。本说明覆盖连接方式的选择、体检结论的判读、常见故障的处理，以及全部 20 个操作的用途与参数。</p>
+  <div class="meta">
+    <span><b>版本</b> mclbx 1.40</span>
+    <span><b>平台</b> Windows 10 / 11（64 位）</span>
+    <span><b>形态</b> 单个 exe，无需安装</span>
+    <span><b>网络</b> 除域名入口外全程可离线部署</span>
+  </div>
+</div>
+
+<div class="toc">
+  <h2>目录</h2>
+  <ol>
+    <li><a href="#s1"><i>1</i>这个工具做什么</a></li>
+    <li><a href="#s2"><i>2</i>连接方式怎么选</a></li>
+    <li><a href="#s3"><i>3</i>快速开始</a></li>
+    <li><a href="#s4"><i>4</i>体检结论怎么读</a></li>
+    <li><a href="#s5"><i>5</i>常见故障对照表</a></li>
+    <li><a href="#s6"><i>6</i>操作一览（20 项）</a></li>
+    <li><a href="#s7"><i>7</i>界面说明</a></li>
+    <li><a href="#s8"><i>8</i>权限与安全</a></li>
+    <li><a href="#s9"><i>9</i>资源占用</a></li>
+    <li><a href="#s10"><i>10</i>费用与外部依赖</a></li>
+    <li><a href="#s11"><i>11</i>命令行参考</a></li>
+    <li><a href="#s12"><i>12</i>附录：文件位置与端口</a></li>
+  </ol>
+</div>
+
+<h2 id="s1">1 这个工具做什么</h2>
+<p>Minecraft Java 版的联机要求建立一条从玩家到房主游戏进程的通道。家庭网络通常处在 NAT 之后、并且没有可用的公网地址，通道因此建不起来。本工具提供三种打通方式，并负责把它们之间的选择与切换自动化。</p>
+<p>同一个局域网内不需要本工具：原版「对局域网开放」会向局域网广播，同一网段的玩家在「多人游戏」列表里直接就能看到这个房间。本工具处理的是局域网之外的情况。</p>
+
+<table class="boxed">
+  <tr><th>入口</th><th>玩家需要做什么</th><th>适用条件</th></tr>
+  <tr>
+    <td><b>公网入口</b></td>
+    <td>游戏内「多人游戏 → 直接连接」填入地址</td>
+    <td>房主有可被外部访问的地址（公网 IPv6，或自动端口映射成功）</td>
+  </tr>
+  <tr>
+    <td><b>软件入口</b></td>
+    <td>安装本工具后填入房主给的链接或房间码</td>
+    <td>双方网络都不理想时；已配置中继服务器则直连失败会自动改用中继</td>
+  </tr>
+  <tr>
+    <td><b>中继转发</b></td>
+    <td>同上，或使用中继提供的地址</td>
+    <td>要求公网 IPv6 与自动端口映射都不可用时的兜底方案</td>
+  </tr>
+</table>
+
+<h3>它不做什么</h3>
+<ul>
+  <li>不支持基岩版（Bedrock）。只支持 Minecraft Java 版：基岩版是另一套协议，走 UDP，端口（默认 19132）、握手与加密均与本工具承载的 TCP 协议不同。</li>
+  <li>不修改游戏本体，不注入进程，不要求安装 mod 或联机插件。</li>
+  <li>不修改注册表，不改动网卡、路由表和 DNS 设置。</li>
+  <li>除「入站规则」这一项外，不改动系统防火墙；该操作需由用户主动执行。</li>
+  <li>不收集、不上传任何数据；界面服务只监听本机。</li>
+</ul>
+
+<h2 id="s2">2 连接方式怎么选</h2>
+<p>先做一次体检（打开界面会自动执行），再按结论选路线。下表为判读与对应选择的完整映射。</p>
+<table class="boxed">
+  <tr><th>体检结论</th><th>推荐做法</th><th>说明</th></tr>
+  <tr>
+    <td>公网 IPv6 可用</td>
+    <td>公网入口（IPv6）</td>
+    <td>最省事：玩家不需要安装，地址短、无需中继。同时要求玩家一侧具备 IPv6 出口。</td>
+  </tr>
+  <tr>
+    <td>IPv6 不可用，自动端口映射可用</td>
+    <td>创建房间 / 直连模式（房主）</td>
+    <td>映射成功后把地址直接发给玩家。映射依赖路由器开启 UPnP 或 NAT-PMP / PCP。</td>
+  </tr>
+  <tr>
+    <td>两者都不可用（含对称型 NAT）</td>
+    <td>中继转发（房主）+ 中继转发（玩家），或本机中继</td>
+    <td>此时打洞成功率极低，建议直接使用中继。</td>
+  </tr>
+  <tr>
+    <td>结论不稳定或抓不到</td>
+    <td>关闭「跳过自动端口映射探测」后重新体检</td>
+    <td>该选项跳过映射探测以加快检测，代价是结论更保守。</td>
+  </tr>
+</table>
+<div class="note"><b>关于中继：</b>中继转发会让流量经过第三方机器。自建方式有两种：在具备公网地址的机器上运行「公网中继」，或在自己的机器上运行「本机中继」并由对方填入它输出的链接。中继地址在「高级选项 → 中继服务器」中填写，该栏留空表示不使用中继，此时直连失败不会自动切换，会直接中断并说明原因。</div>
+
+<h2 id="s3">3 快速开始</h2>
+<p>界面默认只呈现两个入口：<b>创建房间</b>（房主）与<b>加入房间</b>（玩家）。其余 20 项操作收纳在左上角「更多功能」中，常规使用无需展开。</p>
+<h3>房主：两步创建房间</h3>
+<ol class="steps">
+  <li><b>在游戏内开启局域网</b><span>进入世界后按 <code>Esc → 对局域网开放</code>，记录显示的端口号（通常为 25565）。世界未开启时，工具没有可转发的端口。</span></li>
+  <li><b>创建房间并发送邀请</b><span>房间码留空时自动生成；端口填写上一步记录的端口号，点击「创建房间」。地址生成后点击「复制邀请」，将邀请文本整段发送给玩家。</span></li>
+</ol>
+<h3>玩家：两步加入房间</h3>
+<ol class="steps">
+  <li><b>未安装本工具</b><span>在游戏内「多人游戏 → 直接连接」中粘贴房主提供的<b>地址</b>并回车。如有需要，请房主将玩家名称加入白名单。</span></li>
+  <li><b>已安装本工具</b><span>点击「加入房间」，粘贴房主提供的邀请文本，点击「连接」。地址与房间码会自动提取；已配置中继服务器时，直连失败会自动改用中继。</span></li>
+</ol>
+<div class="note">环境检测无需手动触发：界面打开时会自动执行一次，执行期间左上角显示「检测中…」，完成后替换为四项指标。需要重新执行时点击左上角「重新检测」。</div>
+
+<h2 id="s4">4 体检结论怎么读</h2>
+<p>体检给出四项结论，界面顶部的能力条会同步显示。不支持的连接方式会被自动置灰，鼠标悬浮在置灰项上会说明原因，不需要自己去日志里判断。</p>
+<table class="boxed">
+  <tr><th>结论项</th><th>含义与影响</th></tr>
+  <tr>
+    <td><b>公网 IPv6</b></td>
+    <td>本机是否具备可被外部直接访问的 IPv6 地址。可用即可以最省事的方式联机。</td>
+  </tr>
+  <tr>
+    <td><b>NAT 类型</b></td>
+    <td>分为全锥形、受限锥形、端口受限锥形、对称型与未知。锥形越开放越容易打洞；<b>对称型</b>（移动网络与企业网络常见）几乎无法打洞，应直接使用中继。</td>
+  </tr>
+  <tr>
+    <td><b>自动端口映射</b></td>
+    <td>路由器是否响应 UPnP、NAT-PMP 或 PCP。三者任一可用即可自动开端口，无需进路由器后台。</td>
+  </tr>
+  <tr>
+    <td><b>游戏端口</b></td>
+    <td>默认 25565 是否空闲。被占用时换端口或先关闭占用程序，再由体检复检。</td>
+  </tr>
+</table>
+
+<h2 id="s5">5 常见故障对照表</h2>
+<p>按症状检索即可，不必从头排查。</p>
+<table class="boxed">
+  <tr><th>症状</th><th>处理</th></tr>
+  <tr>
+    <td>玩家连接超时</td>
+    <td>确认地址与端口在两端一致；再看体检的自动端口映射是否可用，不可用则改用中继转发。</td>
+  </tr>
+  <tr>
+    <td>房主自测正常，玩家就是连不上</td>
+    <td>多数是入站被拦截。界面顶部出现「尚未放行入站」提示时点「放行入站」；也可手动执行「入站规则」。</td>
+  </tr>
+  <tr>
+    <td>域名入口玩家连不上</td>
+    <td>用「地址校验」按真实客户端的顺序逐步骤定位失败点。</td>
+  </tr>
+  <tr>
+    <td>UDP 被网络限制</td>
+    <td>改用「中继转发（房主）」与「中继转发（玩家）」，这条通道走 TCP。</td>
+  </tr>
+  <tr>
+    <td>双方都是对称型 NAT</td>
+    <td>不要尝试打洞，直接用中继；确需尝试时可用「端口探测」。</td>
+  </tr>
+  <tr>
+    <td>端口 25565 被占用</td>
+    <td>体检会报告该端口占用情况；更换端口后重新执行对应操作。</td>
+  </tr>
+  <tr>
+    <td>玩家中途掉线</td>
+    <td>不需要重新加入：断线约 30 秒后本工具会自动重连，游戏内填的地址在重连前后一直有效。重连期间的连接会被明确拒绝并记一行日志，网络恢复后即可继续。</td>
+  </tr>
+  <tr>
+    <td>未安装工具的玩家能进，装了工具的反而不行</td>
+    <td>两条入口用的端口不同：公网入口走游戏端口，软件入口还要一个信令端口（默认 8090）。后者的入站放行与端口映射要单独覆盖；界面上的「放行入站」会一次把两个端口都放行，命令行开房时卡片末尾也会印出该放行的端口。体检会单独探一次 IPv6 出口；若报「出口探测无应答」，先在浏览器打开纯 IPv6 网站确认本机能出去，或改用中继转发。</td>
+  </tr>
+  <tr>
+    <td>开着的房间突然连不上了</td>
+    <td>多数是地址变了：家用宽带的前缀被运营商重编、路由器重新拨号，或端口映射续约时换了外网端口。程序每 60 秒比一次公网 IPv6，变了会刷新界面上的地址与邀请文本；但已经发出去的那份邀请不会自己更新，请重新复制一次发给还没进来的玩家。正在游戏里的玩家不受影响。</td>
+  </tr>
+  <tr>
+    <td>玩家说连不上，但错误里写的是房主有问题</td>
+    <td>玩家侧的失败结论会同时提示「也可能是本机这一侧：延迟大 / 丢包 / UDP 被限制」。两端各查一次：玩家点「路况诊断」看本机的 NAT 类型与出口，房主看日志里有没有「信箱满了」或「短时间内有 N 位新玩家在登记」。300 ms 还丢包、或 UDP 被运营商限制的链路，直连本来就不成立，用中继。</td>
+  </tr>
+  <tr>
+    <td>自己也开着世界，再点「加入房间」</td>
+    <td>两者都要占本机的 25565。在「加入房间」里把「本机监听端口」改成别的（例如 25566）即可；游戏内仍是照常连房主。</td>
+  </tr>
+  <tr>
+    <td>白名单填了名字，结果谁都被拒</td>
+    <td>Java 版的玩家名只含英文、数字与下划线，填中文名永远匹配不上。程序在解析时会给一句提醒，照着改成玩家的英文 ID 即可。</td>
+  </tr>
+  <tr>
+    <td>开了中继转发给朋友，流量算谁的</td>
+    <td>算你的：朋友的数据先进你的机器、再经隧道发给房主，所以你的上行与下行都会被占用（按量计费时留意）。这个入口默认不校验玩家名，可以填「中继转发入口白名单」限定范围。</td>
+  </tr>
+  <tr>
+    <td>界面记住了错误的输入</td>
+    <td>在顶栏「设置 → 数据」里点「清除记住的填写内容」（只清填过的值，外观设置保留）；想连设置一起清掉，执行 <code>mclbx forget</code>。</td>
+  </tr>
+  <tr>
+    <td>需要把排查结果交给他人</td>
+    <td>日志区可「复制」全部输出；原始调试信息在折叠面板内，展开后一并复制。</td>
+  </tr>
+</table>
+
+<h2 id="s6">6 操作一览（20 项）</h2>
+<p>界面左侧「更多功能」里按分组列出全部操作。下表为逐项说明；标「长时」的操作会一直开着，要停就点上面的「停止」，关窗会一并停掉。</p>
+<table class="boxed ops">
+  <tr><th>操作</th><th>用途与说明</th><th>参数</th></tr>
+  <tr><td class="grp" colspan="3">环境检测</td></tr>
+  <tr><td>检测本机环境</td><td>检测网络环境并给出建议的连接方式<span class="d">检测项包括公网 IPv6 地址、IPv4 出口与 NAT 类型、路由器端口映射能力、游戏端口占用情况，以及已配置的 Windows 入站规则。结论用于确定本次可用的连接方式。</span></td><td><span class="f">游戏端口 — 同时检测该端口是否被占用</span><span class="f">跳过端口映射探测（勾选） — 检测更快，结论更保守</span><span class="f">打开界面时自动检测（勾选） — 该设置会被记住</span></td></tr>
+  <tr><td class="grp" colspan="3">房主模式</td></tr>
+  <tr><td>创建房间 <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>同时开启公网入口与软件入口<span class="d">一次开启两条入口：公网入口供未安装本工具的玩家使用，软件入口供已安装的玩家使用；两条同时工作，任一条可用即可联机。房间码用于标识本次连接，两端必须一致，留空时自动生成。</span></td><td><span class="f">房间码 — 留空时自动生成 6 位</span><span class="f">游戏端口 — 留空时自动检测</span><span class="f">中继服务器 — 可留空；直连失败时使用</span></td></tr>
+  <tr><td>公网入口（IPv6） <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>仅开启 IPv6 公网入口<span class="d">前提是本机具备公网 IPv6 地址，且玩家一侧具备 IPv6 出口；满足时玩家在游戏内「多人游戏 → 直接连接」填入本机地址即可进入，不需要在玩家一侧安装本工具。</span></td><td><span class="f">游戏端口 — 留空时自动检测</span><span class="f">玩家名称白名单 — 逗号分隔；留空时允许所有玩家。Java 版玩家名只含英文、数字与下划线，中文名匹配不上</span></td></tr>
+  <tr><td>公网入口（域名） <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>以域名作为入口，房间码作为口令<span class="d">将短域名对应的 AAAA 与 SRV 记录发布到公共 DNS，玩家在游戏中输入该域名即可，无需填写端口。玩家输入的名称必须包含房间码，否则入口拒绝连接。</span></td><td><span class="f">房间码 — 作为访问口令；留空时自动生成</span><span class="f">游戏端口 — 留空时自动检测</span></td></tr>
+  <tr><td>直连模式（房主） <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>接受玩家直连并转发至本机端口<span class="d">与玩家侧的「直连模式（玩家）」配对使用。启动后等待玩家接入，通道建立后将流量转发至指定的本机游戏端口。</span></td><td><span class="f">转发目标 — 默认为 127.0.0.1:25565</span><span class="f">中继服务器 — 可留空；直连失败时使用</span></td></tr>
+  <tr><td class="grp" colspan="3">玩家模式</td></tr>
+  <tr><td>加入房间 <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>连接房主，直连失败时自动使用中继<span class="d">输入可以是房主提供的入口地址、含 sig= 参数的中继链接，或房间码配合中继服务器。直连不通时自动切换至中继通道，无需手动重试。</span></td><td><span class="f">房主地址 — 已包含在中继链接中时可留空</span><span class="f">房间码 — 链接中已包含时可留空</span><span class="f">本机监听端口 — 本机自己也开着游戏时改成别的，例如 25566</span><span class="f">等待房主候选（秒） — 网络较慢时可调大，例如 120</span><span class="f">同时开启中继转发（勾选） — 将本机地址也作为入口</span><span class="f">中继转发入口白名单 — 仅在上面勾选时生效；留空时不校验玩家名</span><span class="f">中继服务器 — 可留空；直连失败时使用</span></td></tr>
+  <tr><td>直连模式（玩家） <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>连接房主的直连入口，不使用房间码<span class="d">与房主侧的「直连模式（房主）」配对使用。双方交换连接信息后建立点对点通道；两端网络均不利于直连时，需配合中继服务器使用。</span></td><td><span class="f">房主地址</span><span class="f">中继服务器 — 可留空；直连失败时使用</span></td></tr>
+  <tr><td class="grp" colspan="3">故障排查</td></tr>
+  <tr><td>端口映射 <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>通过路由器将本机端口映射至公网<span class="d">适用于本机没有公网 IPv6、但路由器支持自动映射的场景。映射成功后，玩家可通过路由器的公网地址直连本机端口。映射存在租期，程序运行期间按需续期。</span></td><td><span class="f">本机端口 — 需要映射至公网的端口</span><span class="f">协议 — tcp、udp 或 both</span><span class="f">外网端口 — 留空时由路由器分配</span></td></tr>
+  <tr><td>入站规则</td><td>配置 Windows 防火墙入站规则<span class="d">规则仅对指定端口放行，且限定为本程序，不修改防火墙总开关。执行需要管理员权限，会弹出一次授权确认。勾选下方选项可撤销已添加的规则。</span></td><td><span class="f">入站端口</span><span class="f">协议 — tcp、udp 或 both</span><span class="f">删除已添加的规则（勾选）</span></td></tr>
+  <tr><td>中继转发（房主） <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>UDP 不可用时经中继转发<span class="d">两端均主动连接同一台中继，因此不受入站限制影响，可穿过阻断 UDP 的网络。流量经中继转发，为保证连通性采用明文传输。房间码两端需一致。</span></td><td><span class="f">中继地址 — 公网中继地址；也可只填中继链接</span><span class="f">房间码 — 链接中已包含时可留空</span><span class="f">转发目标 — 本机游戏端口</span><span class="f">中继服务器 — 可留空；直连失败时使用</span></td></tr>
+  <tr><td>中继转发（玩家） <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>接收中继流量并映射为本地端口<span class="d">与「中继转发（房主）」配对使用。通道建立后，中继上的连接会出现在本机指定地址上，游戏内连接该地址即可进入。房间码需与房主一致。</span></td><td><span class="f">中继地址 — 公网中继地址；也可只填中继链接</span><span class="f">房间码 — 链接中已包含时可留空</span><span class="f">本机监听地址 — 游戏内连接该地址</span><span class="f">中继服务器 — 可留空；直连失败时使用</span></td></tr>
+  <tr><td>地址校验</td><td>按客户端流程校验入口地址<span class="d">校验顺序为地址解析、域名与 SRV 记录、入口端口连通性、游戏握手；失败步骤单独给出原因。玩家一侧是否可连入需从外部网络验证，本机无法确认。</span></td><td><span class="f">待校验地址 — 地址、host:port 或 mclbx:// 链接</span></td></tr>
+  <tr><td class="grp" colspan="3">实用工具</td></tr>
+  <tr><td>服务器查询</td><td>查询目标服务器的状态<span class="d">发送一次状态查询并显示返回结果，包括版本号与在线人数。可用于确认目标是否为正常运行的我的世界 Java 版服务端。</span></td><td><span class="f">目标地址</span><span class="f">端口</span></td></tr>
+  <tr><td>导出诊断包</td><td>汇总版本、环境体检与最近一次日志<span class="d">生成一个文本文件：程序版本、系统与网卡、环境体检的全部结论，以及最近一次操作的日志。遇到自己解决不了的问题时，把该文件发给协助者即可，不必反复截图。文件里含本机网络地址，发出之前请先自己看一眼。文件默认写到桌面。</span></td><td><span class="f">游戏端口 — 体检用，与游戏内设置一致</span></td></tr>
+  <tr><td>端口探测</td><td>两端同时探测对端端口池，验证能否打穿<span class="d">仅用于诊断：两端都处在对称型 NAT、内置直连与中继都走不通时，用它确认两端之间是否存在可打穿的路径。两端的口令与端口范围必须一致。注意它只给结论 —— 扫出来的地址无法直接用于联机，因为内置直连会自己选端口，来源端口一变、对端 NAT 的映射就跟着变；确认可打穿之后，当前版本的可用手段仍然是中继。</span></td><td><span class="f">对端公网 IP — 对端检测报告中的出口 IP</span><span class="f">对端端口范围 — 两端需一致</span><span class="f">口令 — 两端需一致</span></td></tr>
+  <tr><td class="grp" colspan="3">中继服务</td></tr>
+  <tr><td>本机中继 <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>以本机作为中继并生成链接<span class="d">启动后生成一条包含地址与凭据的链接，发送给参与者即可使用，无需另行分发账号密码。默认尝试通过路由器自动映射端口。</span></td><td><span class="f">对外地址 — 留空时自动检测</span><span class="f">不修改路由器端口映射（勾选） — 默认会尝试自动映射</span></td></tr>
+  <tr><td>中继校验</td><td>校验中继链接的可用性<span class="d">完整执行一次连接流程：解析链接、探测映射、申请分配与数据往返；失败时指出具体环节。</span></td><td><span class="f">中继链接</span><span class="f">账号 — 链接中未包含时填写</span><span class="f">密码 — 链接中未包含时填写</span></td></tr>
+  <tr><td>公网中继 <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>在具备公网地址的机器上运行中继<span class="d">需运行在具备公网地址的服务器上，启动完成后输出供其他人填写的链接。云主机需显式指定公网地址，网卡地址通常为内网地址。</span></td><td><span class="f">监听端口 — UDP 端口</span><span class="f">公网地址 — 云主机需填写；网卡地址通常为内网地址</span><span class="f">密钥 — 设置后无需分发固定密码</span><span class="f">中继端口范围 — 建议填写，便于仅放行该范围</span></td></tr>
+  <tr><td>STUN 服务 <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>提供公网地址探测，不转发数据<span class="d">用于两端探测各自的公网映射，本身不中转流量，带宽开销极低。需运行在具备公网地址的机器上。</span></td><td><span class="f">监听端口</span><span class="f">同时提供 UDP 中转（勾选） — 同时承担中继转发</span></td></tr>
+  <tr><td>信令信箱 <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>为双方交换连接信息<span class="d">房主无法被直接连接时，双方通过该服务交换当前可用的地址，再按新地址重试。最多保留 1024 条；条目 3 分钟未更新即被回收，等待中的一方会定期重新登记。</span></td><td><span class="f">监听地址</span></td></tr>
+</table>
+<p class="hint">共 20 项、6 个分组。字段提示与操作说明均由程序定义，改版时以界面显示为准。</p>
+
+<h2 id="s7">7 界面说明</h2>
+<table class="boxed">
+  <tr><th>区域</th><th>用途</th></tr>
+  <tr><td><b>快速开始</b></td><td>主面板顶部「快速开始」：创建房间 / 加入房间。点击后表单就地展开，填写完成即执行，无需先到左侧选择操作。</td></tr>
+  <tr><td><b>链路条</b></td><td>显示「本机 → 入口 → 房间 → 玩家」四段的连通状态。</td></tr>
+  <tr><td><b>状态</b></td><td>空闲、执行中的操作与已运行时长、执行结果。</td></tr>
+  <tr><td><b>环境能力条</b></td><td>左上角。未检测时为单格，显示「未检测 · 点击开始」，点击即开始检测；完成后替换为四项指标。</td></tr>
+  <tr><td><b>更多功能</b></td><td>左上角，默认收起。包含全部 20 项操作、搜索框与「重新检测」。手工选择的操作，表单显示在快速开始区下方。</td></tr>
+  <tr><td><b>提示条</b></td><td>仅在检测到需要处理的问题时出现，一句话给出结论与一个可执行动作；点击「忽略」后本轮不再提示。</td></tr>
+  <tr><td><b>邀请段</b></td><td>房间创建完成后出现，将地址、房间码、未安装工具的连接方式、已安装工具的命令合并为一段文本，配一个复制按钮，整段转发即可。</td></tr>
+  <tr><td><b>在场玩家</b></td><td>创建房间后出现，列出已经通过身份校验的玩家：每人一行，显示安全码、连接方式与已连时长。安全码与玩家屏幕上显示的一致，念一遍核对即可确认没有中间人。只在有人真正进场后出现，重连时自动更新。</td></tr>
+  <tr><td><b>结论日志</b></td><td>只输出结论、说明与建议，供普通使用者判断状态。</td></tr>
+  <tr><td><b>原始输出</b></td><td>默认折叠，收纳 STUN 逐台应答、映射尝试、端口探测等原始信息，供排查使用。</td></tr>
+  <tr><td><b>命令</b></td><td>选中操作后，表单右上角的「命令」显示界面将要执行的等价命令行，便于核对与转抄。</td></tr>
+  <tr><td><b>设置</b></td><td>顶栏「设置」：外观（主题、强调色、材质、毛玻璃、背景光效、背景图片、动效、界面字号）、行为（打开界面时自动体检、记住上次填写的值、日志保留行数）、默认值（默认游戏端口、默认中转服务器）、音乐（曲库、播放顺序、循环、音量、播放控制）与数据（清除记住的填写内容、打开数据目录、导出诊断包）。改完即生效，不需要重启。</td></tr>
+</table>
+<div class="note">界面会记住上次填写的参数（可在「设置」里关掉）。<b>停止</b>只结束当前任务，关窗与<b>退出</b>会结束任务并关闭程序；窗口消失先于收尾动作，因此关闭没有可感知延迟。</div>
+
+<h3>主题与外观</h3>
+<ul>
+  <li><b>主题</b>：跟随系统 / 深色 / 浅色 / 高对比。浅色与高对比都只换底色与字色，版式、按钮位置与操作顺序一概不变。「跟随系统」跟随 Windows 的浅色/深色设置，系统改了它也跟着改。</li>
+  <li><b>高对比</b>：给「看不清」而不是「不喜欢」的场合用 —— 低端屏幕、白天靠窗的反光、投屏给旁边的人看。它把文字对比度推到很高的水平（正文约 20:1），并把背景的装饰渐变与网格关掉：装饰与「看清」在这类场合是冲突的。</li>
+  <li><b>强调色</b>：信号绿（默认）、蓝、紫。它决定「链路通到哪一段」这类状态用的颜色；警告与错误始终是琥珀与红，不随强调色变。</li>
+  <li><b>材质「扁平」</b>：去掉圆角、外阴影、渐变与光晕，只留颜色与 1px 线条。它和主题是两件事：主题换的是配色，材质换的是层次 —— 做成主题会得到「配色 × 材质」的组合爆炸，而名字里读不出「扁平」，所以它是一个独立开关。它是纯减法，绘制只会更省；焦点框会换成描边，键盘操作一样看得见。</li>
+  <li><b>毛玻璃</b>：面板变半透明，透出后面的极光。这是静态近似，<b>不是实时模糊</b> —— 实时模糊要每帧把面板背后的像素读回来重算，而「背后一变就得重做」由别人触发：一个正在运行的呼吸点就够。代价按玻璃总面积递增，几块面板加起来就等于整屏。所以这里不做实时模糊：在低频的背景上两者几乎分不出来，开销却是零。<b>它与背景图片互斥</b>：设了背景图时面板保持实心。原因是半透明面板压在一张任意照片上时，第三、四级灰会掉到 4.5 的对比度门槛以下（实测最差 3.69），而把面板做到能达标的实度时照片又已经透不出来了。两个功能只能取一个，设置面板里会就地说明。</li>
+  <li><b>背景光效</b>：极光与网格两层装饰渐变。关掉它不影响背景图片 —— 两者各自独立。</li>
+  <li><b>背景音乐</b>：曲库就是存档目录里的 <code>music</code> 文件夹，把音乐文件放进去（支持 MP3 / WAV / FLAC / M4A / OGG），点「刷新」即可。播放顺序可选顺序或随机（随机不会连续两首抽到同一首），循环可选不循环 / 列表循环 / 单曲循环，音量 0 到 100。底栏那个 ♪ 能播放与暂停，不用每次打开设置；<b>默认不自动播放</b> —— 这是个会长时间开着的工具，不该在没人点的时候出声。播放不额外占 CPU：音频由界面内核直接解码，关掉窗口就停。只把真正的音频算进曲库（按扩展名与文件头两层判断），某个文件放不了会明说并跳到下一首，不会静默跳过。</li>
+  <li><b>背景图片</b>：点「导入图片…」选一张图（JPEG / PNG / GIF，单张上限 32MB），程序把它复制进存档的 <code>wallpapers</code> 目录并立刻用上；也可以直接把图丢进那个目录再点「刷新」。导入之后原文件改名、移走、删掉都不影响，整个存档文件夹拷到别的机器上背景图也还在。图片按比例铺满窗口（裁切，不拉伸变形），上面压一层与当前主题同色的暗化层，保证任意一张照片上文字仍读得清。程序会先把图缩到长边 2560 再显示，所以放一张 4K 图也不会拖慢界面；缩放结果缓存在数据目录的 <code>ui-cache</code> 下，源文件没变就不会重做。填了它，毛玻璃会让位（见上一条）。</li>
+  <li><b>动效「精简」</b>：去掉所有过渡，以及「执行中」那个点的呼吸动画（点本身还在，只是不闪）；<b>背景光效由它自己的开关控制，两者互不影响</b>。系统设置里的「减少动态效果」始终优先，与这个开关是同一套规则。</li>
+  <li><b>界面字号「大」</b>：只把字放大一号（顶栏与底栏的高度跟着走），<b>控件位置与版式都不动</b>。它和主题是两件事：主题解决"颜色读不读得清"，字号解决"字够不够大" —— 高对比能帮到前者，帮不到后者。默认是「标准」，需要的人自己去打开。</li>
+  <li><b>默认中转服务器</b>：填一次，所有带「中转服务器」字段的操作都会默认带上；某个操作想用别的，在它自己的字段里填即可（填过的优先）。默认游戏端口同理。</li>
+  <li><b>原生界面（<code>--native</code>）不使用主题</b>：它用系统控件，存在的理由就是省内存，因此保持系统外观。但上面的「默认值」与「打开界面时自动体检」对它同样生效。</li>
+  <li><b>说明书也跟着主题走</b>：界面在深色或高对比下打开说明书时，说明书也是深色的（它是一份独立文档，主题由界面带过去）。打印时一律用浅色。</li>
+</ul>
+
+<h2 id="s8">8 权限与安全</h2>
+<p>程序默认以管理员身份启动：打开界面时会申请一次权限。原因只有一个——添加 Windows 防火墙入站规则需要管理员权限；先取得权限，这一步就不必再单独弹一次授权框。</p>
+<ul>
+  <li><b>提权不会</b>让打洞、自动端口映射或中继更容易成功，这些是普通权限即可完成的协议交互。</li>
+  <li>拒绝授权、或账户本身不是管理员时，程序照常运行，功能不受影响；只有「入站规则」那一步会再次申请。</li>
+  <li>关闭默认提权：启动参数加 <code>--no-elevate</code>，或设置环境变量 <code>MCLBX_NO_ELEVATE=1</code>。</li>
+  <li>入站规则的范围仅限本程序与指定端口，规则名以 <code>mclbx-</code> 开头，可随时用同一操作删除，不影响其它规则与防火墙开关。</li>
+  <li>本工具有两个入站端口：游戏端口（公网入口）与信令端口 8090（软件入口）。界面上的「放行入站」会一次放行这两个；命令行可用 <code>mclbx firewall --port 25565,8090</code> 一次放行多个。只放行游戏端口的现象是「没装工具的玩家能进、装了工具的反而不行」。</li>
+  <li>界面服务只监听本机地址，不对局域网或公网开放；页面不与任何外部服务器通信。</li>
+</ul>
+<h3>首次运行被系统或安全软件拦下</h3>
+<p>程序没有代码签名，且首次运行会申请一次管理员权限，因此可能被 SmartScreen 或安全软件拦下。这类提示针对的是「未签名程序 + 请求提权」这个组合，并不说明程序本身有问题。遇到时按下面对应一条处理即可：</p>
+<ul>
+  <li><b>SmartScreen 蓝色窗口</b>（提示「Windows 已保护你的电脑」）：点「更多信息」，核对程序名与文件位置之后点「仍要运行」。程序完全离线运行，不访问任何外部服务器，可以断网验证这一点。</li>
+  <li><b>安全软件提示「修改防火墙规则」</b>：来自「入站规则」这一步的正常行为，规则只针对指定端口且限定为本程序。不用公网入口时可以跳过这一步，也就不会有这个提示。</li>
+  <li><b>安全软件提示「端口映射 / UPnP」</b>：来自「本机中继」的自动映射探测，可在该项里勾选「不修改路由器端口映射」，检测与联机照常可用。</li>
+  <li><b>想先确认它对系统做了什么</b>：单个 exe，不装服务、不写开机启动项；删除文件即可完全清除。数据目录（默认在 exe 同级的 <code>mclbx-data</code>，同级不可写时退到 <code>%LOCALAPPDATA%\mclbx</code>）里只有界面记住的参数、导入的图片与最近一次运行日志，两者都可以用 <code>mclbx forget</code> 与删文件清掉。</li>
+</ul>
+
+<h2 id="s9">9 资源占用</h2>
+<p>作为常驻后台的工具，本程序在空闲时不产生任何动画帧：界面里没有常驻动画，转圈、闪烁光标这类持续合成新帧的元素一律不用。实测空闲状态 GPU 占用 0.00%、约 1% 单核 CPU。</p>
+<ul>
+  <li>界面不引用任何外部脚本、样式或在线字体，与程序同在一个 exe 内，可完全离线运行。</li>
+  <li>网页版界面依赖系统的 WebView2 运行时（Windows 10/11 自带）；若缺失，程序会自动改用系统浏览器打开，功能不变。</li>
+  <li>内存峰值实测约 390 MB（其中大部分为网页渲染内核）。追求更低占用时可用 <code>--native</code> 启动原生界面。</li>
+</ul>
+
+<h3>能传多大</h3>
+<p>转发这件事本身没有任何上限：没有限速、限流、会话数上限或带宽配额，数据来多少转发多少。内存也不随流量增长 —— 每条连接或隧道占固定大小的收发缓冲区，占用只跟「同时有多少条」有关。</p>
+<p>各条路径的软件侧天花板可以在本机用回环量出来（不需要真的大带宽）：在源码目录执行 <code>go test -run '^$' -bench . -benchmem -benchtime 3s .</code>。开发机上的一组参考值：公网入口转发约 350 MB/s（两个方向合计），TCP 中继约 940 MB/s（单向），TCP 兜底通道约 1.2 GB/s（单向），软件入口隧道约 72 MB/s（单向，逐包要过加密与分片，因此低一个数量级）。</p>
+<p>这些是软件自己的上限，与线路无关，换更强的 CPU 只会更高；真实链路上还要叠加协议与内核开销，实际会低一些。多玩家就是多条独立连接，能同时吃多个核 —— 一台机器能带多少玩家，取决于它的 CPU 与出口带宽。</p>
+<p>自建中继时与本项直接相关的是 <code>--udp-buffer</code>（UDP 收发缓冲区，默认 4 MiB）与 <code>--relay-port-range</code>（把中继端口限在一个段里，防火墙只放这一段）。</p>
+
+<h2 id="s10">10 费用与外部依赖</h2>
+<p>全部功能都可以免费使用：不需要付费账号、付费服务或付费 SDK。唯一需要自备的是中继所用的那台机器，而自建的三种方式都在本程序里。</p>
+<table class="boxed">
+  <tr><th>功能</th><th>需要花什么</th></tr>
+  <tr><td>公网入口、加入房间、断线重连</td><td>零</td></tr>
+  <tr><td>环境检测、路况诊断、导出诊断包</td><td>零</td></tr>
+  <tr><td>中继转发（房主 / 玩家）、本机中继、TCP 兜底通道</td><td>一台双方都能访问的机器，自建即可：家里那台有公网地址的电脑就够；程序会先尝试自动端口映射，成功就不必进路由器后台</td></tr>
+  <tr><td>商用 TURN</td><td>不必需。中继地址栏语法上兼容任何标准 TURN 服务端，但上面的自建方式已经够用</td></tr>
+  <tr><td>代码签名</td><td>不需要。未签名程序首次运行可能被系统或安全软件提示，处理方式见第 8 节</td></tr>
+</table>
+<p>程序会用到三处外部服务，都是免费、匿名、可替换的公共设施，而且都不是必需的：</p>
+<table class="boxed">
+  <tr><th>服务</th><th>用途</th><th>不用它会怎样</th></tr>
+  <tr><td>stun.miwifi.com<br>stun.hitv.com</td><td>探测本机的公网映射，默认开启</td><td>命令行加 <code>--stun=false</code> 即可完全不用；代价是跨网络直连基本不可用。想换成别的服务（含自建的），用环境变量 <code>MCLBX_STUN</code></td></tr>
+  <tr><td>sslip.io</td><td>「公网入口（域名）」使用的公共通配域名后缀</td><td>改用 IPv6 字面量模式就完全不碰它</td></tr>
+  <tr><td>dynv6.com</td><td>把短名称写进公网 DNS（进阶用法，界面里没有入口，需要自备域名）</td><td>默认只打印、不写入；只在本机用短名称的话完全不碰它。该路径按 dynv6 官方接口文档实现，<b>未在真实账号上实测过</b>；目前也只支持这一家。</td></tr>
+</table>
+<div class="note">「免费」指的是不用花钱，不等于「不依赖任何人」：上表三处仍然是外部服务，所以每一条都给出了不用它们的办法。</div>
+
+<h2 id="s11">11 命令行参考</h2>
+<p>全部界面操作都有等价命令，便于脚本化与远程使用。以下为程序自带的帮助文本原文。</p>
+<pre class="cli"><b>mclbx —— 我的世界 Java 版联机工具</b>
+
+用法：
+  mclbx gui [选项]         打开图形界面；已有实例时将其窗口置于前台
+                           默认使用网页版界面；加 --native 使用原生界面
+                           默认申请管理员权限，用于自动配置防火墙入站规则；
+                           加 --no-elevate 或设 MCLBX_NO_ELEVATE=1 可关闭
+  mclbx room [选项]        同时开启公网入口与软件入口
+  mclbx join [选项]        以软件方式进入房间；加 --relay 可替其他玩家中继转发
+  mclbx expose [选项]      只开启公网入口
+  mclbx dns local          启动本地 DNS，将短名称映射到本机地址与端口
+  mclbx dns publish        将同一组记录写入公网 DDNS；默认只打印、不写入
+  mclbx ice host|guest     通过 ICE 建立直连模式通道，并在其上承载 TCP 隧道
+  mclbx punch [选项]       端口盲扫：仅诊断，确认双对称 NAT 下是否存在可打穿的路径
+  mclbx natmap [选项]      通过 UPnP / NAT-PMP / PCP 建立自动端口映射
+  mclbx firewall [选项]    Windows 入站规则：放行本程序与指定端口
+  mclbx doctor [选项]      环境体检：给出可用的连接方式与下一步命令
+  mclbx diag [选项]        导出诊断包：版本、系统与网卡、体检结论、最近一次日志
+  mclbx relaybox [选项]    将本机作为中继服务，开启 UDP 中继、TCP 中继转发与信令信箱
+  mclbx stun [选项]       启动 STUN / TURN 服务端
+  mclbx relay [选项]       TCP 中继转发；UDP 不可用时使用
+  mclbx tcptunnel host|guest   TCP 兜底通道两端，双方均主动连接中继
+  mclbx relaycheck [链接]  校验中继链接，并指出失败所在步骤
+  mclbx ping [选项]        按游戏协议查询目标，返回版本号与在线人数
+  mclbx verify [选项]      按真实客户端顺序校验地址，逐步骤报告结果
+  mclbx probe              路况诊断：全球 IPv6 / IPv4 公网映射 / NAT 行为 / 自动端口映射
+  mclbx forget             清除界面记住的输入，下次打开恢复默认值
+  mclbx slpfake            排查用：仅应答服务器列表查询的假服务端
+  mclbx help               显示本帮助
+
+expose 选项：
+  --port &lt;端口&gt;      本机游戏端口；不填则自动探测 25565 / 25566 / 25567
+  --entry &lt;端口&gt;     入口端口；默认优先占用 25565
+  --mode &lt;形式&gt;      raw：默认值，向玩家发送 IPv6 字面量，不注册域名，无第三方依赖
+                     dns：使用 sslip.io 等公共通配域名；名称较短，但多一项依赖
+  --room &lt;房间码&gt;    仅 dns 模式：玩家输入的名称必须包含房间码，以此为口令
+  --dns &lt;后缀&gt;       仅 dns 模式：公共通配 DNS 后缀，默认 sslip.io
+  --allow &lt;名字&gt;     仅允许这些玩家名，逗号分隔；raw 模式建议同时配置
+  --web &lt;地址&gt;       本地管理页监听地址，默认 127.0.0.1:8080；填 off 关闭
+  --no-gate          关闭房间码校验；不推荐，等同于公开入口
+  --no-map           不启用自动端口映射
+  --stun             使用 STUN 服务探测 IPv4 出口 IP
+
+room 选项：
+  --port &lt;端口&gt;      本机游戏端口；不填则自动探测
+  --entry &lt;端口&gt;     入口端口；默认优先占用 25565
+  --to &lt;地址&gt;        转发目标；默认与本机游戏端口一致
+  --signal &lt;地址&gt;    软件入口的信令监听地址，默认 :8090（双栈，IPv4 与 IPv6 都收）
+  --room &lt;房间码&gt;    默认随机 6 位；软件入口会校验该房间码
+  --no-software      只开启公网入口
+  --relay-server / --relay-user / --relay-pass   中继服务，写法见「中继服务器」一节
+  --mode / --dns / --allow / --no-gate / --web / --stun   含义同 expose
+
+join 选项：
+  --host &lt;地址&gt;      房主侧信令地址，例如 [2408:...]:8090；room 命令会输出该地址
+                     若填写带 sig= 的中继链接，此项可留空，程序会自动取出
+  --room &lt;房间码&gt;    房主提供的房间码；链接中已包含时可留空
+  --local &lt;地址&gt;     隧道在本机的监听地址，默认 127.0.0.1:25565
+  --relay            同时将本机公网地址作为入口，替其他玩家中继转发
+  --relay-entry &lt;端口&gt;  中继转发入口端口，默认 25580
+  --relay-allow &lt;名字&gt;  中继转发入口仅允许这些玩家名，逗号分隔
+  --relay-server / --relay-user / --relay-pass   中继服务，写法见「中继服务器」一节
+  --stun / --wait    是否使用 STUN 收集公网候选 / 等待房主候选的最长时长
+
+ping 选项：
+  --host &lt;地址&gt;       目标地址，可为域名
+  --port &lt;端口&gt;       目标端口；显式指定时不查询 SRV，与真实客户端规则一致
+  --server-name &lt;名字&gt;  握手包中填写的服务器地址，模拟玩家输入的名称
+  --timeout &lt;时长&gt;    超时，默认 5s
+  --no-srv            不查询 SRV 记录，直接按端口连接
+
+dns local 选项：
+  --zone &lt;区&gt;         本服务权威的域名区，默认 mclbx.test
+  --name &lt;名字&gt;       玩家输入的短名称，必须位于 --zone 内
+  --port &lt;端口&gt;       SRV 记录中的端口，即客户端最终连接的端口
+  --target &lt;名字&gt;     SRV 的目标名称，默认与 --name 相同
+  --addr &lt;地址&gt;       地址记录指向的地址，默认自动选择本机全局 IPv6
+  --upstream &lt;DNS&gt;    区外名称的转发目标，填写原 DNS；不填则拒绝应答
+  --listen &lt;地址&gt;     监听地址，默认 127.0.0.1:53
+  --ttl / --txt / --quiet
+
+dns publish 选项：
+  --provider &lt;名字&gt;   域名服务商，目前支持 dynv6
+  --zone &lt;区&gt;         所拥有的域名区，例如 myname.dynv6.net
+  --name &lt;子域名&gt;     区内的记录名，例如 abc123；留空表示使用区本身
+  --port &lt;端口&gt;       SRV 记录中的端口
+  --addr &lt;地址&gt;       默认自动选择本机全局 IPv6
+  --token &lt;令牌&gt;      接口令牌，也可使用环境变量 MCLBX_DDNS_TOKEN
+  --apply             实际写入；不加此参数仅打印将要发送的请求
+  --watch &lt;时长&gt;      监视模式：地址变化后自动重写
+
+ice host 选项：
+  --signal &lt;地址&gt;     信令信箱监听地址，默认 :8090（双栈）；客户机需可访问
+  --to &lt;地址&gt;         通道建立后的转发目标，默认 127.0.0.1:25566
+  --transport &lt;类型&gt;  隧道传输层：sctp 或 raw；sctp 为默认值，可靠有序且带流控
+  --relay-server &lt;链接&gt;  中继服务；直连失败时使用，写法见「中继服务器」一节
+  --relay-user / --relay-pass   中继账号；链接中未提供时使用
+  --tamper-fp         排查用：公布错误的证书指纹，用于检验绑定是否拒绝连接
+  --stun / --wait     是否使用 STUN 收集公网候选 / 等待对端候选的最长时长
+
+ice guest 选项：
+  --host &lt;地址&gt;       主机侧信令信箱；VirtualBox NAT 下主机的别名为 10.0.2.2:8090
+  --local &lt;地址&gt;      隧道在本机的监听地址，默认 127.0.0.1:25565
+  --transport &lt;类型&gt;  同 host 侧；两端必须一致
+  --relay-server / --relay-user / --relay-pass   同 host 侧，两端建议填写同一台
+  --tamper-fp         同 host 侧
+
+punch 选项：
+  --peer &lt;IP&gt;         对端的公网 IP
+  --ports &lt;起-止&gt;     要扫描的对端端口范围，默认 30000-30099
+  --tag &lt;口令&gt;        仅接受带此口令的探针；两端必须一致
+  --local &lt;端口&gt;      本地绑定端口，默认随机
+  --interval &lt;时长&gt;   两轮探测之间的间隔，默认 300ms
+  --tries &lt;次数&gt;      重试次数，默认 3；每次更换一个新的本地端口
+  --per-try &lt;时长&gt;    单次尝试的探测时长，默认 8s
+  两端各运行一次；端口范围越小，成功率越高，双方各扫 N 个端口时约 63%。
+
+natmap 选项：
+  --port &lt;端口&gt;       要映射的本机端口
+  --proto &lt;类型&gt;      tcp / udp / both；游戏入口使用 tcp，ICE 使用 udp
+  --ext &lt;端口&gt;        要占用的外网端口，默认与内网端口相同
+  --keep              保持运行并自动续约，Ctrl+C 退出并撤销映射
+  依次尝试 UPnP IGD、NAT-PMP、PCP；成功一条即使用，全部失败时逐条说明原因。
+
+firewall 选项：
+  --port &lt;端口&gt;       要放行的入站端口；可用逗号分隔多个，如 25565,8090
+  --proto &lt;类型&gt;      tcp / udp / both
+  --remove            删除本工具添加的规则，规则名带 mclbx- 前缀
+  --dry-run           只打印将要执行的命令，不改动系统
+  本工具有两个默认入站端口：游戏端口（公网入口）与信令端口 8090（软件入口）。
+  只放行前者会出现"没装工具的玩家能进、装了工具的反而不行"，建议一次把两个都放行。
+  仅放行"本程序与指定端口"，不改动防火墙开关，不修改其他规则；需要管理员权限，会弹出一次 UAC。
+
+tcptunnel 选项：
+  relay：运行在具有公网 IP 的机器上，--listen &lt;地址&gt;，默认 :8090（双栈）
+  host ：--relay &lt;中继地址&gt; --room &lt;房间码&gt; --to &lt;本地目标&gt;
+  guest：--relay &lt;中继地址&gt; --room &lt;相同房间码&gt; --local &lt;本机监听地址&gt;
+  仅使用 TCP；网络屏蔽 UDP 时可使用该通道。
+  流量经中继转发且为明文传输，房间码是唯一门槛，因此仅作为最后手段。
+  调试：环境变量 MCLBX_TCP_DEBUG=1 会输出每一帧的类型、连接号与长度。
+
+中继服务器：
+  房主可填写一个链接，作为直连失败时的兜底通道。
+  所有接受该参数的位置均为 --relay-server，后接一个链接。支持的写法：
+
+    turn:用户:密码@主机:3478      TURN 服务器；自建优先，商用 TURN 写法相同
+    turn:主机:3478                账号另行提供：--relay-user / --relay-pass
+    turns:主机:5349               TURN over TLS
+    turn:主机:3478?secret=密钥     使用 REST 临时凭据；客户端按共享密钥计算 HMAC 密码
+    tcp:主机:8090                 仅使用 TCP 的中继，即 mclbx relay
+    主机:端口                      未知类型：先按 TURN 使用，兜底时按 TCP 使用
+    mclbx://主机?turn=3478&amp;tcp=8090&amp;sig=8090&amp;room=abc123&amp;user=u&amp;pass=p
+                                  一条链接包含中继、信令与房间码
+  多个链接使用逗号分隔，按顺序尝试。
+  环境变量 MCLBX_RELAY / MCLBX_TURN 仍然有效。
+  启动日志会输出"中继服务器："一行，便于确认配置是否生效。
+  校验链接是否可用：mclbx relaycheck &lt;链接&gt;
+  若没有可用的中继服务器，可运行 mclbx relaybox 将本机作为中继服务；
+  其输出的链接已包含账号，对方无需再填写密码。
+  手写 turn:主机:3478 等未带账号的写法时，才需要 --relay-user / --relay-pass。
+
+relaybox 选项：
+  --turn-port &lt;端口&gt;   UDP 中继端口，默认 3478
+  --tcp-port &lt;端口&gt;    TCP 通道端口，默认 8090
+  --signal-port &lt;端口&gt; 信令信箱端口，默认 8091
+  --public &lt;地址&gt;      本机对外地址；不填则自动探测，优先公网 IPv6
+  --room &lt;房间码&gt;      不填则随机生成，并写入输出链接
+  --secret &lt;密钥&gt;      中继密钥；不填则每次随机，密钥包含在链接中
+  --no-turn            不开启 UDP 中继，仅保留 TCP 通道
+  --no-signal          不开启信令信箱
+  --no-open-ports      不修改路由器；不加此参数时将尝试自动端口映射
+  启动后输出一行链接，发送给其他玩家，填入「中继服务器」即可使用。
+  没有公网地址时也可运行：支持 UPnP 的路由器上会自动建立 TCP 端口映射，
+  TCP 通道即可满足联机；UDP 中继需要公网地址，无法开启时会明确提示。
+
+stun 选项：
+  --port &lt;端口&gt;      监听端口，默认 3478，UDP
+  --turn             同时开放 TURN 中继服务；直连失败时使用，需要指定中继地址
+  --relay-ip &lt;IP&gt;    中继地址；不填则自动选择本机第一个非回环 IPv4
+  --udp-buffer &lt;字节&gt;  UDP 收发缓冲区；默认 4 MiB，高带宽中继可调大，0 表示用系统默认
+  --user / --pass    中继账号，默认 mclbx / mclbx；长期运行建议改用 --rest 密钥
+  客户端侧：通过环境变量 MCLBX_STUN=stun:地址:端口 指定 STUN 服务，逗号分隔可填多个
+
+relaycheck 选项：
+  --user / --pass     链接中未提供账号时使用
+  --timeout &lt;时长&gt;    每一步的超时，默认 8s
+  --room &lt;房间码&gt;     仅 TCP 中继自检使用；留空则自动生成
+  校验过程会实际执行：解析地址、探测映射、申请分配并校验账号、建立两个分配并互传数据。
+  失败时输出卡住的步骤与原因，例如 401 账号错误、400 凭据时间戳过期、超时。
+
+gui 选项：
+  --native            使用原生界面；Windows 自带控件，内存约 35MB，不占用 GPU
+  --web               使用网页版界面；该模式为默认，此开关仅为兼容旧命令行保留
+  --addr &lt;地址&gt;       界面监听地址，默认 127.0.0.1:19870；仅允许绑定本机
+  --no-open           只启动本地服务，不打开窗口
+  --browser           使用系统浏览器打开界面
+  --console           保留控制台窗口
+  --no-elevate        不以管理员身份启动；默认在打开界面时申请提权
+  双击程序本体或桌面快捷方式均进入此命令。已有实例运行时，仅将其窗口置于前台；
+  端口被其他程序占用时会直接报错，不会自动更换端口。
+  界面提供三项功能：选择操作、查看实时日志、复制给玩家的地址。
+  每个操作会以子进程方式调用对应子命令，界面会显示其等价命令。
+
+身份绑定：两端各自生成自签证书并交换 SHA-256 指纹，随后在专用流上完成一次挑战-应答校验。
+只有校验通过且客户机回执确认后，通道才算建立；任一步失败即断开并说明原因。
+绑定完成后两端各显示一个安全码，比对一致即可排除中间人。
+
+SRV 路线：
+  房主将「短名称 -&gt; 当前地址与端口」写入 DNS（AAAA 与 SRV 记录）。
+  玩家在「直接连接」中输入该短名称即可。
+  游戏客户端会查询 _minecraft._tcp.&lt;名字&gt; 的 SRV 记录，获取实际主机与端口，无需填写端口。
+  SRV 的目标按 RFC 2782 必须为域名，不能使用 IP 字面量。</pre>
+<p class="hint">完整帮助随时可用 <code>mclbx help</code> 查看；单个命令的参数说明见对应命令后接 <code>help</code>，例如 <code>mclbx room help</code>。</p>
+
+<h2 id="s12">12 附录：文件位置与端口</h2>
+<table class="boxed">
+  <tr><th>项目</th><th>位置 / 取值</th></tr>
+  <tr><td>程序本体</td><td>单个可执行文件，无需安装；导入表仅依赖系统库，不附带任何第三方动态库。</td></tr>
+  <tr><td>运行数据</td><td>存档目录默认在 exe 同级的 <code>mclbx-data</code>（同级不可写时退到 <code>%LOCALAPPDATA%\mclbx</code>），里面是 <code>config.json</code>、运行日志 <code>gui.log</code>、导入的图片（<code>wallpapers</code>）、背景音乐（<code>music</code>）与缩放缓存（<code>ui-cache</code>）；网页渲染内核数据始终放在 <code>%LOCALAPPDATA%\mclbx</code>，不随存档走。</td></tr>
+  <tr><td>界面服务</td><td>默认 <code>127.0.0.1:19870</code>；该端口被占用时自动改用其它端口，不影响功能。</td></tr>
+  <tr><td>Minecraft 默认端口</td><td><code>25565</code>（Java 版）。</td></tr>
+  <tr><td>本工具的入站端口</td><td>两个：游戏端口（公网入口）与信令端口 <code>8090</code>（软件入口）；后者可用 <code>--signal</code> 改。防火墙与端口映射要同时覆盖这两个。</td></tr>
+  <tr><td>界面外观</td><td>主题、强调色、材质、毛玻璃、背景图片、动效等偏好与「记住的填写内容」存在同一个 <code>config.json</code>（<code>ui</code> 段）里；删掉该文件即全部回到默认。背景图片会被复制一份进 <code>wallpapers</code>，程序另在 <code>ui-cache</code> 下缓存缩放结果（按源文件的修改时间与大小判断是否需要重做，换图时旧的那份会被清掉）。</td></tr>
+  <tr><td>地址变化</td><td>开启房间后会每 60 秒比一次公网 IPv6；地址变了（运营商重编前缀、路由器重新拨号、映射换端口）就刷新界面上的地址与邀请文本。已经发出去的那份邀请不会自己更新，需要重新复制。</td></tr>
+  <tr><td>防火墙规则名</td><td><code>mclbx-tcp-&lt;端口&gt;</code> 与 <code>mclbx-udp-&lt;端口&gt;</code>。</td></tr>
+</table>
+
+<footer>
+  mclbx 使用说明书 · 版本 1.37 · 对应程序版本以界面右下角显示为准。文中所有操作说明与参数均取自程序自身的任务定义与帮助文本。
+</footer>
+
+</div>
+</body>
+</html>

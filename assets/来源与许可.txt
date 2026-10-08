@@ -1,0 +1,45 @@
+资源来源与许可
+=====================================================
+
+一、随源码一同分发的第三方文件
+-----------------------------------------------------
+WebView2Loader.dll
+  大小    ：160,656 字节
+  版本    ：1.0.3650.0
+  产品名  ：Microsoft Edge Embedded Browser WebView Loader
+  版权    ：Copyright Microsoft Corporation. All rights reserved.
+  SHA-256 ：1A1E1B00E8892CEF34828196068E7568C77E1355F167548574698046F535DAEA
+  用途    ：承载网页版界面。构建时经 //go:embed 嵌入可执行文件，
+            首次运行时释放到本机目录（见 winwebview.go）。
+  来源    ：Microsoft Edge WebView2 SDK 随附的加载器。
+  分发提示：对外分发前请确认所用 SDK 版本的许可条款允许随应用再分发。
+
+mclbx.ico / assets/favicon.png
+  用途    ：程序图标与页面图标。
+  来源    ：本项目自绘，无第三方许可问题。
+
+rsrc_windows_{amd64,386,arm64}.syso
+  内容    ：由「mclbx.ico + mclbx.manifest」编译成的资源对象，内含清单 XML 与图标 PNG。
+  链入    ：Go 在构建时按 GOOS/GOARCH 自动挑选，三个文件都已提交，正常构建无需重新生成。
+
+二、界面依赖
+-----------------------------------------------------
+界面的第三方依赖：零。页面不引用任何外部脚本或样式，
+所有过渡效果使用纯 CSS 的 transform 与 opacity。
+
+三、Go 依赖
+-----------------------------------------------------
+见 go.mod 与 go.sum。直接依赖：
+
+  github.com/pion/ice/v4        ICE 打洞
+  github.com/pion/dtls/v3       数据面加密
+  github.com/pion/sctp          隧道传输层
+  github.com/pion/stun/v4       STUN 探测
+  golang.org/x/crypto           密钥交换与 AEAD
+
+间接依赖（由上述库引入）：pion/turn、pion/logging、pion/mdns、
+pion/randutil、pion/transport、google/uuid、wlynxg/anet、
+golang.org/x/net、golang.org/x/sys、golang.org/x/time。
+
+以上为各项目仓库声明的主要许可证（pion 系列与 anet 为 MIT，
+golang.org/x 系列与 uuid 为 BSD-3-Clause），具体条款以各自仓库为准。

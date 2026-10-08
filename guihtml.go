@@ -1,0 +1,2258 @@
+package main
+
+// guihtml.go —— 控制台的页面（编在 exe 里，不落文件、不依赖外网）。
+// 界面按信号链组织（本机 → 入口 → 房间 → 玩家），空闲时无无限动画以控制显卡占用。
+
+const guiPageHTML = `<!doctype html>
+<html lang="zh-CN"@@UIATTRS@@>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mclbx 联机工具</title>
+<link rel="icon" href="/assets/favicon.png">
+<script>
+/* 主题在首屏之前就定下来。
+   服务端已经把用户选的（或者"跟随系统"）写进 <html> 的属性里，这里只做一件事：
+   把"跟随系统"解析成当前的系统偏好，并跟着它变 —— 不能等界面脚本加载完，
+   否则开着浅色系统的机器会先闪一下深色。 */
+(function(){
+  var u = @@UIJSON@@;
+  window.MCLBX_UI = u;
+  var el = document.documentElement, mq = null;
+  try{ mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)'); }catch(e){ mq = null; }
+  function resolve(){
+    var t = u.theme;
+    if(u.followOS){ t = (mq && mq.matches) ? 'light' : 'dark'; }
+    el.setAttribute('data-theme', t);
+  }
+  resolve();
+  if(u.followOS && mq && mq.addEventListener){ mq.addEventListener('change', resolve); }
+  // 设置面板改主题时从这里走：切到"跟随系统"要重新解析一次，
+  // 而且那个解析函数只在这儿有一份，别的地方不该再写一遍。
+  window.MCLBX_THEME = function(theme){
+    u.theme = theme || 'auto';
+    u.followOS = (u.theme === 'auto');
+    resolve();
+  };
+})();
+</script>
+<style>
+/* ==========================================================================
+   字体只用系统自带的：Bahnschrift 是 Win10 1709+ 自带的 DIN 风标题字，
+   Cascadia Mono 是终端字，正文回落雅黑。一律不外链，离线机器上完全一致。
+   ========================================================================== */
+:root{
+  /* ---- 底色与面 ----
+     四个面由浅到深：bg（页底）→ surf（卡片）→ surf2（卡片里的控件底）→ surf3（悬停）。
+     chrome 是顶栏与底栏，panel 是"压在页底上的半透明层"（日志、遮罩），
+     field 是所有输入框与只读文本框的底。 */
+  --bg:#070B11; --bg2:#0A1017;
+  --surf:#0D151E; --surf2:#101B25; --surf3:#14212D;
+  --chrome:#090E14; --panel:rgba(3,6,10,.72); --field:rgba(5,9,14,.72);
+  --search:rgba(7,11,17,.75); --plate:rgba(4,9,8,.85); --pre-bg:rgba(62,224,161,.06);
+  --line:#1A2836; --line2:#233A4D; --hair:rgba(255,255,255,.08); --hair2:rgba(255,255,255,.14);
+  --grid-ink:rgba(255,255,255,.032); --sheen:rgba(255,255,255,.12);
+  --scroll:#1E3040; --scroll-hi:#2A4356;
+  --aurora-a:rgba(62,224,161,.045); --aurora-b:rgba(99,169,255,.10);
+  /* ---- 字 ----
+     四级灰阶 + 一组"彩色字"：后者只用在状态与日志上，作用是让人一眼看出这句话是什么性质。
+     **四级都必须读得清**（对比度见 uisettings_test.go 的那张表）：原来的四级 muted2 只有
+     2.08（它是行号与底栏），等于把"读不清"当成了"层次"。层次靠字号与位置去做，不靠让人看不见。 */
+  --ink:#E9F2FB; --ink2:#9DB1C6; --muted:#8190A1; --muted2:#7C8B98;
+  --ok-ink:#7CF0C4; --bad-ink:#FFB0BE; --warn-ink:#FFD79A; --info-ink:#A8CDFF;
+  --addr-ink:#DDFFF2; --violet-ink:#E4DDFF; --bar-ink:#06120C; --cheek:#062A1E;
+  --on-sig:#07231A; --sel:rgba(62,224,161,.28);
+  /* ---- 强调色 ----
+     这一个色族由 data-accent 换（见下）。深浅两套主题共用同一组半透明值，
+     只有"实心色"和"压在实心色上的字"需要按主题分别给 —— 浅底上必须更深才够对比。 */
+  --sig:#3EE0A1; --sig-deep:#1FA87A; --sig-soft:rgba(62,224,161,.13);
+  --sig-edge:rgba(62,224,161,.34); --sig-ring:rgba(62,224,161,.14);
+  --sig-focus:rgba(62,224,161,.55); --sig-live:rgba(62,224,161,.7); --sig-glow:rgba(62,224,161,.9);
+  /* ---- 语义色：固定，不随强调色走 ---- */
+  --amber:#FFB454; --amber-soft:rgba(255,180,84,.12); --amber-edge:rgba(255,180,84,.34);
+  --amber-ink:#FFDFAE; --amber-on:#3A2A0E;
+  --rose:#FF6E85; --rose-soft:rgba(255,110,133,.12); --rose-soft2:rgba(255,110,133,.15);
+  --rose-edge:#4A2230; --rose-ink:#FFC9D2;
+  --blue:#63A9FF; --violet:#B08CFF; --violet-soft:rgba(176,140,255,.07); --violet-edge:rgba(176,140,255,.28);
+  --toast-ok-bg:rgba(9,26,20,.96); --toast-ok-ink:#D9FFF1; --toast-ok-edge:rgba(62,224,161,.5);
+  --toast-bad-bg:rgba(32,11,17,.96); --toast-bad-ink:#FFD3DA; --toast-bad-edge:rgba(255,110,133,.5);
+  /* ---- 尺寸与字体 ---- */
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px;
+  --r1:6px; --r2:9px; --r3:13px; --pill:999px;
+  /* 字号：**名字就是它当前的像素值**（--fs-12-5 = 12.5px）。取这个名字是为了"看上去是几号字"和
+     变量名一一对应，加减档位时不会记错。规矩只有一条：**所有字号只能写 var(--fs-*)，不许再写裸 px**
+     —— 界面的"大字号"开关靠的就是这一点（见 TestEveryFontSizeGoesThroughToken）。 */
+  --fs-10:10px; --fs-10-5:10.5px; --fs-11:11px; --fs-11-5:11.5px; --fs-12:12px; --fs-12-5:12.5px;
+  --fs-13:13px; --fs-13-5:13.5px; --fs-14:14px; --fs-15:15px; --fs-16:16px; --fs-17:17px; --fs-18:18px;
+  --fs-9:9px; --fs-26:26px;
+  /* 顶栏与底栏的高度跟着字号走：字号一放大，固定高度的这两条会把字切掉。 */
+  --row-top:56px; --row-bot:30px;
+  /* 背景图片的地址由服务端按当前设置注入到 <html> 的行内样式里。这里必须给一个默认值：
+     样式表里一旦写了 var(--wall)，定义它的地方就得在样式表里（有用例逐个变量核对）。 */
+  --wall:none;
+  /* ---- 毛玻璃与壁纸用的静态色 ----
+     这几个值写死成 rgba()，而不是用 color-mix() 从 --surf 现算。
+     原因：color-mix() 是 Chromium 111（2023-03）才有的函数，而这个界面跑在系统自带的
+     WebView2 上 —— 那台机器上的 Chromium 版本由微软的更新决定，不由这个 exe 决定。
+     不支持的引擎会在解析期把整条声明丢掉，后果分两档：
+       · 毛玻璃那几条只是"没效果"（面板回落到原本的实心色），还算能看；
+       · **暗化层会直接消失**，照片上的字就没有东西托着了 —— 这一档是危险的。
+     所以这里不接受任何版本相关的色彩函数，宁可每个主题各写一份静态值
+     （有没有漏写由「每个主题必须声明全部主题私有变量」那条用例兜住）。 */
+  --glass:rgba(13,21,30,.74); --glass-2:rgba(16,27,37,.78); --glass-3:rgba(20,33,45,.78);
+  --wall-scrim:rgba(7,11,17,.58);
+  --disp:"Bahnschrift","Segoe UI Variable Display","Microsoft YaHei UI",sans-serif;
+  --ui:"Microsoft YaHei UI","Segoe UI Variable Text","Segoe UI",sans-serif;
+  --mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+}
+
+/* ==========================================================================
+   加一个主题只准动两个地方：这里的一组选择器块，加上 guiconfig.go 的 normalizeUI 取值表。
+
+   为什么写死这一条：主题是**纯属性选择器 + 变量覆盖**，运行时没有任何分支、没有动画、
+   没有额外资源 —— 页面上多一套主题只是多几百字节的 CSS，换主题只等于写一次属性 + 一次样式重算。
+   一旦有人改成"在注入路径上加分支"或"按主题换版式"，这个成本模型当场失效。
+   服务端注入（renderGuiPage）是唯一的闸门，它只认归一化后的取值；绕过它就没有闸门了。
+
+   变量分三类，改之前先认清楚自己在动哪一类：
+     · 主题私有：每一个主题块都必须自己声明全部（见 uisettings_test.go 的完整性用例）。
+       漏一个的症状是"某一块还是上一个主题的颜色"，不报错、不崩。
+     · 强调色私有：--sig / --sig-deep / --sel / --pre-bg / --aurora-a。只有强调色块与
+       "确实需要为浅底重新调实心色"的主题（浅色）才准动它。
+     · 两类共用：尺寸与字体；以及强调色那一族的半透明值（深浅底上都成立，见用例里的例外表）。
+   注意 --pre-bg 与 --aurora-a 是"强调色顺带决定页面氛围"的一对耦合：强调色换了，片段底色与
+   极光倾向也跟着换。真要加"背景类主题"（中性底/纯黑/暖色），必须先把这两个从强调色块里
+   拿出来交给主题 —— **顺序反了就会得到『主题 × 强调色』的全组合**。
+   ========================================================================== */
+
+/* 强调色：只换这一个色族。几个色都取自界面里本来就在用的颜色，
+   所以换它不会破坏"信号绿 = 这条路通了"这层意思，只是换了个口味。
+   这一组不区分深浅主题：半透明的那些在两种底色上都成立。 */
+:root[data-accent="blue"]{
+  --sig:#63A9FF; --sig-deep:#2F7BD8; --sig-soft:rgba(99,169,255,.13);
+  --sig-edge:rgba(99,169,255,.34); --sig-ring:rgba(99,169,255,.14);
+  --sig-focus:rgba(99,169,255,.55); --sig-live:rgba(99,169,255,.7); --sig-glow:rgba(99,169,255,.45);
+  --sel:rgba(99,169,255,.28); --pre-bg:rgba(99,169,255,.06); --aurora-a:rgba(99,169,255,.05);
+}
+:root[data-accent="violet"]{
+  --sig:#B08CFF; --sig-deep:#7C55D8; --sig-soft:rgba(176,140,255,.13);
+  --sig-edge:rgba(176,140,255,.34); --sig-ring:rgba(176,140,255,.14);
+  --sig-focus:rgba(176,140,255,.55); --sig-live:rgba(176,140,255,.7); --sig-glow:rgba(176,140,255,.45);
+  --sel:rgba(176,140,255,.28); --pre-bg:rgba(176,140,255,.06); --aurora-a:rgba(176,140,255,.05);
+}
+/* 这里**没有**琥珀色。琥珀在这套界面里已经是一个专用含义（"要注意"：未放行入站、
+   名单超限、警告行），把它同时做成"正常路径"的颜色，两者就分不出来了。
+   宁可少一个口味，也不要一个"看着一样、意思相反"的组合。 */
+
+/* 浅色主题：同一套变量、同一个版式，只换底色与字色。
+   有意不做成"另一个界面" —— 版式、间距、层级都不动，这样两种主题下的操作习惯是同一套。
+   注意它必须在强调色那一组之后：两边特异性相同（都是 :root + 一个属性选择器），
+   靠源序决定谁赢；真正需要"浅色 × 某个强调色"的值时，用下面的复合选择器单独给。 */
+:root[data-theme="light"]{
+  --bg:#F2F5F9; --bg2:#E9EEF5;
+  --surf:#FFFFFF; --surf2:#F6F9FC; --surf3:#EDF2F8;
+  --chrome:#FFFFFF; --panel:rgba(9,17,26,.045); --field:rgba(9,17,26,.045);
+  --search:rgba(9,17,26,.05); --plate:rgba(255,255,255,.72); --pre-bg:rgba(14,159,110,.08);
+  --line:#DCE4EC; --line2:#BFCEDC; --hair:rgba(9,17,26,.10); --hair2:rgba(9,17,26,.16);
+  --grid-ink:rgba(9,17,26,.05); --sheen:rgba(255,255,255,.55);
+  --scroll:#C6D2DE; --scroll-hi:#AEBECB;
+  --aurora-a:rgba(14,159,110,.05); --aurora-b:rgba(42,111,214,.06);
+  --glass:rgba(255,255,255,.74); --glass-2:rgba(246,249,252,.78); --glass-3:rgba(237,242,248,.78);
+  --wall-scrim:rgba(242,245,249,.58);
+  --ink:#0D1620; --ink2:#4A5A6C; --muted:#5A6675; --muted2:#636B75;
+  --ok-ink:#0B7A4F; --bad-ink:#C42744; --warn-ink:#8A5300; --info-ink:#1F5FA8;
+  --addr-ink:#0B3B2A; --violet-ink:#4A2E86; --bar-ink:#FFFFFF; --cheek:#FFFFFF;
+  --on-sig:#FFFFFF; --sel:rgba(14,159,110,.20);
+  /* 实心色必须压到白字读得清为止：#0E9F6E 上压白字只有 3.39，而"浅色 + 默认强调色"
+     恰恰是最常被用到的一格（顶栏进度链点亮的段、设置面板里被选中的那一格）。
+     压深到 #0B7A54 之后白字 5.35，同时它自己做文字/描边在浅底上也有 4.89。 */
+  --sig:#0B7A54; --sig-deep:#076242; --sig-glow:rgba(14,159,110,.35);
+  --amber:#B26A00; --amber-soft:rgba(178,106,0,.10); --amber-edge:rgba(178,106,0,.30);
+  --amber-ink:#7A4700; --amber-on:#FFFFFF;
+  --rose:#D0364F; --rose-soft:rgba(208,54,79,.09); --rose-soft2:rgba(208,54,79,.14);
+  --rose-edge:#E7B6C0; --rose-ink:#9E2038;
+  --blue:#2A6FD6; --violet:#7A4FD0; --violet-soft:rgba(122,79,208,.07); --violet-edge:rgba(122,79,208,.28);
+  --toast-ok-bg:rgba(233,250,241,.98); --toast-ok-ink:#0B5C3B; --toast-ok-edge:rgba(14,159,110,.45);
+  --toast-bad-bg:rgba(255,238,241,.98); --toast-bad-ink:#93203A; --toast-bad-edge:rgba(208,54,79,.45);
+}
+:root[data-theme="light"][data-accent="blue"]{
+  --sig:#2A6FD6; --sig-deep:#1F55A8; --sig-glow:rgba(42,111,214,.32);
+  --sel:rgba(42,111,214,.20); --pre-bg:rgba(42,111,214,.08); --aurora-a:rgba(42,111,214,.06);
+}
+:root[data-theme="light"][data-accent="violet"]{
+  --sig:#7A4FD0; --sig-deep:#5B37A2; --sig-glow:rgba(122,79,208,.32);
+  --sel:rgba(122,79,208,.20); --pre-bg:rgba(122,79,208,.08); --aurora-a:rgba(122,79,208,.06);
+}
+
+/* 高对比：给"看不清"而不是"不喜欢"的处境用 —— 低端 TN 屏、白天靠窗的反光、投屏给旁边的人看。
+   它**不是**第 4 种口味，而是深色那一套把对比度推到顶：正文 20:1、次级 16:1、最低一级也有 8:1。
+   两点刻意的取舍：
+     · 不动强调色族（那一族本来就是为深底调的，所以这一个主题只有这一块，不需要
+       『主题 × 强调色』的复合规则 —— 那是加法里最贵的一种）；
+     · 页面氛围（极光 + 网格）让位给对比度：装饰与"看清"在这类处境里是直接冲突的。
+   命名与取值口径见项目内部开发记录的对应轮次。 */
+:root[data-theme="contrast"]{
+  --bg:#000308; --bg2:#04070C;
+  --surf:#080D13; --surf2:#0C1219; --surf3:#111922;
+  --chrome:#000308; --panel:rgba(0,0,0,.88); --field:rgba(255,255,255,.06);
+  --search:rgba(0,0,0,.88); --plate:rgba(0,0,0,.92);
+  --line:#2C3E52; --line2:#4A6A8A; --hair:rgba(255,255,255,.20); --hair2:rgba(255,255,255,.34);
+  --grid-ink:rgba(255,255,255,0); --sheen:rgba(255,255,255,.10);
+  --scroll:#3A5470; --scroll-hi:#4E7092;
+  --aurora-a:rgba(0,0,0,0); --aurora-b:rgba(0,0,0,0);
+  --glass:rgba(8,13,19,.74); --glass-2:rgba(12,18,25,.78); --glass-3:rgba(17,25,34,.78);
+  --wall-scrim:rgba(0,3,8,.58);
+  --ink:#FFFFFF; --ink2:#DAE6F2; --muted:#A9BCD0; --muted2:#93A7BC;
+  --ok-ink:#7CF5C8; --bad-ink:#FFB8C4; --warn-ink:#FFD79A; --info-ink:#B6D4FF;
+  --addr-ink:#E6FFF6; --violet-ink:#EDE7FF; --bar-ink:#03110B; --cheek:#03110B;
+  --on-sig:#03110B;
+  --amber:#FFC470; --amber-soft:rgba(255,196,112,.16); --amber-edge:rgba(255,196,112,.5);
+  --amber-ink:#FFE0B0; --amber-on:#2A1A00;
+  --rose:#FF8AA0; --rose-soft:rgba(255,138,160,.16); --rose-soft2:rgba(255,138,160,.26);
+  --rose-edge:#7A3348; --rose-ink:#FFD3DA;
+  --blue:#8CC4FF; --violet:#C4A8FF; --violet-soft:rgba(196,168,255,.12); --violet-edge:rgba(196,168,255,.45);
+  --toast-ok-bg:rgba(0,20,14,.97); --toast-ok-ink:#DFFFF0; --toast-ok-edge:rgba(62,224,161,.7);
+  --toast-bad-bg:rgba(30,0,8,.97); --toast-bad-ink:#FFDCE2; --toast-bad-edge:rgba(255,138,160,.7);
+}
+
+/* 动效「精简」：效果上等同于系统的 prefers-reduced-motion，但**这里是手抄的第二份**
+   （系统那一份见本文件末尾的 @media 块）。两处必须逐条相同 —— 只改一处就会走偏，
+   而"走偏"之后没有任何症状，所以有一条用例把两个集合逐条比对（TestLiteMotionMatchesSystemPreference）。
+   注意执行中的状态点仍然留着（它是"正在干活"的唯一反馈），只是不呼吸。
+   另：这一档**不许**碰背景光效（那是 data-backdrop 的事），用例会拦住。 */
+:root[data-motion="lite"] *{transition:none !important}
+:root[data-motion="lite"] .dot.run::after{animation:none;opacity:.45}
+/* 背景光效关掉：极光与网格是纯装饰，关掉不影响任何信息。
+   它只管这两层 —— 自选背景图片是另一件事（由 data-wall 决定），关掉光效不该把图一起关掉。 */
+:root[data-backdrop="off"] .aurora,
+:root[data-backdrop="off"] .grid{display:none}
+
+/* ---- 大字号（独立开关，**不是主题**） ----
+   为什么不做成第四个主题：主题的维度是"配色"，而字号动的是**版式**。把它塞进主题行，
+   会得到"主题 × 字号"的组合爆炸，而且用户没法从"深色/浅色"这类名字里读出字号。
+   所以它是和 data-motion / data-backdrop 同级的**独立维度**，默认 std，只有需要的人去打开。
+
+   覆盖的只是字号 token 与顶栏/底栏高度：**不给任何控件单独写样式**，所以布局结构与默认档完全一致，
+   区别只有"字大了一号"。这一档解决的是一件事——高对比能解决"看不清对比度"，解决不了"字太小"。
+
+   加档位时注意：这里必须覆盖 :root 里声明的**每一个** --fs-*，少一个就会出现"大部分变大、某一块没变"
+   （用例 TestBigScaleCoversEveryFontToken 会拦住）。 */
+:root[data-scale="big"]{
+  --fs-10:11px; --fs-10-5:11.5px; --fs-11:12px; --fs-11-5:12.5px; --fs-12:13px; --fs-12-5:13.5px;
+  --fs-13:14px; --fs-13-5:14.5px; --fs-14:15px; --fs-15:16px; --fs-16:17.5px; --fs-17:18.5px; --fs-18:19.5px;
+  --fs-9:10px; --fs-26:29px;
+  --row-top:62px; --row-bot:34px;
+}
+/* ---- 背景图片（独立于背景光效） ----
+   一层静态贴图 + 一层压暗。**静态是硬要求**：给背景做平移、缓慢缩放（Ken Burns）或视差，
+   等于整屏逐帧重新光栅化，直接回到「空闲 13%」那条红线上（见 guiperf_test.go）。
+   盖一层压暗（scrim）不是装饰，是为了让任意一张照片上的文字仍然读得清；
+   它的颜色取自当前主题底色，所以深浅两套主题各自得到合适的压暗方向。 */
+.wall{position:absolute;inset:0;background-image:var(--wall);
+  background-size:cover;background-position:center;background-repeat:no-repeat}
+.scrim{position:absolute;inset:0;display:none}
+:root[data-wall="on"] .scrim{display:block;background:var(--wall-scrim)}
+
+/* ---- 扁平化（独立开关，**不是主题**） ----
+   为什么不做成主题：主题的维度是「配色」，扁平化动的是**材质与层次**（圆角、阴影、渐变、光晕）。
+   与字号同理（见上面 data-scale 那段）—— 塞进主题行会得到「配色 × 材质」的组合爆炸，
+   而用户没法从「深色 / 浅色」这类名字里读出「扁平」。
+
+   它做的全是减法：圆角归零、外阴影去掉、渐变改纯色、光晕与扫光去掉。
+   渲染开销只降不升（阴影会把图层边界向外撑大，圆角要抗锯齿裁剪）；
+   真正被删掉的是一个隐患：一旦有人给阴影挂上 transition，每次过渡都要逐帧重新光栅化。
+
+   两条边界：
+     · 焦点态必须留下 —— 原来的外阴影聚焦环换成 outline（不占布局、不需要模糊）。焦点看不见等于键盘不能用。
+     · **不许出现 .bg / .aurora / .grid** —— 背景光效归 data-backdrop 管，两个开关各管各的
+       （用例 TestFlatNeverTouchesTheBackdropLayer 会拦住越界）。 */
+:root[data-flat="on"]{--r1:0px;--r2:0px;--r3:0px;--pill:0px}
+:root[data-flat="on"] .glyph{background:var(--sig);box-shadow:none}
+:root[data-flat="on"] .card,
+:root[data-flat="on"] .hero,
+:root[data-flat="on"] .plate{background:var(--surf)}
+:root[data-flat="on"] .plate .shine{display:none}
+:root[data-flat="on"] .run{box-shadow:none}
+:root[data-flat="on"] .mdot.on{box-shadow:none;outline:2px solid var(--sig-edge);outline-offset:2px}
+:root[data-flat="on"] .qbtn.on{box-shadow:none;outline:2px solid var(--sig-ring);outline-offset:0}
+:root[data-flat="on"] .search input:focus,
+:root[data-flat="on"] .fld input[type=text]:focus,
+:root[data-flat="on"] .mtxt:focus{box-shadow:none;outline:2px solid var(--sig-focus);outline-offset:1px}
+:root[data-flat="on"] ::-webkit-scrollbar-thumb,
+:root[data-flat="on"] .chip,
+:root[data-flat="on"] .linkbtn,
+:root[data-flat="on"] .t .nm .lg,
+:root[data-flat="on"] .t .lim,
+:root[data-flat="on"] .t.on::before,
+:root[data-flat="on"] .grp .tag,
+:root[data-flat="on"] .subtitle .v,
+:root[data-flat="on"] .ck .bx,
+:root[data-flat="on"] .qbtn,
+:root[data-flat="on"] .qform input,
+:root[data-flat="on"] .qform textarea,
+:root[data-flat="on"] .qpre,
+:root[data-flat="on"] .invtext,
+:root[data-flat="on"] .mtxt,
+:root[data-flat="on"] .glyph{border-radius:0}
+
+/* ---- 毛玻璃（独立开关） ----
+   这里是**伪毛玻璃：全表没有一处 backdrop-filter**。
+   真毛玻璃要把面板背后已经画好的像素读回来重新模糊，而"背后一变就得重做"这件事由别人触发 ——
+   一个正在运行的呼吸点就够让它逐帧重算。代价按玻璃总面积 × 变化频率增长，几块面板加起来就等价于整屏，
+   也就是那条「空闲 13%、运行中 51%」的红线。工具类界面不值得为观感买这个。
+
+   这里用三条开销为零的近似来达到同样的观感：
+     · 半透明底 —— 背后的极光透出来，低频背景本来就没有细节可丢，所以看着就像玻璃；
+     · 1px 顶边比其余三边亮一档 —— 玻璃边缘的厚度感，不用外阴影；
+     · 不做跟手（界面是固定栅格，滚动的是内部列表，玻璃容器本身不动），因此不需要实时取样。
+
+   守卫：TestGuiNoBackdropFilterAtAll 会拦住任何人把真毛玻璃写回来，
+   TestGuiNeverBlursAFullScreenLayer 会拦住整屏图层带模糊或动画。
+
+   ---- 为什么设了背景图时毛玻璃一律让位（选择器里那个 :not 不是随手加的）----
+   文字要读得清，就得和它实际压着的那个合成色差够远。半透明面板压在一张任意照片上时，
+   合成色 = 玻璃色 × α + 压暗色 × (1-α) 再与照片混合，而**照片的内容由用户决定**：
+   一张纯白图就能把它推到最亮。实测（把全白图与全黑图各合成一遍）：
+   深色主题配全白图时第四级灰落在 3.97，浅色主题配全黑图时落在 4.15，而门槛是 4.5。
+   要把它压回 4.5，面板不透明度得提到 0.94 以上 —— 那时照片已经透不出来了，等于没做玻璃。
+   反过来把第三、第四级灰各自调亮/调暗到能承受照片，会让这两级收敛成同一个颜色，
+   四级灰阶就塌成三级。
+   所以这里不去两头凑，直接把两个功能做成互斥：设了背景图，面板保持实心。
+   面板上会就地把这件事说清楚（见 uiSettingsHTML 里毛玻璃那一行），不是静默失效。
+
+   有意**不**玻璃化的几处，不是漏了：.mbox（设置面板那扇门）保持实心，表单要最好读；
+   .capcell / .linkbar / .stat 是嵌在玻璃条里的控件，再叠一层半透明会重复压暗一层，
+   而且 .cap 靠 1px 间隙画分隔线，透过去会露出线色。 */
+:root[data-glass="on"]:not([data-wall="on"]) .top,
+:root[data-glass="on"]:not([data-wall="on"]) .foot,
+:root[data-glass="on"]:not([data-wall="on"]) .card,
+:root[data-glass="on"]:not([data-wall="on"]) .gcard,
+:root[data-glass="on"]:not([data-wall="on"]) .t,
+:root[data-glass="on"]:not([data-wall="on"]) .log{
+  background-image:none;
+  background-color:var(--glass)}
+/* 顶边比其余三边亮一档。.top 只有下边框（它贴的是视口上沿），那一档得落在下边框上 ——
+   给它写 border-top-color 是一条永远不生效的死规则。 */
+:root[data-glass="on"]:not([data-wall="on"]) .card,
+:root[data-glass="on"]:not([data-wall="on"]) .gcard,
+:root[data-glass="on"]:not([data-wall="on"]) .t,
+:root[data-glass="on"]:not([data-wall="on"]) .log,
+:root[data-glass="on"]:not([data-wall="on"]) .foot{border-top-color:var(--line2)}
+:root[data-glass="on"]:not([data-wall="on"]) .top{border-bottom-color:var(--line2)}
+/* 面板自己的悬停/选中态原本是实心色，玻璃下要跟着一起变透明，否则鼠标一划过就"啪"地变实了 */
+:root[data-glass="on"]:not([data-wall="on"]) .t:hover,
+:root[data-glass="on"]:not([data-wall="on"]) .t.on{background-color:var(--glass-2)}
+:root[data-glass="on"]:not([data-wall="on"]) .gcard:hover{background-color:var(--glass-3)}
+/* 被判定"环境不支持"的条目本来就是置灰的，鼠标划过不该亮起玻璃悬停色。
+   上面那条 :hover 的特异性比 .t.off:hover 高，所以这里必须显式压回去。 */
+:root[data-glass="on"]:not([data-wall="on"]) .t.off:hover{background-color:var(--surf)}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font:var(--fs-13-5)/1.6 var(--ui);overflow:hidden;
+  -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input{font:inherit;color:inherit}
+::selection{background:var(--sel)}
+[hidden]{display:none !important}
+
+/* 背景：静态。这一层占满视口，所以它绝对不能带 filter / backdrop-filter / 动画。 */
+.bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.aurora{position:absolute;inset:0;background:
+    linear-gradient(180deg,var(--aurora-a),transparent 42%),
+    radial-gradient(52% 40% at 88% -6%,var(--aurora-b),transparent 68%)}
+.grid{position:absolute;inset:0;opacity:.5;
+  background-image:linear-gradient(var(--grid-ink) 1px,transparent 1px),
+                   linear-gradient(90deg,var(--grid-ink) 1px,transparent 1px);
+  background-size:48px 48px;
+  mask-image:radial-gradient(130% 100% at 50% 0,#000 24%,transparent 92%)}
+
+.app{position:relative;z-index:1;display:grid;grid-template-rows:var(--row-top) 1fr var(--row-bot);height:100%}
+
+/* ---------------------------------------------------------------- 顶栏 ---- */
+.top{display:flex;align-items:center;gap:var(--s3);padding:0 20px;
+  border-bottom:1px solid var(--line);background:var(--chrome)}
+.glyph{position:relative;width:22px;height:22px;flex:0 0 auto;border-radius:6px;
+  background:linear-gradient(150deg,var(--sig),var(--sig-deep));box-shadow:0 0 0 1px var(--sig-edge)}
+.glyph::after{content:"";position:absolute;left:6px;top:6px;width:10px;height:10px;border-radius:2px;background:var(--bg)}
+.glyph::before{content:"";position:absolute;left:9px;top:9px;width:4px;height:4px;border-radius:1px;background:var(--sig)}
+.brand{display:flex;align-items:baseline;gap:9px;min-width:0}
+.brand b{font:600 var(--fs-16)/1 var(--disp);letter-spacing:.03em}
+.brand .sub{font-size:var(--fs-12-5);color:var(--ink2)}
+.brand .ver{font:var(--fs-11-5)/1 var(--mono);color:var(--muted);padding-left:2px}
+.spacer{flex:1}
+
+.linkbar{display:flex;align-items:center;padding:4px 4px 4px 10px;
+  border:1px solid var(--line);border-radius:var(--pill);background:var(--surf)}
+.linkbar .n{font:var(--fs-11-5)/1 var(--mono);color:var(--muted);padding:4px 9px;border-radius:var(--pill)}
+.linkbar .n.on{color:var(--on-sig);background:var(--sig)}
+.linkbar .s{width:14px;height:1px;background:var(--line2);flex:0 0 auto}
+.linkbar .s.on{background:var(--sig)}
+
+.stat{display:flex;align-items:center;gap:9px;padding:6px 13px 6px 11px;
+  border:1px solid var(--line);border-radius:var(--pill);background:var(--surf)}
+.dot{position:relative;width:8px;height:8px;border-radius:50%;background:var(--muted2);flex:0 0 auto}
+.dot.run{background:var(--sig)}
+.dot.bad{background:var(--rose)}
+/* 执行中的呼吸圈：只动 transform + opacity；只在有任务时存在，空闲时页面上没有无限动画。 */
+.dot.run::after{content:"";position:absolute;inset:-1px;border-radius:50%;
+  border:1.5px solid var(--sig-live);animation:beat 1.7s ease-out infinite}
+@keyframes beat{0%{transform:scale(1);opacity:.9}70%{transform:scale(3);opacity:0}100%{transform:scale(3);opacity:0}}
+.stat span{font-size:var(--fs-12-5);color:var(--ink2);white-space:nowrap}
+
+.btn{padding:7px 14px;border:1px solid var(--line);border-radius:var(--r1);
+  color:var(--ink2);font-size:var(--fs-12-5);background:var(--surf2);transition:color .16s,background .16s,border-color .16s}
+.btn:hover:not(:disabled){color:var(--ink);border-color:var(--line2);background:var(--surf3)}
+.btn:disabled{opacity:.38;cursor:not-allowed}
+.btn.sm{padding:5px 10px;font-size:var(--fs-11-5)}
+.btn.danger{color:var(--rose-ink);border-color:var(--rose-edge);background:var(--rose-soft)}
+.btn.danger:hover:not(:disabled){background:var(--rose-soft2)}
+
+/* 顶部提示条：界面只有一扇窗，凡是"本来会弹个黑框告诉你"的事都写在这里 */
+.notice{display:none;align-items:center;gap:10px;padding:9px 20px;font-size:var(--fs-12-5);color:var(--amber-ink);
+  background:var(--amber-soft);border-bottom:1px solid var(--amber-edge)}
+.notice i{width:6px;height:6px;border-radius:50%;background:var(--amber);flex:0 0 auto}
+
+/* ---------------------------------------------------------------- 主体 ---- */
+main{display:grid;grid-template-columns:340px minmax(0,1fr);gap:var(--s4);
+  min-height:0;padding:var(--s4) 20px}
+.col{display:flex;flex-direction:column;gap:var(--s3);min-width:0;min-height:0}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--scroll);border-radius:9px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:var(--scroll-hi);background-clip:content-box}
+::-webkit-scrollbar-track{background:transparent}
+
+.rail{display:flex;flex-direction:column;min-height:0;gap:var(--s2)}
+/* 「更多功能」展开后，操作列表必须自己滚，不能把上面的能力条挤没：
+   实测（headless 截图）收起的列表展开时，能力条会被压成一条 1px 的线。
+   根因是 #railmore 只有内容高度、撑破了这一列，于是 flex 收缩落到了能力条头上。
+   三处都写死不许收缩、把滚动交给 .tasks，问题消失。 */
+.cap,.morebtn{flex:0 0 auto}
+#railmore{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.rowline{display:flex;align-items:center;gap:var(--s2)}
+.search{position:relative;flex:1}
+.search input{width:100%;padding:8px 11px 8px 30px;border:1px solid var(--line);border-radius:var(--r1);
+  background:var(--search);outline:none;font-size:var(--fs-12-5);transition:border-color .16s,box-shadow .16s}
+.search input:focus{border-color:var(--sig-focus);box-shadow:0 0 0 3px var(--sig-soft)}
+.search input::placeholder{color:var(--muted2)}
+.search .ic{position:absolute;left:10px;top:50%;width:11px;height:11px;margin-top:-6px;
+  border:1.5px solid var(--muted);border-radius:50%}
+.search .ic::after{content:"";position:absolute;right:-4px;bottom:-3px;width:5px;height:1.5px;
+  background:var(--muted);transform:rotate(45deg);border-radius:1px}
+.railcount{font:var(--fs-11)/1 var(--mono);color:var(--muted2);white-space:nowrap}
+
+/* 环境能力条：体检结论的精简投影。不可用的能力标红，对应的操作会被置灰。 */
+.cap{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:var(--r2);overflow:hidden}
+.capcell{display:flex;align-items:center;gap:7px;padding:7px 10px;background:var(--surf);
+  text-align:left;transition:background .16s}
+.capcell:hover{background:var(--surf2)}
+.capcell .cl{font:var(--fs-10-5)/1 var(--mono);color:var(--muted2);letter-spacing:.06em}
+.capcell .cv{font-size:var(--fs-12);color:var(--ink2);margin-left:auto;white-space:nowrap}
+.capcell.ok .cv{color:var(--sig)}
+.capcell.no .cv{color:var(--rose)}
+.capcell.unk .cv{color:var(--muted2)}
+/* 未检测时并成一格：横跨两列，值那一侧用信号绿，明确它是"可点的动作"而不是结论 */
+.capcell.wide{grid-column:1 / -1;cursor:pointer}
+.capcell.wide .cv{color:var(--sig)}
+.capnote{font-size:var(--fs-11-5);color:var(--muted2);padding:0 2px;line-height:1.5}
+/* 未选操作时主区那一句话。轻量到不抢视线，只负责把"其他操作在哪"说清楚。 */
+.idle{font-size:var(--fs-12-5);color:var(--muted2);line-height:1.7}
+.idle b{color:var(--ink2);font-weight:600}
+
+.tasks{flex:1;min-height:0;overflow:auto;padding-right:5px}
+.grp{display:flex;align-items:center;gap:8px;margin:var(--s4) 0 var(--s2);
+  padding:5px 0 5px 2px;background:var(--bg)}
+.grp:first-child{margin-top:2px}
+.grp .tag{width:5px;height:5px;border-radius:1.5px;flex:0 0 auto;background:var(--muted2)}
+.grp .t{font:var(--fs-11)/1 var(--mono);letter-spacing:.14em;color:var(--muted)}
+.grp .rule{flex:1;height:1px;background:var(--line)}
+.grp.g1 .tag{background:var(--sig)} .grp.g2 .tag{background:var(--blue)}
+.grp.g3 .tag{background:var(--violet)} .grp.g4 .tag{background:var(--amber)}
+.grp.g5 .tag{background:var(--muted)} .grp.g6 .tag{background:var(--rose)}
+
+.t{display:block;width:100%;text-align:left;padding:9px 12px 9px 13px;margin-bottom:6px;
+  border:1px solid var(--line);border-radius:var(--r2);background:var(--surf);position:relative;
+  transition:border-color .16s,background .16s,transform .16s}
+.t:hover{border-color:var(--line2);background:var(--surf2);transform:translateX(2px)}
+.t .nm{display:flex;align-items:center;gap:7px;font-size:var(--fs-13);font-weight:600;margin-bottom:2px}
+.t .nm .lg{margin-left:auto;font:var(--fs-10)/1 var(--mono);color:var(--muted);border:1px solid var(--line2);
+  border-radius:3px;padding:2px 4px;white-space:nowrap}
+.t .ds{font-size:var(--fs-11-5);line-height:1.5;color:var(--muted);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.t.on{border-color:var(--sig-edge);background:var(--surf2)}
+.t.on::before{content:"";position:absolute;left:-1px;top:9px;bottom:9px;width:2px;border-radius:2px;background:var(--sig)}
+.t.on .ds{color:var(--ink2)}
+/* 环境不支持的操作：置灰，鼠标提示只给一句原因（见 .t.off 的 title） */
+.t.off{opacity:.42;cursor:not-allowed}
+.t.off:hover{border-color:var(--line);background:var(--surf);transform:none}
+/* 环境存疑但不禁用：琥珀色标记，同样把原因放在 title 里 */
+.t .lim{font:var(--fs-10)/1 var(--mono);color:var(--amber);border:1px solid var(--amber-edge);
+  border-radius:3px;padding:2px 4px;background:var(--amber-soft);white-space:nowrap}
+.t.hide{display:none}
+.tempty{padding:26px 10px;text-align:center;color:var(--muted2);font-size:var(--fs-12-5)}
+
+.card{position:relative;border:1px solid var(--line);border-radius:var(--r3);
+  background:linear-gradient(180deg,var(--surf),var(--bg2))}
+.card::before,.card::after{content:"";position:absolute;width:10px;height:10px;pointer-events:none;
+  opacity:0;transition:opacity .18s}
+.card::before{top:-1px;left:-1px;border-top:1px solid var(--sig);border-left:1px solid var(--sig);border-radius:var(--r3) 0 0 0}
+.card::after{bottom:-1px;right:-1px;border-bottom:1px solid var(--sig);border-right:1px solid var(--sig);border-radius:0 0 var(--r3) 0}
+.card:hover::before,.card:hover::after{opacity:.9}
+
+.k{display:flex;align-items:center;gap:8px;font:var(--fs-11)/1 var(--mono);letter-spacing:.14em;
+  color:var(--muted);margin-bottom:var(--s3)}
+.k::before{content:"";width:12px;height:1px;background:var(--muted2)}
+.hint{font-size:var(--fs-12-5);color:var(--ink2)}
+
+/* 首屏：未选择操作时的入口 */
+.guide{padding:var(--s5) var(--s5) var(--s4)}
+.gtitle{font:600 var(--fs-18)/1.35 var(--disp);letter-spacing:.01em;margin-bottom:6px}
+.gsub{font-size:var(--fs-12-5);color:var(--ink2);margin-bottom:var(--s5);max-width:62ch}
+.gcards{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s3)}
+.gcard{position:relative;text-align:left;padding:var(--s4);border:1px solid var(--line);border-radius:var(--r2);
+  background:var(--surf2);overflow:hidden;transition:border-color .18s,background .18s,transform .18s}
+.gcard:hover{border-color:var(--sig-edge);background:var(--surf3);transform:translateY(-2px)}
+.gcard .no{font:var(--fs-11)/1 var(--mono);color:var(--muted2);letter-spacing:.1em}
+.gcard .gt{font-size:var(--fs-14);font-weight:600;margin:9px 0 5px}
+.gcard .gd{font-size:var(--fs-12);line-height:1.55;color:var(--muted)}
+.gcard .bar{position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--sig);opacity:.5}
+.gcard.g-b .bar{background:var(--blue)} .gcard.g-v .bar{background:var(--violet)}
+.gcard.off{opacity:.42;cursor:not-allowed}
+.gcard.off:hover{border-color:var(--line);background:var(--surf2);transform:none}
+.gsteps{margin-top:var(--s5);padding-top:var(--s4);border-top:1px solid var(--line);display:flex;gap:var(--s5);flex-wrap:wrap}
+.gstep{display:flex;gap:9px;align-items:flex-start;font-size:var(--fs-12);color:var(--ink2);max-width:32ch}
+.gstep b{display:flex;align-items:center;justify-content:center;width:17px;height:17px;flex:0 0 auto;
+  border-radius:50%;font:var(--fs-11)/1 var(--mono);color:var(--bg);background:var(--sig)}
+
+/* 操作头 + 表单 */
+.formcard{padding:0;display:flex;flex-direction:column;flex:0 1 auto;max-height:min(56vh,600px)}
+.workhead{padding:var(--s4) var(--s5) var(--s4)}
+.whTop{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap}
+.whTop h2{font:600 var(--fs-17)/1.3 var(--disp);letter-spacing:.01em}
+.chip{font:var(--fs-10-5)/1 var(--mono);padding:3px 7px;border-radius:4px;border:1px solid var(--line2);color:var(--ink2)}
+/* 在场玩家：房主唯一能看到"谁进来了"的地方。安全码用等宽字体放大一点，
+   因为它是要和玩家对着念、逐位核对的一串字符。 */
+.guests{margin-top:var(--s5);padding-top:var(--s4);border-top:1px solid var(--line)}
+.guests .ghead{font:var(--fs-11)/1 var(--mono);letter-spacing:.14em;color:var(--muted);margin-bottom:10px}
+.guests ul{list-style:none;margin:0;padding:0}
+.guests li{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s4);
+  padding:7px 0;border-bottom:1px solid var(--line)}
+.guests li:last-child{border-bottom:0}
+.guests li .gc{font:var(--fs-13)/1 var(--mono);color:var(--ink);letter-spacing:.08em}
+.guests li .gm{font:var(--fs-12)/1 var(--mono);color:var(--muted2)}
+.chip.run-long{color:var(--amber);border-color:var(--amber-edge);background:var(--amber-soft)}
+.chip.grp{color:var(--muted)}
+.whDesc{font-size:var(--fs-12-5);color:var(--ink2);margin-top:7px;max-width:76ch}
+.whtool{margin-left:auto;display:flex;gap:var(--s2)}
+.linkbtn{font:var(--fs-11-5)/1 var(--mono);color:var(--muted);padding:4px 6px;border-radius:4px}
+.linkbtn:hover{color:var(--sig);background:var(--surf2)}
+.cmd{display:block;margin-top:var(--s3);padding:9px 11px;border:1px dashed var(--line2);border-radius:var(--r1);
+  background:var(--field);font:var(--fs-12)/1.5 var(--mono);color:var(--ink2);white-space:pre-wrap;word-break:break-all}
+.fields{display:flex;flex-direction:column;gap:var(--s4);flex:1;min-height:0;overflow:auto;padding:0 var(--s5)}
+.fld label{display:flex;align-items:baseline;gap:7px;font-size:var(--fs-12-5);color:var(--ink2);margin-bottom:6px}
+.fld label .r{font:var(--fs-10)/1 var(--mono);color:var(--rose)}
+.fld label .qi{width:12px;height:12px;border-radius:50%;border:1px solid var(--line2);
+  font:var(--fs-9)/10px var(--mono);text-align:center;color:var(--muted2);cursor:help;flex:0 0 auto}
+.fld input[type=text]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r1);
+  background:var(--field);outline:none;font:var(--fs-13)/1.4 var(--mono);transition:border-color .16s,box-shadow .16s}
+.fld input[type=text]::placeholder{font-family:var(--ui);color:var(--muted2)}
+.fld input[type=text]:focus{border-color:var(--sig-focus);box-shadow:0 0 0 3px var(--sig-soft)}
+.ck{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid var(--line);
+  border-radius:var(--r1);background:var(--field);cursor:pointer;transition:border-color .16s,background .16s}
+.ck:hover{border-color:var(--line2);background:var(--surf2)}
+.ck .bx{position:relative;width:17px;height:17px;flex:0 0 auto;border:1.5px solid var(--line2);
+  border-radius:4px;background:var(--field);display:block;transition:background .16s,border-color .16s}
+.ck input{position:absolute;opacity:0;pointer-events:none}
+.ck .tx{display:block;font-size:var(--fs-12-5);color:var(--ink2)}
+.ck input:checked+.bx{background:var(--sig);border-color:var(--sig)}
+.ck input:checked+.bx::after{content:"";position:absolute;left:4.5px;top:1.5px;width:5px;height:9px;
+  border-right:2px solid var(--cheek);border-bottom:2px solid var(--cheek);transform:rotate(42deg)}
+.ck input:checked~.tx{color:var(--ink)}
+.runbar{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) var(--s5) var(--s4);
+  border-top:1px solid var(--line)}
+.run{padding:11px 26px;border-radius:var(--r1);font:600 var(--fs-13-5)/1 var(--ui);color:var(--cheek);
+  background:var(--sig);box-shadow:0 10px 24px -14px var(--sig-glow);transition:filter .16s}
+.run:hover:not(:disabled){filter:brightness(1.07)}
+.run:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+.runhint{font-size:var(--fs-11-5);color:var(--muted2);margin-left:auto;text-align:right;line-height:1.45}
+
+/* 入口地址卡：本工具唯一要交付给用户的东西，所以出现在最上面、字号最大 */
+.hero{padding:var(--s4) var(--s5) var(--s5);overflow:hidden;border-color:var(--sig-edge);
+  background:linear-gradient(160deg,var(--sig-soft),var(--surf) 46%)}
+.hero .k{color:var(--sig)} .hero .k::before{background:var(--sig)}
+.plate{position:relative;margin:2px 0 var(--s3);padding:15px 16px;border-radius:var(--r2);
+  border:1px solid var(--sig-edge);background:var(--plate);overflow:hidden}
+.plate .shine{position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(100deg,transparent 32%,var(--sheen) 50%,transparent 68%);
+  transform:translateX(-120%)}
+.addr{font:600 var(--fs-26)/1.32 var(--mono);letter-spacing:.005em;word-break:break-all;color:var(--addr-ink);
+  -webkit-user-select:all;user-select:all}
+.rack{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s3)}
+.steps{display:flex;flex-direction:column;gap:7px;margin-top:var(--s4);padding-top:var(--s3);border-top:1px solid var(--line)}
+.step{display:flex;gap:9px;font-size:var(--fs-12-5);color:var(--ink2)}
+.step b{font:var(--fs-11)/1.5 var(--mono);color:var(--sig);flex:0 0 auto}
+.jin{margin-top:var(--s4)}
+.subtitle{display:flex;align-items:center;gap:8px;margin:0 0 var(--s2);
+  font:var(--fs-11)/1 var(--mono);letter-spacing:.12em;color:var(--muted)}
+.subtitle .v{width:9px;height:9px;border-radius:2px;background:var(--violet)}
+.joinline{font:var(--fs-12-5)/1.5 var(--mono);color:var(--violet-ink);word-break:break-all;
+  -webkit-user-select:all;user-select:all;padding:10px 12px;border:1px solid var(--violet-edge);
+  border-radius:var(--r1);background:var(--violet-soft)}
+
+/* 说明书覆盖层：整屏接管，内部是独立文档（自带浅色排版），与应用界面互不影响样式 */
+.manual{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;background:var(--bg)}
+.manual-h{display:flex;align-items:center;gap:var(--s3);height:46px;padding:0 16px;
+  border-bottom:1px solid var(--line);background:var(--chrome);flex:0 0 auto}
+.manual-h span{flex:1;font-size:var(--fs-13);color:var(--ink2)}
+.manual iframe{flex:1;border:0;width:100%;background:#fff}
+
+/* 一步开局：默认入口。房主只要一个房间码，玩家只要一次粘贴。
+   颜色与圆角沿用既有配色（信号绿 var(--sig) / 四级文字 / 圆角 8-16），不引第二套样式。 */
+.quick{padding:16px 16px 18px}
+.qhead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.qhead .qt{font-size:var(--fs-17);font-weight:600;color:var(--ink)}
+.qhead .qs{font-size:var(--fs-12-5);color:var(--muted)}
+.qbtns{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.qbtn{flex-direction:column;align-items:flex-start;gap:3px;height:auto;min-height:58px;
+  padding:12px 14px;text-align:left;line-height:1.35;border-radius:12px;cursor:pointer}
+.qbtn .qi{font-size:var(--fs-15);font-weight:600}
+.qbtn .qd{font-size:var(--fs-12-5);font-weight:400;color:var(--muted)}
+.qbtn:hover{border-color:var(--sig)}
+.qbtn.on{border-color:var(--sig);box-shadow:0 0 0 3px var(--sig-ring)}
+.btn.primary{border-color:var(--sig);background:var(--sig);color:var(--bar-ink);font-weight:600}
+.qform{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:16px;
+  padding-top:14px;border-top:1px solid var(--hair)}
+.qform label{font-size:var(--fs-12-5);color:var(--ink2)}
+.qform input,.qform textarea{padding:0 10px;height:34px;border-radius:8px;
+  border:1px solid var(--hair2);background:var(--field);color:var(--ink);
+  font:inherit;font-size:var(--fs-13)}
+.qform input{width:190px}
+.qform input.tiny{width:86px;text-align:center}
+.qpre{flex:1 1 100%;font-size:var(--fs-12-5);color:var(--ink2);background:var(--pre-bg);
+  border-left:2px solid var(--sig);border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:2px}
+.qpre b{color:var(--ink);font-weight:600}
+.qform textarea{flex:1 1 320px;height:auto;min-height:58px;padding:7px 10px;resize:vertical;
+  font-size:var(--fs-12-5);line-height:1.6}
+.qnote{flex:1 1 100%;font-size:var(--fs-12);color:var(--muted)}
+@media (max-width:820px){ .qbtns{grid-template-columns:1fr} }
+
+/* 邀请卡片：房主唯一需要转发的一段话 */
+.invite{margin-top:16px;border-top:1px solid var(--hair);padding-top:12px}
+.invhead{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.invhead span{flex:1;font-size:var(--fs-12-5);color:var(--ink2)}
+.invtext{font-family:Consolas,"Cascadia Mono",monospace;font-size:var(--fs-12-5);line-height:1.7;
+  white-space:pre-wrap;word-break:break-all;background:var(--field);
+  border:1px solid var(--hair);border-radius:8px;padding:10px 12px;
+  color:var(--ink2);max-height:280px;overflow:auto}
+
+/* 「更多功能」：操作列表收起后留在左栏的入口 */
+.morebtn{display:block;width:100%;text-align:left;margin-top:8px}
+
+/* 提示条：一句结论 + 一个动作。目前只用于"入站未放行"这一件事。
+   Windows 防火墙默认拦掉所有入站，这是"我这边正常、玩家就是连不上"的头号原因，
+   所以提示放在最上面；但要不要放行由用户点，界面不自动改系统。 */
+.banner{display:flex;align-items:center;gap:var(--s3);padding:11px 14px;
+  border:1px solid var(--amber-edge);border-radius:var(--r2);background:var(--amber-soft);
+  color:var(--amber-ink);font-size:var(--fs-12-5)}
+.banner .bi{width:6px;height:6px;border-radius:50%;background:var(--amber);flex:0 0 auto}
+.banner .bt{flex:1;min-width:0}
+.banner .btn.amber{color:var(--amber-on);background:var(--amber);border-color:transparent}
+.banner .btn.amber:hover:not(:disabled){background:var(--amber);color:var(--amber-on);filter:brightness(1.06)}
+
+/* 日志：两层各一个容器，切换靠显示/隐藏，不重建节点 */
+.logcard{flex:1;min-height:140px;display:flex;flex-direction:column;padding:var(--s3) var(--s4) var(--s4)}
+.loghead{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-bottom:var(--s2)}
+.loghead .k{margin:0}
+.segs{display:flex;border:1px solid var(--line);border-radius:var(--r1);overflow:hidden}
+.seg{padding:4px 10px;font:var(--fs-11-5)/1.5 var(--mono);color:var(--muted);transition:color .16s,background .16s}
+.seg+.seg{border-left:1px solid var(--line)}
+.seg:hover{color:var(--ink2);background:var(--surf2)}
+.seg.on{color:var(--surf);background:var(--ink2)}
+.loghead .r{margin-left:auto;display:flex;align-items:center;gap:var(--s2)}
+.linecnt{font:var(--fs-11)/1 var(--mono);color:var(--muted2)}
+.log{flex:1;min-height:0;overflow:auto;padding:var(--s3) 0;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r2)}
+.ln{display:flex;gap:10px;font:var(--fs-12-5)/1.66 var(--mono);padding:0 12px;white-space:pre-wrap;word-break:break-word}
+/* 行号：用最低那一级灰阶，但**不再叠 opacity** —— 原来 .6 的透明度把它压到对比度 1.4，
+   等于看不见。层次交给字号与位置，不交给"让人读不到"。 */
+.ln .no{flex:0 0 auto;width:34px;text-align:right;color:var(--muted2);-webkit-user-select:none;user-select:none}
+.ln .tx{flex:1;min-width:0}
+.ln.dim .tx{color:var(--muted)}
+.ln.ok .tx{color:var(--ok-ink)}
+.ln.bad .tx{color:var(--bad-ink)}
+.ln.warn .tx{color:var(--warn-ink)}
+.ln.info .tx{color:var(--info-ink)}
+.lgempty{padding:30px 16px;text-align:center;color:var(--muted2);font:var(--fs-12)/1.7 var(--mono)}
+
+/* 详情面板：原理性内容放这里，不铺在主界面 */
+.modal{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;
+  background:var(--panel)}
+.mbox{width:min(620px,86vw);max-height:76vh;display:flex;flex-direction:column;
+  border:1px solid var(--line2);border-radius:var(--r3);background:var(--bg2)}
+.mhead{display:flex;align-items:center;gap:var(--s3);padding:var(--s4) var(--s5);
+  border-bottom:1px solid var(--line)}
+.mhead .mt{font:600 var(--fs-15)/1.3 var(--disp)}
+.mbody{padding:var(--s4) var(--s5);overflow:auto;font-size:var(--fs-13);line-height:1.75;color:var(--ink2);
+  white-space:pre-wrap}
+
+/* 设置面板。它复用「详情」那扇门（#modal）—— 同样是"点开看完就关掉"的一块内容，
+   再开一扇门只会让人多记一个位置。唯一的差别是里面是表单，所以把 pre-wrap 关掉。 */
+.mset{white-space:normal}
+.mgrp{display:flex;align-items:center;gap:var(--s2);margin:20px 0 8px;
+  font:var(--fs-11)/1 var(--mono);letter-spacing:.12em;color:var(--muted)}
+.mgrp:first-child{margin-top:0}
+.mgrp::after{content:"";flex:1;height:1px;background:var(--line)}
+.mrow{display:flex;align-items:center;gap:var(--s3);padding:6px 0}
+.mrow>.ml{flex:0 0 118px;font-size:var(--fs-12-5);color:var(--ink2)}
+.mrow>.md{flex:1;min-width:0;display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap}
+.mhint{flex:1 1 100%;font-size:var(--fs-11-5);color:var(--muted);line-height:1.55}
+.mseg{display:flex;border:1px solid var(--line);border-radius:var(--r1);overflow:hidden}
+.mseg button{padding:5px 12px;font-size:var(--fs-12);color:var(--muted);transition:color .16s,background .16s}
+.mseg button+button{border-left:1px solid var(--line)}
+.mseg button:hover{color:var(--ink2);background:var(--surf2)}
+.mseg button.on{color:var(--on-sig);background:var(--sig)}
+.msw{display:flex;align-items:center;gap:8px;font-size:var(--fs-12-5);color:var(--ink2);cursor:pointer}
+.msw input{width:15px;height:15px;accent-color:var(--sig);cursor:pointer}
+.mtxt{width:100%;max-width:330px;padding:0 10px;height:32px;border-radius:8px;
+  border:1px solid var(--hair2);background:var(--field);color:var(--ink);font-size:var(--fs-12-5)}
+.mtxt:focus{outline:none;border-color:var(--sig-focus);box-shadow:0 0 0 3px var(--sig-soft)}
+.mtxt.small{max-width:120px}
+/* 路径输入框要占满整行：完整路径本来就长，挤在 330px 里没法核对填错在哪一段 */
+.mtxt.path{max-width:100%;font-family:var(--mono);font-size:var(--fs-11-5)}
+.mdot{width:22px;height:22px;border-radius:50%;border:1px solid var(--line2);cursor:pointer;padding:0}
+.mdot.on{box-shadow:0 0 0 2px var(--surf),0 0 0 4px var(--sig-edge)}
+.mfoot{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-top:18px;
+  padding-top:14px;border-top:1px solid var(--line)}
+.mfoot .mnote{flex:1 1 100%;font-size:var(--fs-11-5);color:var(--muted);line-height:1.6}
+.msaved{font-size:var(--fs-11-5);color:var(--sig)}
+
+/* 底栏 */
+.foot{display:flex;align-items:center;gap:var(--s3);padding:0 20px;border-top:1px solid var(--line);
+  background:var(--chrome);font:var(--fs-11)/1 var(--mono);color:var(--muted2);white-space:nowrap;overflow:hidden}
+.foot>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.foot .cmdline{color:var(--muted);max-width:34vw}
+.foot .gap{flex:1;overflow:visible}
+/* 底栏的背景音乐入口：只显示当前曲名，**不做任何动画** —— 常驻区域对动画最不宽容，
+   而且它每 700ms 会跟着状态刷新一次，动画会让这条底线变得很难守。 */
+#bgmName{display:inline-block;max-width:22vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
+
+.toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);z-index:50;
+  padding:9px 17px;border-radius:var(--pill);border:1px solid var(--sig-edge);
+  background:var(--toast-ok-bg);color:var(--toast-ok-ink);font-size:var(--fs-12-5);max-width:70vw}
+.toast.bad{border-color:var(--toast-bad-edge);background:var(--toast-bad-bg);color:var(--toast-bad-ink)}
+@media (prefers-reduced-motion:reduce){
+  .dot.run::after{animation:none;opacity:.45}
+  *{transition:none !important}
+}
+@media (max-width:960px){main{grid-template-columns:1fr}.rail{max-height:340px}}
+/* 窗口被拖窄时，最先让位的是那条进度链：它是"现在走到哪一段"的提示，
+   而同样的信息在状态胶囊里也有一份。不让位的话，右上角那几个按钮会被挤出去。 */
+@media (max-width:1040px){.linkbar{display:none}}
+</style>
+</head>
+<body>
+<div class="bg"><div class="wall"></div><div class="scrim"></div><div class="aurora"></div><div class="grid"></div></div>
+
+<div class="app" id="app">
+  <header class="top">
+    <span class="glyph"></span>
+    <div class="brand"><b>mclbx</b><span class="sub">联机工具</span><span class="ver" id="ver"></span></div>
+    <div class="spacer"></div>
+    <div class="linkbar" id="linkbar" title="当前连接进展">
+      <span class="n on">本机</span><span class="s on"></span>
+      <span class="n" id="lnkEntry">入口</span><span class="s" id="lnkS2"></span>
+      <span class="n" id="lnkRoom">房间</span><span class="s" id="lnkS3"></span>
+      <span class="n" id="lnkPeer">玩家</span>
+    </div>
+    <div class="stat"><span class="dot" id="pulse"></span><span id="status">空闲</span></div>
+    <button class="btn sm" id="btnSettings" title="外观、默认值与数据">设置</button>
+    <button class="btn" id="btnManual">说明书</button>
+    <button class="btn danger" id="btnStop" disabled>停止</button>
+    <button class="btn" id="btnQuit">退出</button>
+  </header>
+  <div class="notice" id="notice"><i></i><span id="noticeText"></span></div>
+
+  <!-- 说明书覆盖层：内容由 /manual 提供，与程序同在一个 exe 内。
+       首次点开才设置 iframe 的地址 —— 不打开就不加载，空闲时不占资源。 -->
+  <div class="manual" id="manual" hidden>
+    <div class="manual-h">
+      <span>使用说明书</span>
+      <button class="btn sm" id="manualClose">关闭</button>
+    </div>
+    <iframe id="manualFrame" title="使用说明书"></iframe>
+  </div>
+
+  <main>
+    <aside class="rail">
+      <div class="cap" id="cap"></div>
+      <!-- 操作列表默认收起。分享出去之后反馈最多的一句话是"不知道点哪个" ——
+           所以默认只留环境结论，十来个低频操作收进这里，一个都没删。 -->
+      <button class="linkbtn morebtn" id="btnMore" hidden>更多功能</button>
+      <div id="railmore" hidden>
+        <div class="rowline">
+          <div class="search"><span class="ic"></span><input id="q" placeholder="搜索操作"></div>
+          <button class="btn sm" id="btnProbe" title="重新执行环境检测">重新检测</button>
+        </div>
+        <div class="rowline">
+          <span class="railcount" id="cnt"></span>
+          <div class="spacer"></div>
+          <span class="railcount">Esc 取消选择</span>
+        </div>
+        <div class="tasks" id="tasks"></div>
+      </div>
+    </aside>
+
+    <section class="col">
+      <!-- 一步开局：默认入口。房主要给的就一个房间码，玩家要做的就一次粘贴；
+           其余参数与说明都后置到「更多功能」和悬浮提示里。 -->
+      <section class="card quick" id="quick">
+        <div class="qhead">
+          <span class="qt">快速开始</span>
+          <span class="qs" id="qHint">选择一项操作开始</span>
+        </div>
+        <div class="qbtns">
+          <button class="btn qbtn" id="qHost">
+            <span class="qi">创建房间</span>
+            <span class="qd">在本机开启入口，供玩家连接</span>
+          </button>
+          <button class="btn qbtn" id="qGuest">
+            <span class="qi">加入房间</span>
+            <span class="qd">使用房主提供的入口连接</span>
+          </button>
+        </div>
+
+        <div class="qform" id="qHostForm" hidden>
+          <!-- 这条前置说明是实测补出来的：新手点"开一个房间"时，游戏里的世界往往还没开，
+               程序只能回一句"端口无法连接"，看着像工具坏了。 -->
+          <div class="qpre">请先在游戏内开启局域网：<b>Esc → 对局域网开放</b>，然后回到此处创建房间。</div>
+          <label for="qRoom">房间码</label>
+          <input id="qRoom" placeholder="留空自动生成" maxlength="24" autocomplete="off">
+          <label for="qPort">端口</label>
+          <input id="qPort" class="tiny" value="25565" inputmode="numeric" autocomplete="off"
+                 title="与游戏内「对局域网开放」显示的端口一致">
+          <button class="btn primary" id="qHostGo">创建房间</button>
+          <button class="linkbtn" id="qHostCancel">取消</button>
+          <div class="qnote">完成后生成邀请文本，可整段发送给玩家。</div>
+        </div>
+
+        <div class="qform" id="qGuestForm" hidden>
+          <label for="qInvite">房主提供的邀请</label>
+          <textarea id="qInvite" rows="2" placeholder="粘贴邀请文本" autocomplete="off"></textarea>
+          <button class="btn primary" id="qGuestGo">连接</button>
+          <button class="linkbtn" id="qGuestCancel">取消</button>
+          <div class="qnote" id="qGuestNote">将自动提取其中的地址与房间码。</div>
+        </div>
+      </section>
+
+      <div class="banner" id="fwBanner" hidden>
+        <span class="bi"></span>
+        <span class="bt" id="fwText"></span>
+        <button class="btn sm amber" id="fwFix">放行入站</button>
+        <button class="linkbtn" id="fwSkip">忽略</button>
+      </div>
+      <div class="card hero" id="cardAddr" hidden>
+        <span class="shine" id="sheen"></span>
+        <div class="k">玩家入口地址</div>
+        <div class="plate"><div class="addr" id="addr">-</div></div>
+        <div class="rack">
+          <button class="btn sm" id="btnCopyAddr">复制地址</button>
+          <span class="chip grp" id="roomChip" hidden></span>
+        </div>
+        <!-- 邀请卡片：房主唯一需要"转发出去"的东西 —— 地址、房间码、没装工具的连法、
+             装了工具的命令，全在这一段里。以前这里是三块（地址、命令、步骤），
+             每块配一个复制按钮，分享之后被问得最多的一句是"我该复制哪个"。
+             现在只留这一段、只留一个复制按钮，整段发出去就完事。 -->
+        <div class="invite" id="inviteWrap" hidden>
+          <div class="invhead">
+            <span>发送给玩家的邀请</span>
+            <button class="btn sm" id="btnCopyInvite">复制邀请</button>
+          </div>
+          <div class="invtext" id="inviteText"></div>
+        </div>
+        <!-- 在场名单：只在有人真的通过身份校验之后出现（光连上不算）。
+             安全码是要和玩家对着念的那一串，所以放在最显眼的位置。 -->
+        <div class="guests" id="guestWrap" hidden>
+          <div class="ghead">在场玩家 <span id="guestN">0</span> 人</div>
+          <ul id="guestList"></ul>
+        </div>
+      </div>
+
+      <div class="card" id="workCard"></div>
+
+      <div class="card logcard">
+        <div class="loghead">
+          <div class="k">日志</div>
+          <div class="segs" id="segs">
+            <button class="seg on" data-f="user">结论</button>
+            <button class="seg" data-f="raw">原始输出</button>
+          </div>
+          <div class="r">
+            <span class="linecnt" id="linecnt">0 行</span>
+            <button class="btn sm" id="btnClear">清空</button>
+            <button class="btn sm" id="btnCopyLog">复制</button>
+          </div>
+        </div>
+        <div class="log" id="logUser"></div>
+        <div class="log" id="logRaw" hidden></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span id="ftTask">未选择操作</span>
+    <span class="cmdline" id="ftCmd"></span>
+    <span class="gap"></span>
+    <span class="bgm"><button class="btn sm" id="bgmToggle" title="背景音乐：点一下播放或暂停">♪ <span id="bgmName">未播放</span></button></span>
+    <span class="gap"></span>
+    <span>Enter 执行 · Esc 取消</span>
+    <span class="gap"></span>
+    <span id="ftVer"></span>
+  </footer>
+</div>
+
+<!-- 背景音乐：播放完全交给界面内核的 <audio>，Go 侧只负责列出曲库与提供文件。
+     preload=none 是有意的：不点播放就不去碰磁盘，空闲时这条路径的开销是零。 -->
+<audio id="bgm" preload="none"></audio>
+
+<div class="modal" id="modal" hidden>
+  <div class="mbox">
+    <div class="mhead"><span class="mt" id="modalTitle"></span><span class="spacer"></span>
+      <button class="btn sm" id="modalClose">关闭</button></div>
+    <div class="mbody" id="modalBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+'use strict';
+/* ============================================================================
+   行为层。四条纪律贯穿全篇：
+     · 写 DOM 之前先比一下（setText/setCls/setHidden）—— 轮询每 700ms 一次，
+       无条件写 textContent 等于让页面永远在做样式重算；
+     · 日志分两层各一个容器，只追加新行、不整段重建；层间切换只切显示，不重建节点；
+     · 没有任何 requestAnimationFrame 循环，反馈一律走 CSS 过渡；
+     · 环境能力（来自体检的 ##CAP## 标记）决定哪些操作置灰，原因只写在悬浮提示里。
+   ========================================================================== */
+var $ = function(id){ return document.getElementById(id); };
+function esc(s){
+  var d = document.createElement('div');
+  d.textContent = s == null ? '' : s;
+  return d.innerHTML;
+}
+function setText(el, v){ if(el && el.textContent !== v){ el.textContent = v; } }
+function setCls(el, v){ if(el && el.className !== v){ el.className = v; } }
+function setHidden(el, h){ if(el && el.hidden !== !!h){ el.hidden = !!h; } }
+function setHTML(el, v){ if(el && el.innerHTML !== v){ el.innerHTML = v; } }
+
+var tasks = [], groups = [], sel = null;
+var since = 0, jobId = '', running = false, polling = false, quitting = false;
+var userLines = [], rawLines = [], layer = 'user';
+var addr = '', joinCmd = '', roomCode = '', caps = null, capKey = '';
+/* 口令是「房间码」还是「地址本身」（来自 ##GATE## 标记，见 expose.go 的 gateModeValue）。
+   raw / 端口映射 / 公网 IPv4 直连这三种形态下地址本身就是口令，房间码只对「方式二」有意义 ——
+   邀请文本要按这个区别写，否则读起来像是「码才是口令」，好人会去找地方填码，坏人多一句可捡的东西。*/
+var gateByRoom = false;
+var fwPort = '', fwSkipped = false, fwFixed = false;
+/* 本工具有两个默认入站端口：
+     游戏端口（公网入口，体检的 caps.port）与信令端口 8090（软件入口）。
+   只放行前者会出现「没装工具的玩家能进、装了工具的反而不行」——
+   这条现象用户几乎不可能自己想到，所以一键放行时两个一起放（规则仍限本程序与该端口）。 */
+var fwSigPort = '8090';
+function fwPortSpec(){ return (fwPort || '25565') + ',' + fwSigPort; }
+var LOG_KEEP = (window.MCLBX_UI && window.MCLBX_UI.logKeep) || 2000;   // 每层留多少行（设置里可改）
+
+var NATNAME = { fullcone: '全锥形', restricted: '受限锥形', portrestricted: '端口受限', symmetric: '对称型', unknown: '未知' };
+
+/* ---------------------------------------------------------------- 提示 ---- */
+var toastT = null;
+function toast(msg, bad){
+  var t = $('toast');
+  t.textContent = msg;
+  setCls(t, 'toast' + (bad ? ' bad' : ''));
+  setHidden(t, false);
+  clearTimeout(toastT);
+  toastT = setTimeout(function(){ setHidden(t, true); }, 2200);
+}
+function copy(text){
+  if(!text){ return; }
+  var done = function(){ toast('已复制'); };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done, function(){ toast('复制失败', true); });
+  } else {
+    var ta = document.createElement('textarea'); ta.value = text;
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); done(); }catch(e){ toast('复制失败', true); }
+    document.body.removeChild(ta);
+  }
+}
+async function api(path, body){
+  var opt = { method:'POST', headers:{'X-MCLBX-GUI':'1','Content-Type':'application/json'} };
+  if(body){ opt.body = JSON.stringify(body); }
+  var r = await fetch(path, opt);
+  return await r.json();
+}
+
+/* ------------------------------------------------------------ 环境能力 ---- */
+/* 体检结论的精简投影：只回答"这台机器能不能走这条操作"。 */
+function capState(){
+  if(!caps){ return null; }
+  return {
+    v6: caps.v6 === '1',
+    mapping: caps.upnp === '1' || caps.natpmp === '1' || caps.pcp === '1',
+    nat: caps.nat || 'unknown',
+    port: caps.port || '',
+    portFree: caps.portfree === '1'
+  };
+}
+function setCaps(s){
+  if(s === capKey){ return; }
+  capKey = s;
+  caps = {};
+  s.split(/\s+/).forEach(function(kv){
+    var i = kv.indexOf('=');
+    if(i > 0){ caps[kv.slice(0, i)] = kv.slice(i + 1); }
+  });
+  renderCap();
+  renderTasks();
+  maybeFwHint();
+}
+function renderCap(){
+  // 还没检测过的时候，以前是四个格子一起写"未检测" —— 四遍同一句话，
+  // 既占地方又没人知道能不能点。并成一个按钮：说清"还没测"和"点这里"。
+  if(!caps){
+    setHTML($('cap'), '<button class="capcell unk wide" title="点击开始环境检测">'
+      + '<span class="cl">环境检测</span><span class="cv">未检测 · 点击开始</span></button>');
+    $('cap').firstChild.onclick = startProbe;
+    return;
+  }
+  var c = capState(), defs = [
+    {k:'v6', label:'公网 IPv6'}, {k:'map', label:'自动端口映射'},
+    {k:'nat', label:'NAT 类型'}, {k:'port', label:'游戏端口'}
+  ];
+  var html = defs.map(function(d){
+    var st = 'unk', val = '未检测', tip = '';
+    if(c){
+      if(d.k === 'v6'){
+        st = c.v6 ? 'ok' : 'no'; val = c.v6 ? '有' : '无';
+        tip = c.v6 ? '本机具备公网 IPv6，玩家在游戏内「直接连接」填该地址即可'
+                   : '本机无公网 IPv6，玩家需安装本工具';
+      } else if(d.k === 'map'){
+        st = c.mapping ? 'ok' : 'no'; val = c.mapping ? '可用' : '不可用';
+        tip = c.mapping ? '自动端口映射可用，玩家在游戏内「直接连接」填该地址即可'
+                        : '自动端口映射不可用，该方式无法使用';
+      } else if(d.k === 'nat'){
+        val = NATNAME[c.nat] || '未知';
+        st = (c.nat === 'fullcone') ? 'ok' : (c.nat === 'unknown' ? 'unk' : 'no');
+        tip = '出站 NAT 类型：' + (NATNAME[c.nat] || '未知')
+            + (c.nat === 'fullcone' ? '，适合直连' : '，直连成功率低，建议使用中继');
+      } else {
+        st = c.portFree ? 'ok' : 'no'; val = c.portFree ? '空闲' : '已占用';
+        tip = '游戏端口 ' + c.port + (c.portFree ? ' 空闲' : ' 已被占用');
+      }
+    }
+    return '<button class="capcell ' + st + '" title="' + esc(tip) + '">'
+         +   '<span class="cl">' + d.label + '</span><span class="cv">' + val + '</span>'
+         + '</button>';
+  }).join('');
+  setHTML($('cap'), html);
+  Array.prototype.forEach.call($('cap').children, function(b){
+    b.onclick = function(){ if(!caps){ startProbe(); } };
+  });
+}
+// 体检正在跑的时候，那一格别还写着"还没做" —— 否则看着像点了没反应。
+function setCapBusy(on){
+  var b = $('cap').firstChild;
+  if(!b || !b.className || b.className.indexOf('wide') < 0){ return; }
+  var v = b.querySelector('.cv');
+  if(v){ setText(v, on ? '检测中…' : '未检测 · 点击开始'); }
+}
+/* limit 返回该操作在当前环境下的限制：hard=true 置灰，false 只标记。原因一句话。 */
+function limit(t){
+  var c = capState();
+  if(!c){ return null; }
+  if(t.key === 'expose-raw' || t.key === 'expose-dns'){
+    if(!c.v6){ return { hard:true, why:'本机无公网 IPv6' }; }
+  }
+  if(t.key === 'room' || t.key === 'expose-raw' || t.key === 'expose-dns' ||
+     t.key === 'natmap' || t.key === 'ice-host'){
+    if(!c.portFree){ return { hard:false, why:'游戏端口 ' + c.port + ' 已被占用' }; }
+  }
+  return null;
+}
+
+/* ------------------------------------------------------------ 左侧操作 ---- */
+function renderTasks(){
+  var byGroup = {}, order = [], lim = {};
+  tasks.forEach(function(t){
+    var l = limit(t);
+    if(l){ lim[t.key] = l; }
+    if(!byGroup[t.group]){ byGroup[t.group] = []; order.push(t.group); }
+    byGroup[t.group].push(t);
+  });
+  groups = order;
+  var html = '';
+  order.forEach(function(g, gi){
+    html += '<div class="grp g' + ((gi % 6) + 1) + '" data-g="' + esc(g) + '">'
+          +   '<span class="tag"></span><span class="t">' + esc(g) + '</span><span class="rule"></span></div>';
+    byGroup[g].forEach(function(t){
+      var l = lim[t.key] || null;
+      var attrs = ' data-key="' + esc(t.key) + '"';
+      if(l && l.hard){ attrs += ' data-off="1" title="不可用：' + esc(l.why) + '"'; }
+      html += '<button class="t' + (l && l.hard ? ' off' : '') + '"' + attrs + '>'
+            +   '<div class="nm">' + esc(t.name)
+            +     (t['long'] ? '<span class="lg">长时</span>' : '')
+            +     (l && !l.hard ? '<span class="lim" title="' + esc(l.why) + '">注意</span>' : '')
+            +   '</div>'
+            +   '<div class="ds">' + esc(t.desc) + '</div>'
+            + '</button>';
+    });
+  });
+  var box = $('tasks');
+  box.innerHTML = html || '<div class="tempty">没有可用的操作</div>';
+  Array.prototype.forEach.call(box.querySelectorAll('.t'), function(b){
+    b.onclick = function(){
+      if(b.getAttribute('data-off')){
+        toast(b.getAttribute('title').replace(/^不可用：/, ''), true);
+        return;
+      }
+      pick(b.getAttribute('data-key'));
+    };
+  });
+  // 操作列表默认收起，这里顺手把入口按钮上的项数补上
+  setText($('btnMore'), '更多功能 · ' + tasks.length + ' 项');
+  setHidden($('btnMore'), false);
+  filterTasks();
+}
+function filterTasks(){
+  var q = ($('q').value || '').trim().toLowerCase();
+  var box = $('tasks'), shown = 0;
+  Array.prototype.forEach.call(box.children, function(grp){
+    if(!grp.classList || !grp.classList.contains('grp')){ return; }
+    var g = (grp.getAttribute('data-g') || '').toLowerCase();
+    var n = 0, hitGroup = !q || g.indexOf(q) >= 0;
+    var next = grp.nextElementSibling;
+    while(next && next.classList && next.classList.contains('t')){
+      var t = taskByKey(next.getAttribute('data-key'));
+      var hit = !q || hitGroup || ((t.name + ' ' + t.desc + ' ' + t.key).toLowerCase().indexOf(q) >= 0);
+      next.classList.toggle('hide', !hit);
+      if(hit){ n++; shown++; }
+      next = next.nextElementSibling;
+    }
+    grp.classList.toggle('hide', n === 0);
+    grp.style.display = (n === 0) ? 'none' : '';
+  });
+  setText($('cnt'), q ? ('匹配 ' + shown + ' 项') : (tasks.length + ' 项操作 · ' + groups.length + ' 个分组'));
+}
+function taskByKey(k){
+  for(var i = 0; i < tasks.length; i++){ if(tasks[i].key === k){ return tasks[i]; } }
+  return { name:'', desc:'', key:'', fields:[] };
+}
+function pick(key, force){
+  var t = null;
+  for(var i = 0; i < tasks.length; i++){ if(tasks[i].key === key){ t = tasks[i]; } }
+  var l = t ? limit(t) : null;
+  if(l && l.hard && !force){ toast('不可用：' + l.why, true); return; }
+  sel = t;
+  Array.prototype.forEach.call($('tasks').querySelectorAll('.t'), function(b){
+    b.classList.toggle('on', !!sel && b.getAttribute('data-key') === sel.key);
+  });
+  renderWork();
+}
+function clearSel(){
+  sel = null;
+  Array.prototype.forEach.call($('tasks').querySelectorAll('.t'), function(b){ b.classList.remove('on'); });
+  renderWork();
+}
+function startProbe(){
+  var has = false;
+  for(var i = 0; i < tasks.length; i++){ if(tasks[i].key === 'probe'){ has = true; } }
+  if(!has){ toast('未找到环境检测', true); return; }
+  pick('probe', true);
+  startTask();
+}
+
+/* ------------------------------------------------------------ 主区渲染 ---- */
+// 没选操作时的空缺：这里以前是第二份"创建房间 / 加入房间 / 环境检测"三选一，
+// 和上面那两张卡长得几乎一样。分享出去之后最常收到的一句话就是
+// "两个地方都能点，我该点哪个" —— 所以重复的那份删掉，只留一句话指路。
+function renderIdle(){
+  var w = $('workCard');
+  w.className = 'card';
+  var n = tasks.length ? ('其余 ' + tasks.length + ' 项操作位于') : '其余操作位于';
+  setHTML(w, '<div class="idle">请选择上方的一项操作。' + esc(n)
+    + '左侧「<b>更多功能</b>」中。</div>');
+  syncFoot();
+}
+function fieldHTML(f){
+  var id = 'f_' + f.id;
+  var tip = f.hint ? ' title="' + esc(f.hint) + '"' : '';
+  if(f.kind === 'check'){
+    return '<div class="fld"><label class="ck"' + tip + '><input type="checkbox" id="' + id + '"'
+         + (f['default'] === '1' ? ' checked' : '') + '>'
+         + '<span class="bx"></span><span class="tx">' + esc(f.label) + '</span></label></div>';
+  }
+  return '<div class="fld">'
+       +   '<label for="' + id + '"' + tip + '><span>' + esc(f.label) + '</span>'
+       +   (f.required ? '<span class="r">必填</span>' : '')
+       +   (f.hint ? '<span class="qi" title="' + esc(f.hint) + '">?</span>' : '')
+       +   '</label>'
+       +   '<input type="text" id="' + id + '" value="' + esc(f['default']) + '" placeholder="' + esc(f.placeholder) + '"' + tip + '>'
+       + '</div>';
+}
+function renderWork(){
+  if(!sel){ renderIdle(); return; }
+  var w = $('workCard');
+  w.className = 'card formcard';
+  var l = limit(sel);
+  var fs = (sel.fields || []).map(fieldHTML).join('');
+  w.innerHTML =
+      '<div class="workhead">'
+    +   '<div class="whTop"><h2>' + esc(sel.name) + '</h2>'
+    +     '<span class="chip grp">' + esc(sel.group) + '</span>'
+    +     (sel['long'] ? '<span class="chip run-long">长时</span>' : '')
+    +     (l && !l.hard ? '<span class="chip run-long" title="' + esc(l.why) + '">' + esc(l.why) + '</span>' : '')
+    +     '<span class="whtool">'
+    +       (sel.help ? '<button class="linkbtn" id="btnHelp">详情</button>' : '')
+    +       '<button class="linkbtn" id="cmdToggle">命令</button>'
+    +     '</span></div>'
+    +   '<div class="whDesc">' + esc(sel.desc) + '</div>'
+    +   '<code class="cmd" id="cmdBox" hidden></code>'
+    + '</div>'
+    + '<div class="fields">' + (fs || '<div class="hint">该操作无需填写参数。</div>') + '</div>'
+    + '<div class="runbar">'
+    +   '<button class="run" id="btnRun">开始执行</button>'
+    +   '<div class="runhint" id="runHint">' + (sel['long']
+          ? '长时运行，需手动停止；关闭窗口会一并停止。'
+          : '执行结束后自动停止，输出见下方日志。') + '</div>'
+    + '</div>';
+  $('btnRun').onclick = startTask;
+  if($('btnHelp')){ $('btnHelp').onclick = function(){ showHelp(sel.name, sel.help); }; }
+  $('cmdToggle').onclick = function(){
+    var b = $('cmdBox'), on = b.hidden;
+    b.hidden = !on;
+    b.textContent = 'mclbx ' + buildArgs(sel);
+    this.textContent = on ? '收起命令' : '命令';
+  };
+  setRunningUI(running);
+  syncFoot();
+}
+function showHelp(title, body){
+  setText($('modalTitle'), title);
+  setText($('modalBody'), body + ' 完整说明见《使用说明书》。');
+  setHidden($('modal'), false);
+}
+function buildArgs(t){
+  var parts = [t.key];
+  (t.fields || []).forEach(function(f){
+    var el = $('f_' + f.id);
+    if(!el){ return; }
+    if(f.kind === 'check'){ if(el.checked){ parts.push('--' + f.id); } return; }
+    var v = (el.value || '').trim();
+    if(v){ parts.push('--' + f.id, v); }
+  });
+  return parts.join(' ');
+}
+function syncFoot(){
+  setText($('ftTask'), sel ? ('操作：' + sel.name) : '未选择操作');
+  // 页脚不挂命令行：它是给写脚本的人看的，普通使用者只需要知道执行结果；
+  // 需要核对时，表单右上角的「命令」可展开显示等价命令行。
+  setHidden($('ftCmd'), true);
+}
+function setRunningUI(on){
+  var b = $('btnRun'); if(b){ b.disabled = on; }
+  var s = $('btnStop'); if(s){ s.disabled = !on && !quitting; }
+  var c = $('cmdToggle');
+  if(c && c.textContent === '收起命令'){ c.textContent = '命令'; setHidden($('cmdBox'), true); }
+  updateFwBtn();
+}
+
+/* ------------------------------------------------- 入站未放行的提示 ---- */
+/* 体检结论里 fw=0 表示本工具还没给这个端口加过入站放行规则。
+   只提示、只置灰按钮，绝不自动改系统；用户点一下才加。
+   加的那条规则范围仅限本程序与该端口（netsh 命令由 firewall 任务生成，界面不自己拼）。 */
+function maybeFwHint(){
+  var box = $('fwBanner');
+  if(!box){ return; }
+  if(!caps || caps.plat !== 'win' || caps.fw !== '0' || fwFixed){
+    setHidden(box, true);
+    return;
+  }
+  fwPort = caps.port || '25565';
+  setText($('fwText'), '本机尚未放行 ' + fwPort + ' 与 ' + fwSigPort + ' 入站，玩家可能无法连接');
+  setHidden(box, fwSkipped);
+  updateFwBtn();
+}
+function updateFwBtn(){
+  var b = $('fwFix');
+  if(!b){ return; }
+  b.disabled = running;
+  b.title = running ? '需先停止当前任务' : ('仅添加本程序与 ' + fwPortSpec() + ' 的入站规则，不修改防火墙开关');
+}
+async function fixFirewall(){
+  if(running){ toast('需先停止当前任务', true); return; }
+  var r = await api('/api/start', { key:'firewall', inputs:{ port: fwPortSpec(), proto: 'both' } });
+  if(!r.ok){ toast(r.err || '启动失败', true); return; }
+  setRunningUI(true);
+  tick();
+}
+
+/* ---------------------------------------------------------------- 状态 ---- */
+function setStatus(s){
+  var cls = 'dot', txt = '空闲';
+  if(s.running){
+    cls = 'dot run'; txt = '执行中：' + s.task + ' · ' + s.uptime;
+  } else if(s.done){
+    var bad = s.err || (s.code && s.code !== 0);
+    cls = 'dot' + (bad ? ' bad' : '');
+    // 状态栏只给结论与原因，不显示退出码：退出码的用途在日志里。
+    txt = bad ? ('执行失败：' + (s.err || '原因见日志')) : '执行结束';
+  } else if(quitting){
+    txt = '正在退出';
+  }
+  setCls($('pulse'), cls);
+  setText($('status'), txt);
+  if(s.ver){ setText($('ver'), s.ver); }
+  if(!$('ftVer').textContent && s.ver){ setText($('ftVer'), s.ver + ' · 网页版'); }
+}
+function setLink(entry, room, peer){
+  setCls($('lnkEntry'), 'n' + (entry ? ' on' : ''));
+  setCls($('lnkS2'), 's' + (entry ? ' on' : ''));
+  setCls($('lnkRoom'), 'n' + (room ? ' on' : ''));
+  setCls($('lnkS3'), 's' + (room ? ' on' : ''));
+  setCls($('lnkPeer'), 'n' + (peer ? ' on' : ''));
+}
+
+/* ---------------------------------------------------------------- 日志 ---- */
+/* 结论层：结论 / 说明 / 建议，按 findings 的 ✓ ! ✗ 上色。
+   原始层：带 ##DBG## 标记的明细，默认折叠。 */
+function classify(t){
+  var m = /^\s*([✓!✗])\s/.exec(t);
+  if(m){ return m[1] === '✓' ? 'ok' : (m[1] === '!' ? 'warn' : 'bad'); }
+  if(/^\.\.\s/.test(t)){ return 'dim'; }
+  if(/^结论|^建议|^说明|^处理|^原因/.test(t)){ return 'info'; }
+  if(/错误|失败|不可用|拒绝|超时|异常/.test(t)){ return 'bad'; }
+  if(/成功|已建立|已就绪|已连接|完成/.test(t)){ return 'ok'; }
+  return '';
+}
+function rowHTML(text, no, raw){
+  var c = raw ? 'dim' : classify(text);
+  return '<div class="ln' + (c ? ' ' + c : '') + '">'
+       +   '<span class="no">' + no + '</span>'
+       +   '<span class="tx">' + esc(text) + '</span>'
+       + '</div>';
+}
+function emptyHTML(which){
+  return which === 'user'
+    ? '<div class="lgempty">暂无输出。<br>执行操作后，结果显示在这里。</div>'
+    : '<div class="lgempty">暂无输出。<br>STUN 应答、端口探测等原始信息收纳在这里。</div>';
+}
+function appendTo(which, text){
+  var box = $(which === 'user' ? 'logUser' : 'logRaw');
+  var arr = which === 'user' ? userLines : rawLines;
+  var emp = box.querySelector('.lgempty');
+  if(emp){ box.removeChild(emp); }
+  var d = document.createElement('div');
+  d.innerHTML = rowHTML(text, arr.length, which === 'raw');
+  box.appendChild(d.firstChild);
+  if(arr.length > LOG_KEEP){
+    var cut = arr.length - LOG_KEEP;
+    arr.splice(0, cut);
+    for(var i = 0; i < cut; i++){ if(box.firstChild){ box.removeChild(box.firstChild); } }
+  }
+  box.scrollTop = box.scrollHeight;
+}
+function pushUser(t){ userLines.push(t); appendTo('user', t); }
+function pushRaw(t){ rawLines.push(t); appendTo('raw', t); }
+function refreshLog(){
+  setHidden($('logUser'), layer !== 'user');
+  setHidden($('logRaw'), layer !== 'raw');
+  Array.prototype.forEach.call($('segs').querySelectorAll('.seg'), function(s){
+    s.classList.toggle('on', s.getAttribute('data-f') === layer);
+    if(s.getAttribute('data-f') === 'raw'){ setText(s, '原始输出 ' + rawLines.length); }
+  });
+  setText($('linecnt'), '结论 ' + userLines.length + ' · 原始 ' + rawLines.length);
+}
+function resetLog(){
+  userLines = []; rawLines = [];
+  $('logUser').innerHTML = emptyHTML('user');
+  $('logRaw').innerHTML = emptyHTML('raw');
+  refreshLog();
+}
+function appendLines(list){
+  list.forEach(function(t){
+    var m = /^##([A-Z0-9]+)## ?(.*)$/.exec(t);
+    if(m){
+      var kind = m[1], val = m[2];
+      if(kind === 'DBG'){ pushRaw(val); return; }
+      if(kind === 'CAP'){ setCaps(val); qHintFromCaps(val); return; }
+      noteMarker(kind, val);
+      return;
+    }
+    pushUser(t);
+  });
+  refreshLog();
+}
+/* 机器标记随日志一起下来，收到就顺手更新界面，不用每次轮询去整段日志里搜 */
+function noteMarker(kind, val){
+  if(kind === 'ADDR'){ setAddr(val); }
+  else if(kind === 'ROOM'){
+    roomCode = val;
+    var c = $('roomChip');
+    c.textContent = '房间码 ' + val;
+    setHidden(c, false);
+  } else if(kind === 'JOIN'){ setJoin(val); }
+  else if(kind === 'GUESTS'){ setGuests(val); }
+  else if(kind === 'GATE'){ gateByRoom = (val === 'room'); refreshInvite(); }
+}
+function setAddr(a){
+  if(!a || a === addr){ return; }
+  addr = a;
+  $('addr').textContent = a;
+  setHidden($('cardAddr'), false);
+  var s = $('sheen');
+  s.style.transition = 'none';
+  s.style.transform = 'translateX(-120%)';
+  void s.offsetWidth;
+  s.style.transition = 'transform .85s cubic-bezier(.4,0,.2,1)';
+  s.style.transform = 'translateX(120%)';
+  refreshInvite(); // 地址一变，那段"发给朋友的话"跟着重拼
+}
+function setJoin(j){
+  // 这条命令不再单独占一块地方 —— 它就写在下面那段邀请文本的"方式二"里。
+  // 单独摆一份 = 界面上同一个东西出现两次、配两个复制按钮，反而不知道该复制哪个。
+  if(!j || j === joinCmd){ return; }
+  joinCmd = j;
+  refreshInvite();
+}
+/* -------------------------------------------------------- 在场玩家 ---- */
+/* 房主侧的名单。时长在这里按当前时间算，而不是由后端每秒重发一遍 ——
+   名单没变就不该让界面重绘。 */
+var guests = [];
+var guestsKey = '';   // 上次画出来的内容指纹（名单 + 分钟数），没变就不重画
+function setGuests(v){
+  var d;
+  try { d = JSON.parse(v); } catch(e){ return; }
+  guests = (d && d.who) ? d.who : [];
+  guestsKey = '';
+  renderGuests();
+}
+function renderGuests(){
+  var wrap = $('guestWrap'), ul = $('guestList'), n = $('guestN');
+  if(!wrap || !ul || !n){ return; }
+  var key = guests.map(function(g){
+    return (g.c || '') + '@' + Math.floor(Math.max(0, Date.now()/1000 - (g.s || 0)) / 60);
+  }).join('|');
+  if(key === guestsKey){ return; }   // 同一分钟里名单没变：不碰 DOM
+  guestsKey = key;
+  n.textContent = guests.length;
+  setHidden(wrap, guests.length === 0);
+  ul.innerHTML = guests.map(function(g){
+    var secs = Math.max(0, Math.floor(Date.now()/1000 - (g.s || 0)));
+    var m = Math.floor(secs / 60);
+    var dur = secs < 60 ? '刚加入'
+            : (m < 60 ? ('已连 ' + m + ' 分')
+                      : ('已连 ' + Math.floor(m/60) + ' 小时' + (m%60 ? ' ' + (m%60) + ' 分' : '')));
+    return '<li><span class="gc">' + esc(g.c || '') + '</span>' +
+           '<span class="gm">' + esc(g.m || '直连') + ' · ' + dur + '</span></li>';
+  }).join('');
+}
+
+function clearHero(){
+  addr = ''; joinCmd = ''; roomCode = '';
+  guests = []; guestsKey = '';
+  renderGuests();
+  setHidden($('cardAddr'), true);
+  setHidden($('roomChip'), true);
+  refreshInvite();
+}
+
+/* ---------------------------------------------------------------- 启停 ---- */
+async function startTask(){
+  if(!sel || running){ return; }
+  var inputs = {};
+  (sel.fields || []).forEach(function(f){
+    var e = $('f_' + f.id);
+    if(!e){ return; }
+    inputs[f.id] = (f.kind === 'check') ? (e.checked ? '1' : '') : e.value.trim();
+  });
+  var b = $('btnRun');
+  if(b){ b.disabled = true; }
+  var r = await api('/api/start', { key: sel.key, inputs: inputs });
+  if(!r.ok && /已经有一个任务在跑/.test(r.err || '')){
+    // 打开界面时会自动跑一次环境检测（约十几秒）。这期间使用者点「运行」是明确意图，
+    // 应当打断那次检测再来 —— 而不是把他挡回去、让他自己去找「停止」。
+    await api('/api/stop');
+    await waitIdle(15000);
+    r = await api('/api/start', { key: sel.key, inputs: inputs });
+  }
+  if(!r.ok){
+    if(b){ b.disabled = false; }
+    toast(r.err || '启动失败', true);
+    return;
+  }
+  setRunningUI(true);
+  tick();
+}
+async function stopJob(){
+  await api('/api/stop');
+  tick();
+}
+function quitApp(){
+  quitting = true;
+  setCls($('pulse'), 'dot run');
+  setText($('status'), '正在退出');
+  var s = $('btnStop'); if(s){ s.disabled = true; }
+  var q = $('btnQuit'); if(q){ q.disabled = true; }
+  api('/api/quit');
+}
+
+/* ------------------------------------------------------ 一步开局 + 邀请 ---- */
+/* 简化入口：房主只填房间码、玩家只粘贴邀请。两者的完整参数（端口、白名单、中继地址…）
+   仍然在「更多功能」里逐项可调 —— 这里只是把最常走的那条路压到一步。 */
+var quickRole = '';
+
+// 等到当前任务真的停下（/api/stop 返回后进程还要几秒才退出，光等固定时间不够）。
+async function waitIdle(ms){
+  var t0 = Date.now();
+  while(Date.now() - t0 < (ms || 15000)){
+    try{
+      var res = await fetch('/api/state?since=999999999');
+      var s = await res.json();
+      if(!s.running){ return true; }
+    }catch(e){ /* 轮询失败就再试一次 */ }
+    await new Promise(function(r){ setTimeout(r, 350); });
+  }
+  return false;
+}
+
+// startWith 用给定参数直接启动某个操作，跳过"先选中、再点运行"这两步。
+async function startWith(key, inputs){
+  var t = taskByKey(key);
+  if(!t.key){ toast('未知操作', true); return false; }
+  sel = t;
+  renderWork();
+  var r = await api('/api/start', { key: key, inputs: inputs || {} });
+  if(!r.ok && /已经有一个任务在跑/.test(r.err || '')){
+    // 同上：使用者主动点的那一下优先于后台的自动环境检测
+    await api('/api/stop');
+    await waitIdle(15000);
+    r = await api('/api/start', { key: key, inputs: inputs || {} });
+  }
+  if(!r.ok){ toast(r.err || '启动失败', true); return false; }
+  setRunningUI(true);
+  tick();
+  return true;
+}
+
+// 从房主发来的那段话里读地址与房间码。三种形式都要吃得下：
+// 命令行（--host/--room）、纯地址、以及本工具自己生成的那段邀请文本。
+function parseInvite(text){
+  var t = (text || '').replace(/\r/g, '');
+  var out = { host: '', room: '' };
+  if(!t.trim()){ return out; }
+  var m = /--host[= ]+("[^"]+"|'[^']+'|\S+)/.exec(t);
+  if(m){ out.host = m[1].replace(/^["']|["']$/g, ''); }
+  m = /--room[= ]+("[^"]+"|'[^']+'|\S+)/.exec(t);
+  if(m){ out.room = m[1].replace(/^["']|["']$/g, ''); }
+  if(!out.room){
+    m = /房间码[:：\s]*([A-Za-z0-9_-]{2,32})/.exec(t);
+    if(m){ out.room = m[1]; }
+  }
+  if(!out.host){
+    m = /\[[0-9A-Fa-f:]+\](?::\d{1,5})?/.exec(t); // 带方括号的 IPv6
+    if(m){ out.host = m[0]; }
+  }
+  if(!out.host){
+    m = /((?:[0-9A-Za-z\u4e00-\u9fa5-]+\.)+[A-Za-z]{2,}|(?:\d{1,3}\.){3}\d{1,3})(?::\d{1,5})?/.exec(t);
+    if(m){ out.host = m[0]; }
+  }
+  return out;
+}
+
+// 邀请文本：房主唯一需要转发的文本。整段复制即可，玩家按其中步骤操作。
+// 内容按"先公网、后本工具"的顺序排列 —— 这是两条入口的推荐顺序。
+function buildInvite(){
+  if(!addr){ return ''; }
+  var s = '【mclbx 房间邀请】\n';
+  // 房间码那一行按「口令是什么」来写。raw / 映射 / 公网 IPv4 直连这三种形态下地址本身就是口令，
+  // 房间码只对「方式二」有意义 —— 写反了会让好人以为要在游戏里填码，也让这段文本看起来
+  // 比实际更像"钥匙"（见坏-1：这类文本被转到大群里的代价）。
+  if(gateByRoom){
+    s += '房间码：' + (roomCode || '见地址') + '（「方式一」的口令：名称里不含它会被拒绝）\n\n';
+  } else {
+    s += '房间码：' + (roomCode || '见地址') + '（只有「方式二」需要；「方式一」直接按地址进）\n\n';
+  }
+  s += '方式一（玩家用地址直接连接）：\n';
+  s += '  在游戏内「多人游戏 → 直接连接」中输入：\n';
+  s += '  ' + addr + '\n';
+  if(joinCmd){
+    s += '\n方式二（已安装 mclbx 时）：\n';
+    s += '  执行以下命令：\n';
+    s += '  ' + joinCmd + '\n';
+  }
+  s += '\n这段邀请等同于钥匙，请只发给要一起玩的人。\n';
+  return s;
+}
+function refreshInvite(){
+  var w = $('inviteWrap');
+  if(!w){ return; }
+  var t = buildInvite();
+  if(!t){ setHidden(w, true); return; }
+  setText($('inviteText'), t);
+  setHidden(w, false);
+}
+
+// 环境结论一句话：告诉使用者"接下来会发生什么"，而不是让他去读四个指标。
+function qHintFromCaps(raw){
+  var h = $('qHint');
+  if(!h){ return; }
+  var get = function(k){
+    var m = new RegExp('(^|\\s)' + k + '=([^\\s]*)').exec(raw || '');
+    return m ? m[2] : '';
+  };
+  var v6 = get('v6'), nat = get('nat');
+  var mapped = (get('upnp') === '1' || get('natpmp') === '1' || get('pcp') === '1');
+  var text;
+  if(v6 === '1'){ text = '本机具备公网 IPv6，玩家可直接连接'; }
+  else if(mapped){ text = '路由器支持自动端口映射，玩家可直接连接'; }
+  else if(nat === 'symmetric'){ text = 'NAT 为对称型，直连成功率低；配置中继服务器后可自动改用中继'; }
+  else { text = '玩家一侧可能需要安装本工具；创建房间后将邀请发送给对方即可'; }
+  setText(h, text);
+}
+
+// 在"开房 / 进房"之间切换那小半屏表单；传空串收起。
+function showQuickForm(role){
+  quickRole = role || '';
+  setHidden($('qHostForm'), quickRole !== 'host');
+  setHidden($('qGuestForm'), quickRole !== 'guest');
+  $('qHost').classList.toggle('on', quickRole === 'host');
+  $('qGuest').classList.toggle('on', quickRole === 'guest');
+  if(quickRole === 'host'){ $('qRoom').focus(); }
+  if(quickRole === 'guest'){ $('qInvite').focus(); }
+}
+function toggleMore(force){
+  var open = (typeof force === 'boolean') ? force : $('railmore').hidden;
+  setHidden($('railmore'), !open);
+  setText($('btnMore'), open ? '收起更多功能' : ('更多功能 · ' + tasks.length + ' 项操作'));
+}
+
+/* ------------------------------------------------------------ 状态轮询 ---- */
+async function tick(){
+  if(polling || quitting){ return; }
+  polling = true;
+  var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  var timer = ctl ? setTimeout(function(){ ctl.abort(); }, 4000) : null;
+  try{
+    var res = await fetch('/api/state?since=' + since, ctl ? { signal: ctl.signal } : undefined);
+    var s = await res.json();
+    if(s.jobId !== jobId){
+      jobId = s.jobId; since = 0; clearHero(); resetLog();
+      setLink(false, false, false);
+    }
+    if(s.lines && s.lines.length){ appendLines(s.lines); }
+    // 名单里的"已连多久"是本机算的：不重新取名单，只让分钟数跟上
+    if(guests.length){ renderGuests(); }
+    if(typeof s.seq === 'number'){ since = s.seq; }
+    var was = running;
+    running = !!s.running;
+    if(was !== running){ setRunningUI(running); }
+    setCapBusy(!!s.running && !caps && s.taskKey === 'probe');
+    if(running){
+      var entry = false, room = false, peer = false;
+      if(sel && sel.key === 'room'){ entry = true; room = true; }
+      else if(sel && (sel.key === 'expose-raw' || sel.key === 'expose-dns' || sel.key === 'ice-host')){ entry = true; }
+      else if(sel && (sel.key === 'join' || sel.key === 'ice-guest')){ entry = true; peer = true; }
+      if(addr){ entry = true; room = true; }
+      setLink(entry, room, false);
+    } else if(s.done){
+      var ok = !(s.err || (s.code && s.code !== 0));
+      // 刚跑完"放行入站"：把提示条收掉。规则是否真的写进去了以任务退出码为准，
+      // 这里只负责别再挂着这条提示。
+      if(s.taskKey === 'firewall' && ok){
+        fwFixed = true;
+        setHidden($('fwBanner'), true);
+        toast('入站规则已添加');
+      }
+      if(s.taskKey === 'room' || s.taskKey === 'expose-raw' || s.taskKey === 'expose-dns' || s.taskKey === 'ice-host'){
+        setLink(!!addr, !!addr, ok && !!addr);
+      } else if(s.taskKey === 'join' || s.taskKey === 'ice-guest'){
+        setLink(true, false, ok);
+      } else {
+        setLink(true, false, false);
+      }
+    }
+    setStatus(s);
+  }catch(e){
+    setCls($('pulse'), 'dot bad');
+    setText($('status'), '与控制台失去连接');
+  }finally{
+    if(timer){ clearTimeout(timer); }
+    polling = false;
+  }
+}
+
+/* ---------------------------------------------------------------- 绑定 ---- */
+$('q').addEventListener('input', filterTasks);
+$('btnProbe').onclick = startProbe;
+$('fwFix').onclick = fixFirewall;
+$('qHost').onclick = function(){ showQuickForm('host'); };
+$('qGuest').onclick = function(){ showQuickForm('guest'); };
+$('qHostCancel').onclick = function(){ showQuickForm(''); };
+$('qGuestCancel').onclick = function(){ showQuickForm(''); };
+$('btnMore').onclick = function(){ toggleMore(); };
+$('btnCopyInvite').onclick = function(){ copy($('inviteText').textContent || ''); };
+$('qHostGo').onclick = async function(){
+  await startWith('room', {
+    room: ($('qRoom').value || '').trim(),
+    port: ($('qPort').value || '').trim()
+  });
+};
+$('qGuestGo').onclick = async function(){
+  var raw = ($('qInvite').value || '').trim();
+  if(!raw){ toast('请先粘贴房主提供的邀请', true); return; }
+  var p = parseInvite(raw);
+  if(!p.host && !p.room){
+    toast('无法识别邀请内容，可在「更多功能 → 加入房间」中手动填写地址', true);
+    return;
+  }
+  var ok = await startWith('join', { host: p.host, room: p.room });
+  if(ok){
+    setText($('qGuestNote'), '正在连接 ' + (p.host || '') + (p.room ? ('（房间码 ' + p.room + '）') : ''));
+  }
+};
+$('btnManual').onclick = function(){ showManual(true); };
+$('manualClose').onclick = function(){ showManual(false); };
+/* 当前**解析后**的主题：documentElement 上的那个值就是它 —— "跟随系统"在首屏脚本里
+   已经按系统偏好写成了 light 或 dark。 */
+function resolvedTheme(){
+  return document.documentElement.getAttribute('data-theme') || 'dark';
+}
+function showManual(on){
+  var m = $('manual');
+  if(!m){ return; }
+  if(on){
+    var f = $('manualFrame');
+    // 说明书是另一个文档（自带一套变量），主题得从查询串带过去：不带的话，
+    // 深色主题下点开会得到一整页白 —— 暗环境里那一下很刺眼。
+    if(f && !f.getAttribute('src')){ f.setAttribute('src', '/manual?theme=' + encodeURIComponent(resolvedTheme())); }
+  }
+  setHidden(m, !on);
+}
+/* 说明书开着的时候换了主题：那是个独立文档，属性要单独跟着改（同源，可以直接改） */
+function syncManualTheme(){
+  try{
+    var f = $('manualFrame');
+    if(!f || !f.getAttribute('src') || !f.contentDocument){ return; }
+    f.contentDocument.documentElement.setAttribute('data-theme',
+      resolvedTheme() === 'light' ? 'light' : 'dark');
+  }catch(e){ /* 拿不到就算了：那说明它还没加载完，加载时用的已经是对的那一套 */ }
+}
+/* ---------------------------------------------------------------- 设置 ---- */
+/* 设置是"这个程序怎么长、默认怎么表现"，与"这次要跑什么"是两件事：
+   后者的入口是左边的操作列表，前者的入口是这里。
+
+   两件事原来混在一起 —— 比如"打开界面时自动体检"藏在「检测本机环境」的字段里，
+   而"默认中转服务器"干脆没有，每个带这个字段的操作各填一遍。现在它们都归到这里，
+   同时保留原来的入口（原生界面还在用那个勾），读写的是同一个值。 */
+var ui = null;
+var uiSaveTimer = null;
+
+function uiEsc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+function uiSeg(key, cur, opts){
+  return '<div class="mseg" data-seg="' + key + '">' + opts.map(function(o){
+    return '<button data-v="' + o[0] + '"' + (o[0] === cur ? ' class="on"' : '') + '>' + o[1] + '</button>';
+  }).join('') + '</div>';
+}
+function uiRow(label, control, hint){
+  return '<div class="mrow"><span class="ml">' + label + '</span><div class="md">' + control +
+    (hint ? '<span class="mhint">' + hint + '</span>' : '') + '</div></div>';
+}
+function uiSw(key, on, label){
+  return '<label class="msw"><input type="checkbox" data-sw="' + key + '"' + (on ? ' checked' : '') +
+    '><span>' + label + '</span></label>';
+}
+function uiField(key, cls, val, ph, suffix){
+  return '<input class="mtxt ' + cls + '" data-in="' + key + '" value="' + uiEsc(val) +
+    '" placeholder="' + uiEsc(ph) + '">' + (suffix ? ' ' + suffix : '');
+}
+/* 强调色圆点自带的预览色。看着和 CSS 重复，但**不能**改成 var(--sig)：
+   点任意一个圆点会立刻保存并套用，data-accent 一变，所有圆点都会变成同一个颜色，
+   预览就失去意义了。它必须是各自独立的色值（口径是"在深浅底上都看得出来的中间调"）。 */
+function uiAccents(){
+  return [['mint','信号绿','#22C58A'],['blue','蓝','#4A90E2'],['violet','紫','#9B77E8']];
+}
+/* 主题的取值必须与 guiconfig.go 的 normalizeUI 白名单、以及 CSS 里的
+   :root[data-theme=…] 块一一对应；漏一处的症状是"选了但没变"或"永远选不到"。
+   用例 TestThemeOptionsMatchTheCSS 会拿这份名单去比对 CSS。 */
+function uiThemes(){
+  return [['auto','跟随系统'],['dark','深色'],['light','浅色'],['contrast','高对比']];
+}
+/* 背景图与毛玻璃那两行的说明文字。
+   抽成函数是因为它们会随**另一个**设置项变（填没填背景图），保存之后必须就地重刷：
+   只渲染一次的话，用户填了个读不出来的路径，面板上还挂着上次打开面板时的旧文案。 */
+function wallHintText(u){
+  if(u.wallReason){ return '这张图用不了：' + uiEsc(u.wallReason); }
+  return '点「导入图片…」把一张图复制进存档（JPEG / PNG / GIF，单张上限 32MB），也可以直接把图丢进存档目录里的 wallpapers 文件夹再点刷新。导入之后原文件改名、移走、删掉都不影响，整个存档文件夹拷到别的机器上背景图也还在。图片会先缩到长边 2560，所以放 4K 图也不会拖慢界面。建议用不透明的图：带透明区域的 PNG 转成 JPEG 之后透明部分会发黑。';
+}
+function glassHintText(u){
+  if(u.bgImage){
+    return '已经填了背景图片，毛玻璃会让位、面板保持实心：半透明面板压在一张任意照片上时，第三、四级灰会掉到 4.5 的对比度门槛以下（实测最差 3.69）。这两个功能只能取一个。';
+  }
+  return '面板变半透明，透出后面的极光。这是静态近似而不是实时模糊 —— 实时模糊要每帧把背后的像素读回来重算，一个正在运行的呼吸点就够让它一直占着显卡。';
+}
+/* 图库选择器。
+   配置里存的是「导入后的文件名」，所以这里给下拉列表而不是让用户敲路径 —— 路径那种做法
+   在用户把图挪个地方之后就会静默失效，而「导入」是把图复制进存档，之后怎么动原文件都不影响。
+   列表来自服务端扫描 wallpapers 目录的结果，用户也可以自己往那个目录里丢图。 */
+function uiWallPicker(u){
+  var list = u.wallList || [];
+  var opts = '<option value="">（不用背景图）</option>';
+  list.forEach(function(n){
+    opts += '<option value="' + uiEsc(n) + '"' + (n === u.bgImage ? ' selected' : '') + '>' + uiEsc(n) + '</option>';
+  });
+  if(u.bgImage && list.indexOf(u.bgImage) < 0){
+    // 配置里选的那张已经不在图库里了：仍然列出来并选中，好让用户看见"是它丢了"
+    opts += '<option value="' + uiEsc(u.bgImage) + '" selected>' + uiEsc(u.bgImage) + '（已不在图库里）</option>';
+  }
+  return '<select class="mtxt" data-in="bgImage">' + opts + '</select> ' +
+    '<input type="file" id="wallFile" accept="image/*" style="display:none">' +
+    '<button type="button" class="btn sm" data-act="wallImport">导入图片…</button> ' +
+    '<button type="button" class="btn sm" data-act="wallFolder">打开存档目录</button> ' +
+    '<button type="button" class="btn sm" data-act="wallRefresh">刷新</button>';
+}
+/* 曲库那一行。曲库的真相在磁盘上，所以这里只报数量 + 给「打开文件夹」「刷新」两个动作，
+   不做内嵌的播放列表管理 —— 用户用资源管理器管理自己的文件，比在设置里做一套增删更省心。 */
+function uiMusicList(u){
+  var list = u.musicList || [];
+  var n = list.length;
+  var txt = n ? ('共 ' + n + ' 首') : '（还没有音乐）';
+  return '<span class="mnote">' + txt + '</span> ' +
+    '<button type="button" class="btn sm" data-act="musicFolder">打开文件夹</button> ' +
+    '<button type="button" class="btn sm" data-act="musicRefresh">刷新</button>';
+}
+function musicHintText(u){
+  if(!(u.musicList || []).length){
+    return '把音乐文件（MP3 / WAV / FLAC / M4A / OGG）放进存档目录的 music 文件夹，再点「刷新」。只把真正的音频算进曲库：改了后缀的其它文件不会出现在这里。';
+  }
+  return '曲库就是存档里的 music 文件夹，你可以自己往里放、改名、删除，点「刷新」后生效。播放时不另占 CPU —— 音频由界面内核直接解码；关掉窗口就停。某个文件放不了会被标出来，不会静默跳过。';
+}
+function uiSettingsHTML(u){
+  var dots = uiAccents().map(function(a){
+    return '<button class="mdot' + (u.accent === a[0] ? ' on' : '') + '" data-accent="' + a[0] +
+      '" title="' + a[1] + '" aria-label="强调色 ' + a[1] + '" style="background:' + a[2] + '"></button>';
+  }).join('');
+  var h = '<div class="mset">';
+  h += '<div class="mgrp">外观</div>';
+  h += uiRow('主题', uiSeg('theme', u.theme, uiThemes()),
+    '浅色与高对比都只换底色与字色，版式与按钮位置都不动。高对比是给"看不清"的处境用的（低端屏、白天反光、投屏），不是另一种口味。');
+  h += uiRow('强调色', dots, '界面里"这条路通了"用的就是这个颜色。');
+  h += uiRow('材质', uiSeg('flat', u.flat, [['off','立体'],['on','扁平']]),
+    '扁平 = 去掉圆角、外阴影、渐变与光晕，只留颜色和 1px 线条。它是纯减法，绘制只会更省；焦点框会换成描边，键盘操作一样看得见。');
+  h += uiRow('毛玻璃', uiSw('glass', u.glass === 'on', '面板半透明'), glassHintText(u));
+  h += uiRow('背景光效', uiSw('backdrop', u.backdrop !== 'off', '显示背景渐变与网格'), '');
+  h += uiRow('背景图片', uiWallPicker(u), wallHintText(u));
+  h += uiRow('动效', uiSeg('motion', u.motion, [['full','完整'],['lite','精简']]),
+    '精简 = 去掉所有过渡，以及「执行中」那个点的呼吸动画（点本身还在，只是不闪）。背景光效由它自己的开关控制，两者互不影响。系统里的"减少动态效果"始终优先。');
+  h += uiRow('界面字号', uiSeg('scale', u.scale, [['std','标准'],['big','大']]),
+    '只把字放大一号（顶栏与底栏高度跟着走），控件位置与版式都不动。给"高对比解决了对比度、但字还是小"的处境用。');
+  h += '<div class="mgrp">行为</div>';
+  h += uiRow('打开界面时', uiSw('autoProbe', !!u.autoProbe, '自动检测本机环境'),
+    '与「检测本机环境」里的那个勾是同一个开关（原生界面也在同一处）。');
+  h += uiRow('填写内容', uiSw('remember', u.remember !== '0', '记住上次填过的值'),
+    '关掉只是不再记新的；已经记下的用下面「清除」处理。');
+  h += uiRow('日志保留', uiField('logKeep', 'small', u.logKeep, '2000', '行'),
+    '两层（结论 / 原始输出）各留多少行，范围 200 ~ 20000。');
+  h += '<div class="mgrp">默认值</div>';
+  h += uiRow('游戏端口', uiField('defPort', 'small', u.defPort, '25565', ''),
+    '填了它，所有「游戏端口」留空的表单都用这个值。');
+  h += uiRow('中转服务器', uiField('defRelay', '', u.defRelay, 'turn:主机:3478 或 mclbx://…', ''),
+    '填了它，所有「中转服务器」留空的表单都用这个值；某个操作想用别的，在它自己那里填就行（填过的优先）。');
+  h += '<div class="mgrp">音乐</div>';
+  h += uiRow('曲库', uiMusicList(u), musicHintText(u));
+  h += uiRow('播放顺序', uiSeg('musicMode', u.musicMode, [['order','顺序'],['shuffle','随机']]),
+    '随机播放不会连续两首抽到同一首（曲库里只有一首时除外，那时随机没有意义）。');
+  h += uiRow('循环', uiSeg('musicLoop', u.musicLoop, [['off','不循环'],['all','列表循环'],['one','单曲循环']]),
+    '选「不循环」时，顺序播到最后一首就停下；随机模式下会继续。');
+  h += uiRow('音量', uiField('musicVol', 'small', u.musicVol, '70', ''),
+    '0 到 100。它与系统音量是叠乘关系：听不见时先看系统音量，再看这里是不是被调成了 0。');
+  h += uiRow('播放控制', '<button type="button" class="btn sm" data-act="bgmPrev">上一首</button> ' +
+    '<button type="button" class="btn sm" data-act="bgmPlay">播放 / 暂停</button> ' +
+    '<button type="button" class="btn sm" data-act="bgmNext">下一首</button>',
+    '底栏那个 ♪ 也能播放与暂停，不用每次打开设置。切歌与放完自动下一首都按上面的顺序与循环设置走。');
+  h += '<div class="mgrp">数据</div>';
+  h += '<div class="mfoot">' +
+    '<button class="btn sm" data-act="forgetInputs">清除记住的填写内容</button>' +
+    '<button class="btn sm" data-act="openData">打开数据目录</button>' +
+    '<button class="btn sm" data-act="diag">导出诊断包</button>' +
+    '<span class="msaved" id="mSaved" hidden>已保存</span>' +
+    '<span class="mnote">设置与日志都在数据目录 <code>' + uiEsc(u.dataDir || '') +
+    '</code> 下（config.json / gui.log）。这个程序是单个 exe，删掉文件就干净了；想连设置一起清掉，命令行执行 <code>mclbx forget</code>。</span>' +
+    '</div></div>';
+  return h;
+}
+async function openSettings(){
+  if(!ui){
+    try{ ui = await (await fetch('/api/settings')).json(); }catch(e){ ui = null; }
+    if(!ui || !ui.ok){ toast('读不到设置', true); return; }
+  }
+  setText($('modalTitle'), '设置');
+  $('modalBody').innerHTML = uiSettingsHTML(ui);
+  uiBind();
+  setHidden($('modal'), false);
+}
+function uiBind(){
+  var body = $('modalBody');
+  body.onclick = function(e){
+    var b = e.target && e.target.closest ? e.target.closest('button') : null;
+    if(!b || !body.contains(b)){ return; }
+    if(b.hasAttribute('data-v')){
+      var seg = b.parentNode;
+      Array.prototype.forEach.call(seg.querySelectorAll('button'), function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+      uiSave();
+      return;
+    }
+    if(b.hasAttribute('data-accent')){
+      Array.prototype.forEach.call(body.querySelectorAll('[data-accent]'), function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+      uiSave();
+      return;
+    }
+    if(b.hasAttribute('data-act')){ uiAction(b.getAttribute('data-act')); }
+  };
+  body.onchange = function(e){
+    if(e.target && e.target.getAttribute && e.target.getAttribute('data-sw')){ uiSave(); }
+  };
+  Array.prototype.forEach.call(body.querySelectorAll('[data-in]'), function(inp){
+    inp.onchange = uiSave;
+    inp.onkeydown = function(e){ if(e.key === 'Enter'){ uiSave(); } };
+  });
+  var fi = $('wallFile');
+  if(fi){ fi.onchange = function(){ if(fi.files && fi.files[0]){ uiImportWall(fi.files[0]); } }; }
+}
+function uiCollect(){
+  var out = { theme:'auto', accent:'mint', motion:'full', backdrop:'on', scale:'std',
+    flat:'off', glass:'off', bgImage:'',
+    musicMode:'order', musicLoop:'all', musicVol:'70',
+    remember:'', logKeep:'', defPort:'', defRelay:'', autoProbe:false };
+  Array.prototype.forEach.call(document.querySelectorAll('#modalBody [data-seg]'), function(seg){
+    var on = seg.querySelector('button.on');
+    if(on){ out[seg.getAttribute('data-seg')] = on.getAttribute('data-v'); }
+  });
+  var acc = document.querySelector('#modalBody .mdot.on');
+  if(acc){ out.accent = acc.getAttribute('data-accent'); }
+  Array.prototype.forEach.call(document.querySelectorAll('#modalBody [data-sw]'), function(c){
+    var k = c.getAttribute('data-sw');
+    if(k === 'autoProbe'){ out.autoProbe = c.checked; }
+    if(k === 'remember'){ out.remember = c.checked ? '' : '0'; }
+    // 背景光效：**这里以前漏了**，于是 out.backdrop 永远是写死的 'on' —— 复选框点下去没反应，
+    // 重开面板又勾回来，而且任何一次保存都会把用户手改的 backdrop:"off" 打回 on。
+    // 现在有一条用例（TestEverySwitchInThePanelIsCollected）逐键比对面板上的开关与这里的读取。
+    if(k === 'backdrop'){ out.backdrop = c.checked ? 'on' : 'off'; }
+    if(k === 'flat'){ out.flat = c.checked ? 'on' : 'off'; }
+    if(k === 'glass'){ out.glass = c.checked ? 'on' : 'off'; }
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('#modalBody [data-in]'), function(i){
+    out[i.getAttribute('data-in')] = (i.value || '').trim();
+  });
+  return out;
+}
+/* 外观各项立刻生效（改完就能看到），其余的存在服务端、下次拼命令时生效 */
+function uiApply(u){
+  var el = document.documentElement;
+  el.setAttribute('data-accent', u.accent || 'mint');
+  el.setAttribute('data-motion', u.motion === 'lite' ? 'lite' : 'full');
+  el.setAttribute('data-backdrop', u.backdrop === 'off' ? 'off' : 'on');
+  el.setAttribute('data-scale', u.scale === 'big' ? 'big' : 'std');
+  el.setAttribute('data-flat', u.flat === 'on' ? 'on' : 'off');
+  el.setAttribute('data-glass', u.glass === 'on' ? 'on' : 'off');
+  // 背景图由服务端缩放并缓存好之后返回地址，这里只负责把它挂上去/摘下来。
+  // 换图与清空都要求立刻生效，否则得关掉界面重开才看得到。
+  if(u.wallURL){
+    el.setAttribute('data-wall', 'on');
+    el.style.setProperty('--wall', "url('" + u.wallURL + "')");
+  }else{
+    el.removeAttribute('data-wall');
+    el.style.removeProperty('--wall');
+  }
+  if(window.MCLBX_THEME){ window.MCLBX_THEME(u.theme || 'auto'); }
+  else{ el.setAttribute('data-theme', u.theme || 'auto'); }
+  syncManualTheme();
+}
+/* 保存之后就地把这两行的说明重刷一遍。
+   只改文字、不重渲染整个面板 —— 重渲染会把焦点和光标位置一起弄丢，
+   而用户往往正是在输入框里改完直接回车保存的。 */
+function uiRefreshHints(u){
+  var body = $('modalBody');
+  if(!body || !u){ return; }
+  [['[data-in="bgImage"]', wallHintText(u)], ['[data-sw="glass"]', glassHintText(u)]].forEach(function(pr){
+    var el = body.querySelector(pr[0]);
+    var row = el && el.closest ? el.closest('.mrow') : null;
+    var hint = row ? row.querySelector('.mhint') : null;
+    if(hint){ hint.textContent = pr[1]; }
+  });
+}
+async function uiSave(){
+  var r = await api('/api/settings', uiCollect());
+  if(!r || !r.ok){ toast((r && r.err) || '设置没能保存', true); return; }
+  ui = r.ui;
+  uiApply(ui);
+  uiRefreshHints(ui);
+  // 音量属于"改完立刻生效"那一类：不用等下一首
+  if(bgmEl){ bgmEl.volume = bgmGain(); }
+  // logKeep 按十进制字符串收：服务端两条路（读设置 / 保存）给的是同一种形态，客户端不再猜类型
+  var lk = parseInt(r.logKeep, 10);
+  if(!isNaN(lk)){ LOG_KEEP = lk; }
+  var s = $('mSaved');
+  if(s){
+    setHidden(s, false);
+    if(uiSaveTimer){ clearTimeout(uiSaveTimer); }
+    uiSaveTimer = setTimeout(function(){ setHidden(s, true); }, 1600);
+  }
+}
+/* 导入一张图片。走上传而不是把路径交给服务端去读 —— 导入的意义就是把图复制进存档，
+   存完之后原文件改名、移走、删掉都不影响。 */
+async function uiImportWall(file){
+  var fd = new FormData();
+  fd.append('file', file, file.name);
+  var r = null;
+  try {
+    var resp = await fetch('/api/wall/import', { method:'POST', body: fd });
+    r = await resp.json();
+  } catch(e){ r = null; }
+  if(!r || !r.ok){ toast((r && r.err) || '导入失败', true); return; }
+  ui = r;
+  uiApply(ui);
+  openSettings(); // 图库列表变了，重渲染面板
+  toast('已导入并设为背景图');
+}
+/* ---- 背景音乐 ----
+   播放归界面这一侧：<audio> 原生解 MP3/WAV/FLAC/OGG/M4A，音量对所有格式都有效（实测 MCI 在
+   WAV 那一档设备上不支持音量），拖动进度靠服务端 /music/ 的 Range 支持，播完有 ended 事件。
+   于是不需要轮询、不需要定时器，Go 侧也不用维护一套播放状态机。
+
+   曲库的真相在磁盘上：列表来自服务端扫描 music 目录的结果。界面只记住「放哪一首」与偏好
+   （顺序、循环、音量），偏好存进 config.json。
+   放不了的文件的记在 bgmBad 里并显示出来 —— 静默跳过会让用户不知道有一首是坏的。 */
+var bgmEl = null, bgmList = [], bgmIdx = -1, bgmBad = {};
+
+/* 配置里是 0-100 的字符串，<audio>.volume 要 0-1。 */
+function bgmGain(){
+  var v = parseInt((ui && ui.musicVol) || '70', 10);
+  if(isNaN(v)){ v = 70; }
+  if(v < 0){ v = 0; }
+  if(v > 100){ v = 100; }
+  return v / 100;
+}
+/* 底栏那一行只有曲名，没有别的花样，也没有任何动画。 */
+function bgmPaint(){
+  var el = $('bgmName');
+  if(!el){ return; }
+  if(bgmIdx < 0 || !bgmList[bgmIdx]){ el.textContent = '未播放'; return; }
+  var n = bgmList[bgmIdx];
+  if(bgmBad[n]){ el.textContent = n + '（放不了）'; return; }
+  el.textContent = (bgmEl && !bgmEl.paused ? '正在放：' : '已暂停：') + n;
+}
+function bgmSetList(list){
+  bgmList = list || [];
+  if(bgmIdx >= 0 && !bgmList[bgmIdx]){ bgmIdx = -1; } // 那一首被删了
+  bgmPaint();
+}
+/* 下一首的下标。随机时避开当前这首（只有一首时只能重复）。 */
+function bgmNextIndex(){
+  if(!bgmList.length){ return -1; }
+  if(bgmList.length === 1){ return 0; }
+  if(((ui && ui.musicMode) || 'order') === 'shuffle'){
+    var n = bgmIdx;
+    while(n === bgmIdx){ n = Math.floor(Math.random() * bgmList.length); }
+    return n;
+  }
+  return bgmIdx < 0 ? 0 : (bgmIdx + 1) % bgmList.length;
+}
+function bgmPrevIndex(){
+  if(!bgmList.length){ return -1; }
+  return bgmIdx < 0 ? 0 : (bgmIdx - 1 + bgmList.length) % bgmList.length;
+}
+function bgmPlayAt(i){
+  if(!bgmEl || i < 0 || !bgmList[i]){ return; }
+  bgmIdx = i;
+  bgmEl.src = '/music/' + encodeURIComponent(bgmList[i]);
+  bgmEl.volume = bgmGain();
+  var p = bgmEl.play();
+  // play() 返回 Promise：被自动播放策略拦下或格式不支持都会在这里被拒。
+  // 不接这个拒绝就是"点了没反应" —— 那正是这个项目最不想要的失败方式。
+  if(p && p.catch){
+    p.catch(function(e){
+      var n = bgmList[bgmIdx];
+      bgmBad[n] = '浏览器没能播放它（' + ((e && e.name) || '未知原因') + '）';
+      toast('「' + n + '」放不了', true);
+      bgmPaint();
+    });
+  }
+  bgmPaint();
+}
+/* 一首放完：按循环设置决定重放本曲、下一首，还是停下。 */
+function bgmEnded(){
+  var loop = (ui && ui.musicLoop) || 'all';
+  if(loop === 'one'){ bgmEl.currentTime = 0; bgmEl.play().catch(function(){}); return; }
+  if(loop === 'off' && ((ui && ui.musicMode) || 'order') === 'order' && bgmIdx === bgmList.length - 1){
+    bgmPaint();
+    return; // 顺序播到最后一首且不循环：停下
+  }
+  bgmPlayAt(bgmNextIndex());
+}
+/* 某个文件放不了：记下来、说出来，再跳到还没失败过的一首。
+   没有"全部失败就停"这个判断的话，它会一首一首转下去。 */
+function bgmFailed(){
+  var n = bgmList[bgmIdx];
+  if(n){ bgmBad[n] = '放不了（格式不支持或文件损坏）'; }
+  bgmPaint();
+  if(!n){ return; }
+  toast('「' + n + '」放不了，已跳到下一首', true);
+  var left = 0;
+  bgmList.forEach(function(x){ if(!bgmBad[x]){ left++; } });
+  if(!left){ toast('曲库里的音乐都放不了', true); return; }
+  bgmPlayAt(bgmNextIndex());
+}
+/* 曲库要等真正用的时候才去取：不点播放就不碰磁盘，也不占首屏。 */
+async function bgmEnsure(){
+  if(bgmList.length){ return true; }
+  try{
+    var r = await (await fetch('/api/settings')).json();
+    if(r && r.ok){ ui = r; bgmSetList(r.musicList); return true; }
+  }catch(e){}
+  return false;
+}
+async function bgmToggle(){
+  bgmEl = bgmEl || $('bgm');
+  if(!bgmEl){ return; }
+  if(bgmIdx < 0 || !bgmEl.src){
+    if(!(await bgmEnsure())){ toast('读不到曲库', true); return; }
+    if(!bgmList.length){
+      toast('曲库还是空的：把音乐放进存档的 music 文件夹，再在设置里点「刷新」', true);
+      return;
+    }
+    bgmPlayAt(bgmNextIndex());
+    return;
+  }
+  if(bgmEl.paused){ bgmEl.play().catch(function(){}); } else { bgmEl.pause(); }
+  bgmPaint();
+}
+async function bgmStep(delta){
+  bgmEl = bgmEl || $('bgm');
+  if(!bgmEl){ return; }
+  if(!(await bgmEnsure())){ toast('读不到曲库', true); return; }
+  if(!bgmList.length){ toast('曲库里还没有音乐', true); return; }
+  bgmPlayAt(delta > 0 ? bgmNextIndex() : bgmPrevIndex());
+}
+async function uiAction(a){
+  if(a === 'musicRefresh'){
+    try{
+      var mr = await (await fetch('/api/settings')).json();
+      if(mr && mr.ok){ ui = mr; bgmSetList(mr.musicList); }
+    }catch(e){}
+    openSettings();
+    return;
+  }
+  // 打开的是存档根目录，music 就在它下面 —— 复用已有的「打开数据目录」动作
+  if(a === 'musicFolder'){ a = 'openData'; }
+  if(a === 'bgmPrev'){ bgmStep(-1); return; }
+  if(a === 'bgmNext'){ bgmStep(1); return; }
+  if(a === 'bgmPlay'){ bgmToggle(); return; }
+  if(a === 'wallImport'){ var fi = $('wallFile'); if(fi){ fi.value = ''; fi.click(); } return; }
+  if(a === 'wallRefresh'){ openSettings(); return; }
+  // 打开的是存档根目录，wallpapers 就在它下面 —— 复用已有的「打开数据目录」动作
+  if(a === 'wallFolder'){ a = 'openData'; }
+  if(a === 'diag'){
+    // 导出诊断包是个真正的"操作"，所以照操作那条路走（会出现在日志区里）
+    setHidden($('modal'), true);
+    var j = await api('/api/start', { key:'diag', inputs:{} });
+    if(!j || !j.ok){ toast((j && j.err) || '启动失败', true); return; }
+    setRunningUI(true); tick();
+    return;
+  }
+  var r = await api('/api/settings', { action:a });
+  if(!r || !r.ok){ toast((r && r.err) || '操作失败', true); return; }
+  toast(a === 'forgetInputs' ? '已清除记住的填写内容' : '已打开数据目录');
+}
+
+// 允许用 ?manual=1 直接打开说明书（便于从外部链接进来，也方便自动化核对排版）
+if(location.search.indexOf('manual=1') >= 0){ showManual(true); }
+// 同一类深链，用于核对"一步开局"的两个表单态与"更多功能"展开态（自动化截图用）
+var qsInit = location.search || '';
+if(qsInit.indexOf('quick=host') >= 0){ showQuickForm('host'); }
+else if(qsInit.indexOf('quick=guest') >= 0){ showQuickForm('guest'); }
+else if(qsInit.indexOf('more=1') >= 0){ toggleMore(true); }
+$('fwSkip').onclick = function(){ fwSkipped = true; setHidden($('fwBanner'), true); };
+$('btnSettings').onclick = openSettings;
+// 底栏的背景音乐入口。曲库与曲目要等真正用的时候才去取，所以这里只绑事件、不拉数据。
+bgmEl = $('bgm');
+if(bgmEl){
+  bgmEl.onended = bgmEnded;
+  // 文件解不开时 <audio> 只发 error 事件、不抛异常，不接的话就是"点了没反应"
+  bgmEl.onerror = bgmFailed;
+  bgmEl.volume = bgmGain();
+}
+$('bgmToggle').onclick = bgmToggle;
+// 允许用 ?settings=1 直接打开设置面板（自动化截图用，与 ?manual=1 同一套办法）
+if(location.search.indexOf('settings=1') >= 0){ openSettings(); }
+$('btnStop').onclick = stopJob;
+$('btnQuit').onclick = quitApp;
+$('btnClear').onclick = resetLog;
+$('btnCopyLog').onclick = function(){ copy((layer === 'user' ? userLines : rawLines).join('\n')); };
+$('btnCopyAddr').onclick = function(){ copy(addr); };
+$('modalClose').onclick = function(){ setHidden($('modal'), true); };
+$('modal').onclick = function(e){ if(e.target === $('modal')){ setHidden($('modal'), true); } };
+Array.prototype.forEach.call($('segs').querySelectorAll('.seg'), function(sg){
+  sg.onclick = function(){
+    layer = sg.getAttribute('data-f');
+    refreshLog();
+  };
+});
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape'){
+    if(!$('modal').hidden){ setHidden($('modal'), true); return; }
+    clearSel();
+    return;
+  }
+  var tag = document.activeElement ? document.activeElement.tagName : '';
+  if(e.key === 'Enter' && tag !== 'INPUT'){ startTask(); }
+});
+
+/* 顶部提示条：界面只有一扇窗，所以"本来会弹个黑框告诉你"的事都改成写在这里。
+   服务端在退回浏览器时会带上 ?notice=原因。 */
+(function(){
+  var m = /[?&]notice=([^&]*)/.exec(location.search);
+  if(!m){ return; }
+  var box = $('notice'), txt = $('noticeText');
+  if(!box || !txt){ return; }
+  var s = m[1];
+  try{ s = decodeURIComponent(s.replace(/\+/g, ' ')); }catch(e){}
+  txt.textContent = s;
+  box.style.display = 'flex';
+})();
+
+/* 起手：拉操作表 → 铺界面 → 开始轮询 */
+(async function(){
+  try{
+    tasks = await (await fetch('/api/tasks')).json();
+  }catch(e){
+    tasks = [];
+  }
+  renderCap();
+  renderTasks();
+  resetLog();
+  renderWork();
+  tick();
+  setInterval(tick, 700);
+})();
+</script>
+</body>
+</html>
+`

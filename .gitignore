@@ -1,0 +1,31 @@
+# 构建产物
+/dist/
+/mclbx.exe
+# 程序自己的存档目录：默认生成在 exe 同级，而 exe 常常就放在仓库目录里
+/mclbx-data/
+/mclbx-win32.exe
+/mclbx-winarm64.exe
+/mclbx-linux-amd64
+/mclbx-linux-arm64
+/mclbxtest.exe
+/mclbxold.exe
+*.exe.old-*
+
+# 测试与调试输出
+*.log
+*.out
+cover.out
+soak-samples.csv
+vmtest/
+
+# 编辑器与系统
+.vscode/
+.idea/
+*.swp
+*~
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Go
+/vendor/

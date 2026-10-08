@@ -1,0 +1,16 @@
+# 行尾统一成 LF。
+#
+# 这个仓库要在 Windows 与 Linux 上同时构建，testdata/ 下的字节需要保持一致；
+# 若交由 autocrlf 在检出时改成 CRLF，两者都会出问题，且不会在 Windows 上当场报错。
+#
+# .ps1 文件仍必须是 UTF-8 with BOM（见 repo_hygiene_test.go），行尾不受影响。
+* text=auto eol=lf
+
+# 二进制：不做任何行尾或编码转换
+*.exe   binary
+*.dll   binary
+*.syso  binary
+*.ico   binary
+*.png   binary
+*.jpg   binary
+*.zip   binary

@@ -1,0 +1,40 @@
+{
+  "note": "由 go test -run TestVisualBaseline -update 生成；指纹不同 = 换机器了，对比会自动跳过",
+  "entries": [
+    {
+      "name": "idle-envcheck",
+      "w": 1080,
+      "h": 730,
+      "dpi": 96,
+      "fingerprint": "dpi=96 ui=93/60 mono=35 title=110 cjk=true"
+    },
+    {
+      "name": "running-join-longlink",
+      "w": 1080,
+      "h": 730,
+      "dpi": 96,
+      "fingerprint": "dpi=96 ui=93/60 mono=35 title=110 cjk=true"
+    },
+    {
+      "name": "running-join-longlink-144",
+      "w": 1080,
+      "h": 730,
+      "dpi": 144,
+      "fingerprint": "dpi=144 ui=137/90 mono=50 title=163 cjk=true"
+    },
+    {
+      "name": "error-minwindow",
+      "w": 880,
+      "h": 700,
+      "dpi": 96,
+      "fingerprint": "dpi=96 ui=93/60 mono=35 title=110 cjk=true"
+    },
+    {
+      "name": "host-room",
+      "w": 1080,
+      "h": 730,
+      "dpi": 120,
+      "fingerprint": "dpi=120 ui=114/80 mono=40 title=132 cjk=true"
+    }
+  ]
+}
