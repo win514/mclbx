@@ -2,9 +2,11 @@ package main
 
 // uicfg_io.go —— 配置的导出、导入、重置，以及设置变更记录。
 //
-// 四件事共用同一份「字段 → 模块 / 选项名称」的对照（见 uispec_impl.go），
+// 四件事共用同一份「字段 → 板块 / 选项名称」的对照（uiFieldLabels），
 // 所以导出文件里的名字、界面上看到的名字、变更记录里写的名字是同一个，
 // 不会出现「日志说改了 A、界面里找不到 A」这种情况。
+// 这份对照同时也是「面板上允许出现哪些设置项」的唯一定义：面板多一项、少一项、
+// 或者 guiUIState 上多出一个没人登记的字段，TestPanelOnlyShowsRealSettings 都会红。
 //
 // 设计取舍记在这里：
 //   · 导出写成**带缩进的可读文本**，而不是压缩后的单行。它是给人看、给人改的。
@@ -89,7 +91,186 @@ func diffUIFields(prev, next guiUIState) map[string][2]string {
 	return out
 }
 
-// ---- 导出 ----
+// uiFieldInfo 一个可编辑设置项在界面上的位置与名字。
+type uiFieldInfo struct {
+	Face  string // 板块：主题外观 / 辅助小工具
+	Group string // 板块内的分组：配色 / 背景 / 特效 / 排版 / 背景音乐 / 填表与日志
+	Name  string // 选项名称
+}
+
+// uiFieldLabels 是**可编辑设置项的权威清单**，也是这个程序里唯一一份。
+//
+// 它有三处用途，所以不许和代码脱节：
+//
+//	· 变更记录靠它把字段名翻成人能读的"板块 / 分组 / 选项名"；
+//	· 重置靠它划定范围（某个板块或全部）；
+//	· 用例靠它守住"代码里的设置项与清单一一对应" —— 多一个字段没登记、
+//	  或者登记了一个不存在的字段，都会被立刻发现。
+//
+// 这份清单对应的正是交付物里的「真实可编辑生效设置清单」。
+// **只有真正会被读取、会改变程序行为的字段才允许进来**：
+// 界面上的说明文字、版本号、路径这类只读展示不进这里。
+var uiFieldLabels = map[string]uiFieldInfo{
+	// —— 主题外观 ——
+	"theme":     {"主题外观", "配色", "主题"},
+	"accent":    {"主题外观", "配色", "强调色"},
+	"flat":      {"主题外观", "配色", "材质"},
+	"radii":     {"主题外观", "配色", "圆角大小"},
+	"backdrop":  {"主题外观", "背景", "背景光效"},
+	"bgImage":   {"主题外观", "背景", "背景图片"},
+	"vfx":       {"主题外观", "特效", "视觉美化"},
+	"glass":     {"主题外观", "特效", "毛玻璃"},
+	"glow":      {"主题外观", "特效", "科幻轮廓微光"},
+	"fade":      {"主题外观", "特效", "面板淡入"},
+	"noDegrade": {"主题外观", "特效", "帧率自动降级"},
+	"scale":     {"主题外观", "排版", "界面字号"},
+	"motion":    {"主题外观", "排版", "动画效果"},
+	"rail":      {"主题外观", "排版", "侧边栏样式"},
+	// —— 辅助小工具 ——
+	"musicMode": {"辅助小工具", "背景音乐", "播放顺序"},
+	"musicLoop": {"辅助小工具", "背景音乐", "循环"},
+	"musicVol":  {"辅助小工具", "背景音乐", "音量"},
+	"remember":  {"辅助小工具", "填表与日志", "记住上次填过的值"},
+	"logKeep":   {"辅助小工具", "填表与日志", "日志保留行数"},
+	"defPort":   {"辅助小工具", "填表与日志", "默认游戏端口"},
+	"defRelay":  {"辅助小工具", "填表与日志", "默认中转服务器"},
+}
+
+// uiFaces 两个板块的名字，顺序即界面上的顺序。
+var uiFaces = []string{"主题外观", "辅助小工具"}
+
+// uiBoardFields 某个板块（"all" 或空串表示全部）下全部可编辑字段。
+func uiBoardFields(face string) []string {
+	if face == "" {
+		face = "all"
+	}
+	out := make([]string, 0, len(uiFieldLabels))
+	for _, f := range uiFieldNames() {
+		info, ok := uiFieldLabels[f]
+		if !ok {
+			continue
+		}
+		if face == "all" || info.Face == face {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// uiFieldLabel 把字段名翻成人能读的「板块 / 选项名」。
+func uiFieldLabel(field string) (face, name string) {
+	info, ok := uiFieldLabels[field]
+	if !ok {
+		return "", ""
+	}
+	return info.Face, info.Name
+}
+
+// uiCorrectedFields 找出**用户提交的取值不合法**、被归一化改掉的字段。
+//
+// 提交值与生效值不一致时，界面要明确告诉用户"这个值不能用，已经回退"，
+// 而不是安静地改成另一个值 —— 那会让人以为设置没保存，反复重试。
+// 只比对非空提交值：留空表示"回到默认"，那不是被纠正。
+//
+// used 一定是**看得懂的**：归一化常把非法值落成空串（空串在配置里表示"用默认"），
+// 直接报空串会得到「日志保留行数（999999 → ）」这种等于没说的提示 ——
+// 实测跑出来就是这样，所以空串统一显示为「默认」。
+func uiCorrectedFields(submitted, normalized guiUIState) []map[string]string {
+	sub, got := uiValueMap(submitted), uiValueMap(normalized)
+	out := []map[string]string{}
+	for _, f := range uiFieldNames() {
+		v := sub[f]
+		if v == "" || v == got[f] {
+			continue
+		}
+		_, name := uiFieldLabel(f)
+		if name == "" {
+			name = f // 没登记的字段也要报出来，否则"值被悄悄改了"是最难查的一类
+		}
+		used := got[f]
+		if used == "" {
+			used = "默认"
+		}
+		out = append(out, map[string]string{"field": f, "name": name, "sent": v, "used": used})
+	}
+	return out
+}
+
+// ---- 只读展示信息 ----
+//
+// 这一组只读数字，用来把设置面板填满而不新增任何可编辑项。
+// 它们全部来自真实文件与真实目录，不是写死的装饰文本。
+
+// uiStorageStats 存档目录里各类产物的体积与文件数。
+func uiStorageStats() map[string]any {
+	dir := dataDir()
+	out := map[string]any{"ok": false}
+	if dir == "" {
+		return out
+	}
+	// 分类口径与用户关心的东西对齐：背景图缓存、音乐、壁纸原图，再加配置与日志两个单文件
+	buckets := []struct {
+		key string
+		sub string
+	}{
+		{"cache", filepath.Join(dir, "ui-cache")},
+		{"music", filepath.Join(dir, "music")},
+		{"wall", filepath.Join(dir, "wallpapers")},
+	}
+	total := int64(0)
+	files := 0
+	items := map[string]any{}
+	for _, b := range buckets {
+		var size int64
+		var n int
+		if entries, err := os.ReadDir(b.sub); err == nil {
+			for _, e := range entries {
+				if e.IsDir() {
+					continue
+				}
+				if info, err := e.Info(); err == nil {
+					size += info.Size()
+					n++
+				}
+			}
+		}
+		items[b.key] = map[string]any{"bytes": size, "files": n}
+		total += size
+		files += n
+	}
+	// 配置与日志是单文件，单独统计
+	for key, p := range map[string]string{"config": guiConfigFile(), "changes": uiChangeFile()} {
+		var size int64
+		var n int
+		if info, err := os.Stat(p); err == nil {
+			size, n = info.Size(), 1
+		}
+		items[key] = map[string]any{"bytes": size, "files": n}
+		total += size
+		files += n
+	}
+	out["ok"] = true
+	out["dir"] = dir
+	out["items"] = items
+	out["totalBytes"] = total
+	out["totalFiles"] = files
+	return out
+}
+
+// uiConfigFileState 配置文件的真实状态：路径、大小、最后写入时间。
+// 界面上只做展示，不给任何入口。
+func uiConfigFileState() map[string]any {
+	p := guiConfigFile()
+	out := map[string]any{"path": p}
+	if info, err := os.Stat(p); err == nil {
+		out["exists"] = true
+		out["bytes"] = info.Size()
+		out["modified"] = info.ModTime().Format("2006-01-02 15:04:05")
+	} else {
+		out["exists"] = false
+	}
+	return out
+}
 
 // uiConfigEnvelope 导出文件的外层结构。
 //
@@ -282,28 +463,23 @@ func sortStrings(s []string) {
 
 // ---- 重置 ----
 
-// resetUIScope 把某个范围的界面偏好恢复成默认。
+// resetUIScope 把某个范围的可编辑设置恢复成默认。
 //
-// scope 为空或 "all" 表示全部；否则是模块名。
+// scope 为空或 "all" 表示全部；否则取 uiFaces 里的板块名（主题外观 / 辅助小工具）。
 // 返回真正发生变化的字段数 —— 呼叫方据此决定要不要说「已经是默认值了」。
+//
+// 只动"可编辑设置"：填过的表单值、记住的填写内容、背景图库里的文件都不受影响。
 func resetUIScope(scope string) (int, error) {
 	cur := loadUI()
-	var fields map[string]bool
-
-	if scope == "" || scope == "all" {
-		fields = map[string]bool{}
-		for _, f := range uiFieldNames() {
-			fields[f] = true
-		}
-	} else {
-		list := uiModuleFields(scope)
-		if len(list) == 0 {
-			return 0, fmt.Errorf("没有这个模块，或者它当前还没有可重置的设置项")
-		}
-		fields = map[string]bool{}
-		for _, f := range list {
-			fields[f] = true
-		}
+	if scope != "" && scope != "all" && !isUIFace(scope) {
+		return 0, fmt.Errorf("没有这个板块：%s", scope)
+	}
+	fields := map[string]bool{}
+	for _, f := range uiBoardFields(scope) {
+		fields[f] = true
+	}
+	if len(fields) == 0 {
+		return 0, fmt.Errorf("这个范围下没有可重置的设置项")
 	}
 
 	next := zeroUIFields(cur, fields)
@@ -315,6 +491,16 @@ func resetUIScope(scope string) (int, error) {
 		return 0, err
 	}
 	return changed, nil
+}
+
+// isUIFace 判断是不是两个板块之一。
+func isUIFace(name string) bool {
+	for _, f := range uiFaces {
+		if f == name {
+			return true
+		}
+	}
+	return false
 }
 
 // ---- 变更记录 ----
@@ -376,12 +562,12 @@ func recordUIChanges(prev, next guiUIState) {
 	now := time.Now().Format("2006-01-02 15:04:05")
 	add := make([]uiChange, 0, len(fields))
 	for _, f := range fields {
-		module, item := uiItemLabel(f)
+		face, item := uiFieldLabel(f)
 		if item == "" {
 			continue // 说不出是哪个选项的字段就不记，记了也没法读
 		}
 		from, to := diff[f][0], diff[f][1]
-		add = append(add, uiChange{At: now, Module: module, Item: item,
+		add = append(add, uiChange{At: now, Module: face, Item: item,
 			From: showUIValue(from), To: showUIValue(to)})
 	}
 	if len(add) == 0 {

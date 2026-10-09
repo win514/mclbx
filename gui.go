@@ -157,6 +157,8 @@ func settingsPayload(ui guiUIState) map[string]any {
 		// 反向一项：勾上「维持高特效」时存 "1"，与 Remember 那种「存关掉」的口径保持一致
 		"noDegrade": ui.NoDegrade == "1",
 		"bgImage":   ui.BgImage,
+		"radii":     ui.Radii,
+		"rail":      ui.Rail,
 		// 图库里的图片名。配置里存的就是这些名字之一，所以面板不需要用户敲路径。
 		"wallList": listWallImages(),
 		// 曲库：真相在存档的 music 目录里，这里只把扫出来的清单交给界面
@@ -175,12 +177,17 @@ func settingsPayload(ui guiUIState) map[string]any {
 		"autoProbe": autoProbeOn(),
 		"dataDir":   dataDir(),
 		"version":   version,
-		// 设置全集（14 模块 / 287 条）与「其中哪些已经能操作」的对照。
-		// 界面按它铺出导航与条目，可操作的渲染控件、其余置灰。
-		"spec": uiSpecForWeb(),
+		// 运行环境：只读展示用。系统与架构来自编译期，运行时版本说明这份 exe 是用什么工具链出的。
+		"platform": runtime.GOOS + " " + runtime.GOARCH + " · " + runtime.Version(),
 		// 变更记录由服务端持有：它是跨会话的，界面刷新不该丢
 		"changes":   loadChanges(),
 		"changeMax": uiChangeMax,
+		// 只读展示信息：全部来自真实文件与真实目录，界面上不给任何编辑入口。
+		// 设置面板的"饱满度"由它们支撑，而不是靠堆一批改不动的假开关。
+		"storage":    uiStorageStats(),
+		"configFile": uiConfigFileState(),
+		// 配置文件损坏时给一句原因；空串表示正常。界面会明确告知，而不是让用户自己发现设置变了。
+		"configFault": configFaultReason(),
 	}
 }
 
@@ -1178,6 +1185,9 @@ func cmdGui(args []string) error {
 			// logKeep 与 GET /api/settings 保持同一种形态（十进制字符串）：
 			// 同一个字段两条路给两种类型，客户端迟早要分叉。
 			"ok": true, "ui": settingsPayload(ui), "logKeep": strconv.Itoa(ui.logKeep()),
+			// 提交值不合法、被归一化改掉的字段。界面要就此给出提示 ——
+			// 安静地把 1e9 改成 2000，用户只会以为"保存没生效"。
+			"corrected": uiCorrectedFields(req.guiUIState, ui),
 		})
 	})
 	mux.HandleFunc("/api/settings", func(w http.ResponseWriter, r *http.Request) {

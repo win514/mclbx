@@ -38,6 +38,8 @@ type guiUIState struct {
 	Fade      string `json:"fade,omitempty"`      // on / off（面板淡入）
 	NoDegrade string `json:"noDegrade,omitempty"` // "1" = 关掉帧率自动降级
 	BgImage   string `json:"bgImage,omitempty"`   // 背景图片名（存档 wallpapers 目录里的一个文件）；空 = 不用
+	Radii     string `json:"radii,omitempty"`     // sharp / std / round（界面圆角大小）
+	Rail      string `json:"rail,omitempty"`      // std / compact（侧边栏样式）
 	MusicMode string `json:"musicMode,omitempty"` // order / shuffle（顺序 / 随机）
 	MusicLoop string `json:"musicLoop,omitempty"` // off / all / one（不循环 / 列表循环 / 单曲循环）
 	MusicVol  string `json:"musicVol,omitempty"`  // 0-100，十进制字符串
@@ -62,6 +64,15 @@ var scaleValues = []string{"std", "big"}
 // 它是一组**离散档位**而不是一个像素值：档位能保证任何取值都在实测过的范围内，
 // 用户拿不到一个「模糊 200px」把界面拖垮。数值本身见 CSS 里 --glass-blur 的定义。
 var glassValues = []string{"off", "low", "mid", "high"}
+
+// radiiValues 界面圆角白名单，与 CSS 的 :root[data-radii=…] 三个块对应。
+//
+// 与 glass 同理：它调的是一组预定义的圆角令牌，而不是让用户填像素值 ——
+// 令牌之间能保证层次关系不乱，随手填的数字做不到。
+var radiiValues = []string{"sharp", "std", "round"}
+
+// railValues 侧边栏样式白名单，与 CSS 的 :root[data-rail=…] 对应。
+var railValues = []string{"std", "compact"}
 
 // uiGlassDefault 毛玻璃的默认档位。
 //
@@ -119,6 +130,14 @@ func normalizeUI(u guiUIState) guiUIState {
 	}
 	if u.NoDegrade != "1" {
 		u.NoDegrade = ""
+	}
+	// 圆角与侧边栏样式：白名单之外一律回落到默认。
+	// 这两个取值都会直接命中 CSS 里对应的块，拼错一个字不会静默失效，而是回到默认档。
+	if !containsStr(radiiValues, u.Radii) {
+		u.Radii = "std"
+	}
+	if !containsStr(railValues, u.Rail) {
+		u.Rail = "std"
 	}
 	// 旧配置里存的是路径，升级后要换成导入进存档的副本（只复制，原文件不动）。
 	// 放在这一层是因为读写两条路都经过它，迁移一次就够了。
@@ -181,8 +200,8 @@ func (u guiUIState) logKeep() int {
 // 视觉美化那几项也在其中：它们决定首屏是不是"先实心、再闪成玻璃"。
 // 总开关与附加开关都注进去，而不是在 CSS 里用总开关去推 —— 少一层推导就少一处走偏。
 func (u guiUIState) htmlAttr() string {
-	return fmt.Sprintf(` data-theme="%s" data-accent="%s" data-motion="%s" data-backdrop="%s" data-scale="%s" data-flat="%s" data-glass="%s" data-vfx="%s" data-glow="%s" data-fade="%s"`,
-		u.Theme, u.Accent, u.Motion, u.Backdrop, u.Scale, u.Flat, u.Glass, u.VFX, u.Glow, u.Fade)
+	return fmt.Sprintf(` data-theme="%s" data-accent="%s" data-motion="%s" data-backdrop="%s" data-scale="%s" data-flat="%s" data-glass="%s" data-vfx="%s" data-glow="%s" data-fade="%s" data-radii="%s" data-rail="%s"`,
+		u.Theme, u.Accent, u.Motion, u.Backdrop, u.Scale, u.Flat, u.Glass, u.VFX, u.Glow, u.Fade, u.Radii, u.Rail)
 }
 
 // wallAttr 拼出背景图片那一段：一个 data-wall 标记加一个行内变量。
@@ -211,6 +230,8 @@ func (u guiUIState) uiStartupJSON() string {
 		Glass     string `json:"glass"`
 		Glow      string `json:"glow"`
 		Fade      string `json:"fade"`
+		Radii     string `json:"radii"`
+		Rail      string `json:"rail"`
 		NoDegrade bool   `json:"noDegrade"`
 	}{
 		Theme:     u.Theme,
@@ -223,6 +244,8 @@ func (u guiUIState) uiStartupJSON() string {
 		Glass:     u.Glass,
 		Glow:      u.Glow,
 		Fade:      u.Fade,
+		Radii:     u.Radii,
+		Rail:      u.Rail,
 		NoDegrade: u.NoDegrade == "1",
 	})
 	if err != nil {
@@ -318,14 +341,43 @@ func loadConfigLocked() *guiConfig {
 	}
 	c := &guiConfig{}
 	b, err := os.ReadFile(guiConfigFile())
-	if err == nil {
-		_ = json.Unmarshal(b, c) // 解析失败视为空，不报错
+	if err == nil && strings.TrimSpace(string(b)) != "" {
+		if e := json.Unmarshal(b, c); e != nil {
+			// 文件在、但读不出来：整份丢弃、回到默认，并记下这次故障。
+			// **不能只忽略错误继续用** —— json.Unmarshal 出错时会把已经解析到的那部分留在 c 里，
+			// 于是用户会看到"一半是旧设置、一半是默认值"的混合状态，比整份回到默认更难解释。
+			// 记下来的原因会由界面明确告诉用户，而不是让他自己发现设置全变了。
+			*c = guiConfig{}
+			noteConfigFault(e)
+		}
 	}
 	if c.Inputs == nil {
 		c.Inputs = map[string]map[string]string{}
 	}
 	guiCfg = c
 	return guiCfg
+}
+
+// 配置损坏只会在**当前这次运行**里被记一次；不写进文件，也不跨次运行保留。
+// 它要说明的是"刚才那次读取出了什么事"，而不是"这个文件永久坏了"。
+var (
+	configFaultMu sync.Mutex
+	configFault   string
+)
+
+func noteConfigFault(err error) {
+	configFaultMu.Lock()
+	defer configFaultMu.Unlock()
+	if configFault == "" && err != nil {
+		configFault = err.Error()
+	}
+}
+
+// configFaultReason 返回本次运行里配置文件的读取故障原因；空串表示一切正常。
+func configFaultReason() string {
+	configFaultMu.Lock()
+	defer configFaultMu.Unlock()
+	return configFault
 }
 
 // savedField 返回某任务某字段上次的值；第二返回值表示确实存过。

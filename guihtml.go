@@ -309,6 +309,18 @@ const guiPageHTML = `<!doctype html>
      · 焦点态必须留下 —— 原来的外阴影聚焦环换成 outline（不占布局、不需要模糊）。焦点看不见等于键盘不能用。
      · **不许出现 .bg / .aurora / .grid** —— 背景光效归 data-backdrop 管，两个开关各管各的
        （用例 TestFlatNeverTouchesTheBackdropLayer 会拦住越界）。 */
+/* 圆角大小：三个离散档，改的是同一组圆角令牌。
+   放在「扁平」那条规则**之前** —— 扁平把圆角一律归零，两者冲突时以扁平为准
+   （扁平的语义就是去掉圆角，不能因为圆角档位高就又冒出来）。 */
+:root[data-radii="sharp"]{--r1:3px;--r2:4px;--r3:6px}
+:root[data-radii="round"]{--r1:10px;--r2:14px;--r3:20px}
+
+/* 侧边栏样式「紧凑」：去掉任务列表里的说明行、收紧行距，一屏能多看几项。
+   只动左栏的排版，任务的名称、顺序与行为一概不变。 */
+:root[data-rail="compact"] .t{padding:6px 10px 6px 11px;margin-bottom:3px}
+:root[data-rail="compact"] .t .ds{display:none}
+:root[data-rail="compact"] .t .nm{margin-bottom:0}
+
 :root[data-flat="on"]{--r1:0px;--r2:0px;--r3:0px;--pill:0px}
 :root[data-flat="on"] .glyph{background:var(--sig);box-shadow:none}
 :root[data-flat="on"] .card,
@@ -827,66 +839,53 @@ main{display:grid;grid-template-columns:340px minmax(0,1fr);gap:var(--s4);
 .mrow>.md{flex:1;min-width:0;display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap}
 .mhint{flex:1 1 100%;font-size:var(--fs-11-5);color:var(--muted);line-height:1.55}
 
-/* ---- 设置面板的骨架：左模块导航 + 右内容 ----
-   结构按设计文档第一部分来。顶部那条搜索与视图开关放在**右栏内部**而不是整宽横条，
-   这样它与左导航能共用一个 sticky 的 top 值，彼此不必依赖对方的高度。
-   左导航按模块列出「可操作 / 计划」的比值，一眼能看出哪些模块现在有东西。 */
-.mset{white-space:normal;display:flex;align-items:flex-start;gap:var(--s4)}
-.mset.simple .mmeta{display:none}
-.mnav{flex:0 0 172px;position:sticky;top:calc(-1 * var(--s4));align-self:flex-start;
-  z-index:1;display:flex;flex-direction:column;gap:2px;padding:var(--s4) var(--s2) var(--s4) 0;
-  background:var(--bg2)}
-.mnavi{display:flex;align-items:baseline;gap:6px;padding:5px 8px;border-radius:var(--r1);
-  text-align:left;color:var(--muted);font-size:var(--fs-11-5);line-height:1.35}
-.mnavi:hover{color:var(--ink2);background:var(--surf2)}
-.mnavi.on{color:var(--on-sig);background:var(--sig)}
-.mnavt{flex:1;min-width:0}
-.mnavc{flex:0 0 auto;font:var(--fs-11)/1 var(--mono);opacity:.75}
-.mcontent{flex:1;min-width:0}
-.mtop{position:sticky;top:calc(-1 * var(--s4));z-index:2;background:var(--bg2);
-  padding:var(--s4) 0 var(--s2);margin-bottom:var(--s2);border-bottom:1px solid var(--line)}
-.mtop .msearch{display:flex;align-items:center;gap:var(--s2)}
-.mtop input{flex:1;min-width:0;height:30px;padding:0 10px;border-radius:8px;
-  border:1px solid var(--hair2);background:var(--field);color:var(--ink);font-size:var(--fs-12-5)}
-.mtop input:focus{outline:none;border-color:var(--sig-focus);box-shadow:0 0 0 3px var(--sig-soft)}
-.msvc{display:flex;align-items:center;gap:var(--s2);margin-top:8px;font-size:var(--fs-11-5);color:var(--muted)}
-.mmodh{display:flex;align-items:baseline;gap:var(--s3);flex-wrap:wrap;margin:var(--s4) 0 var(--s2)}
-.mmt{font-size:var(--fs-14);font-weight:600;color:var(--ink)}
-.mmc{flex:1;min-width:0;font-size:var(--fs-11-5);color:var(--muted)}
-.mrow.sv{align-items:flex-start}
-.mrow.sv>.ml{flex:0 0 152px;padding-top:5px}
-.mrow.sv .mdesc{flex:1 1 100%;font-size:var(--fs-11-5);color:var(--muted);line-height:1.55}
-.mrow.sv.off>.ml,.mrow.sv.off .mdesc,.mrow.sv.off .mmeta{color:var(--muted2)}
-.mrow.sv.off{opacity:.74}
-.mrow.hl{background:var(--sig-soft);border-radius:var(--r1)}
-.mchip{display:inline-block;margin-left:6px;padding:0 6px;border-radius:var(--pill);
-  font-size:var(--fs-11);line-height:1.5;border:1px solid var(--line2);color:var(--muted);white-space:nowrap}
-.mchip-live{border-color:var(--sig-edge);background:var(--sig);color:var(--on-sig)}
-.mchip-plan{background:var(--surf2);color:var(--ink2)}
-.mchip-src{border-style:dashed}
-.mmeta{flex:1 1 100%;font-size:var(--fs-11);color:var(--muted2);line-height:1.5}
-.mhits{display:flex;flex-direction:column;gap:1px;margin:var(--s2) 0}
-.mhit{display:flex;align-items:baseline;gap:8px;padding:4px 8px;border-radius:var(--r1);
-  text-align:left;font-size:var(--fs-12);color:var(--ink2)}
-.mhit:hover{background:var(--surf2)}
-.mhit b{font-weight:500;color:var(--ink)}
-.mhit span{margin-left:auto;flex:0 0 auto;font-size:var(--fs-11);color:var(--muted)}
-.mbar{margin:var(--s2) 0 var(--s3);padding:8px 12px;border-radius:var(--r1);
-  border:1px solid var(--line2);background:var(--surf2);font-size:var(--fs-11-5);color:var(--ink2)}
+/* ---- 设置面板：两个可编辑板块 + 只读信息 + 维护操作 ----
+   面板只放**真正会生效**的设置。做不到的东西一律不在这里出现 ——
+   宁可让页面靠排版、分组、说明与只读信息撑起饱满度，
+   也不摆一批点不动、改了没反应的占位开关。 */
+.mset{white-space:normal}
+.mface{margin-bottom:var(--s5)}
+.mfaceh{display:flex;align-items:center;gap:var(--s2);margin:0 0 var(--s2)}
+.mfaceh .ic{flex:0 0 auto;display:flex;color:var(--sig)}
+.mfaceh .tt{font-size:var(--fs-14);font-weight:600;color:var(--ink)}
+.mfaceh .sub{flex:1;min-width:0;font-size:var(--fs-11-5);color:var(--muted)}
+.mcard{border:1px solid var(--line);border-radius:var(--r2);background:var(--surf);
+  padding:var(--s2) var(--s3) var(--s3);margin-bottom:var(--s2)}
+.mcardh{display:flex;align-items:center;gap:var(--s2);margin:var(--s1) 0 var(--s1);
+  font:var(--fs-11)/1.6 var(--mono);letter-spacing:.1em;color:var(--muted)}
+.mcardh::after{content:"";flex:1;height:1px;background:var(--hair)}
+/* 辅助板块的定位声明：把"这是附加项"写在脸上，而不是让用户去猜 */
+.mbenefit{display:flex;gap:var(--s2);margin:0 0 var(--s2);padding:var(--s2) var(--s3);
+  border:1px solid var(--line);border-radius:var(--r1);background:var(--surf2);
+  font-size:var(--fs-11-5);line-height:1.6;color:var(--ink2)}
+.mbenefit .ic{flex:0 0 auto;display:flex;color:var(--muted)}
+/* 只读区：整块锁住，不给任何输入控件留位置 */
+.minfo{display:grid;grid-template-columns:max-content 1fr;gap:5px var(--s4);margin:0;
+  font-size:var(--fs-11-5)}
+.minfo dt{color:var(--muted)}
+.minfo dd{margin:0;color:var(--ink2);overflow-wrap:anywhere}
+.minfo dd.mono{font-family:var(--mono);font-size:var(--fs-11)}
+.mstats{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s2);margin-top:var(--s3)}
+.mstat{padding:var(--s2) var(--s3);border:1px solid var(--hair);border-radius:var(--r1);
+  background:var(--surf2)}
+.mstat .k{font-size:var(--fs-11);color:var(--muted)}
+.mstat .v{font:600 var(--fs-13)/1.3 var(--mono);color:var(--ink);margin-top:2px}
+.mstat .n{font-size:var(--fs-11);color:var(--muted2)}
+.mnotice{display:flex;gap:var(--s2);margin-top:var(--s3);padding:var(--s2) var(--s3);
+  border:1px solid var(--amber-edge);border-radius:var(--r1);background:var(--amber-soft);
+  font-size:var(--fs-11-5);line-height:1.6;color:var(--ink2)}
+.mnotice .ic{flex:0 0 auto;display:flex;color:var(--amber)}
 .mchg{display:flex;flex-direction:column;margin:var(--s2) 0}
 .mchgr{display:flex;align-items:baseline;gap:8px;padding:5px 0;
   border-bottom:1px solid var(--hair);font-size:var(--fs-11-5);color:var(--ink2)}
 .mchgr .t{flex:0 0 118px;font-family:var(--mono);color:var(--muted)}
-.mchgr .m{flex:0 0 112px;color:var(--muted)}
+.mchgr .m{flex:0 0 92px;color:var(--muted)}
 .mchgr .i{flex:1;min-width:0}
 .mchgr .v{flex:0 0 auto;font-family:var(--mono);color:var(--muted)}
 @media (max-width:820px){
-  .mset{display:block}
-  .mnav{position:static;flex-direction:row;overflow:auto;gap:4px;padding:0 0 var(--s2)}
-  .mnavi{white-space:nowrap}
-  .mnavt{flex:0 0 auto}
-  .mtop{position:static;padding-top:0}
-  .mrow.sv>.ml{flex:0 0 118px}
+  .mstats{grid-template-columns:repeat(2,1fr)}
+  .minfo{grid-template-columns:1fr;gap:1px}
+  .minfo dt{margin-top:var(--s2)}
 }
 .mseg{display:flex;border:1px solid var(--line);border-radius:var(--r1);overflow:hidden}
 .mseg button{padding:5px 12px;font-size:var(--fs-12);color:var(--muted);transition:color .16s,background .16s}
@@ -2175,71 +2174,39 @@ function musicHintText(u){
   return '曲库就是存档里的 music 文件夹，你可以自己往里放、改名、删除，点「刷新」后生效。播放时不另占 CPU —— 音频由界面内核直接解码；关掉窗口就停。某个文件放不了会被标出来，不会静默跳过。';
 }
 /* ==================== 设置面板 ====================
-   面板的结构与条目来自服务端下发的 spec（14 个模块 / 287 条，见 uispec_gen.go），
-   每条带一个分类标记；uispec_impl.go 里那张对照表决定它可不可操作。
-   这么做的直接好处：以后每落地一批功能，只在服务端那张表里加几行，界面不用改 ——
-   也就不可能出现「面板上写着有、点下去没反应」这种自相矛盾。
+   面板只放**真正会生效**的设置，分两个板块：
+     · 主题外观   —— 配色、背景、特效、排版
+     · 辅助小工具 —— 背景音乐，以及填表与日志的少量便捷项
+   另有两块不参与编辑的内容：只读信息（版本、运行环境、占用）与维护操作（重置、导出、导入、记录）。
 
-   两档视图：
-     简洁视图   只列当前可操作的条目，日常用这一档
-     完整参考   把规划中与仅作参考的条目一并列出并置灰，用来对照行业做法
-   搜索跨模块检索，命中列表里标出所属模块，点一下跳过去并高亮。 */
+   这里有一条硬规矩：**面板上出现的每一项，服务端都必须有对应字段与归一化逻辑**。
+   做不到的东西不进这个面板 —— 宁可少一行，也不摆改了没反应的开关。
+   用例 TestPanelOnlyShowsRealSettings 会拿 uiFieldLabels 逐项核对这条规矩。
 
-var uiMod = '';        // 当前模块名
-var uiQuery = '';      // 搜索词
-var uiFull = false;    // false = 简洁视图；true = 完整参考视图
-var uiView = 'main';   // main / changes
-var uiHits = [];       // 当前搜索结果，下标对应 data-hit
-var uiHl = '';         // 跳转后需要短暂高亮的条目名
-var uiHlTimer = null;
+   保存是即时的：改一下就写盘，面板里没有「未保存」这个状态。
+   取值不合法时由服务端回退，并把被改掉的项回给界面（见 uiSave 里的提示）。 */
+var uiView = 'main';        // main / changes
+var uiCorrections = [];     // 上一次保存里被回退的取值，用来提示
 
-/* 控件表：key → 怎么渲染。
-   选项文案集中在这里，而不是散在几十行字符串拼接里 ——
-   面板现在是按清单铺出来的，控件必须能按 key 查到才与清单对得上。 */
-var UI_CTL = {
-  theme:{opts:uiThemes()},
-  accent:{dots:true},
-  flat:{opts:[['off','立体'],['on','扁平']]},
-  glass:{opts:[['off','关闭'],['low','低'],['mid','中'],['high','高']]},
-  scale:{opts:[['std','标准'],['big','大']]},
-  motion:{opts:[['full','完整'],['lite','精简']]},
-  musicMode:{opts:[['order','顺序'],['shuffle','随机']]},
-  musicLoop:{opts:[['off','不循环'],['all','列表循环'],['one','单曲循环']]},
-  vfx:{label:'科幻外观总开关', on:function(u){ return u.vfx !== 'off'; }},
-  glow:{label:'面板描边与四角微光', on:function(u){ return u.glow !== 'off'; }},
-  fade:{label:'设置面板出现时淡入', on:function(u){ return u.fade !== 'off'; }},
-  backdrop:{label:'显示背景渐变与网格', on:function(u){ return u.backdrop !== 'off'; }},
-  remember:{label:'记住上次填过的值', on:function(u){ return u.remember !== '0'; }},
-  noDegrade:{label:'帧率过低时询问我', on:function(u){ return !u.noDegrade; }},
-  autoProbe:{label:'自动检测本机环境', on:function(u){ return !!u.autoProbe; }},
-  musicVol:{cls:'small', ph:'70'},
-  logKeep:{cls:'small', ph:'2000', suf:'行'},
-  defPort:{cls:'small', ph:'25565'},
-  defRelay:{cls:'', ph:'turn:主机:3478 或 mclbx://…'}
-};
-/* 动作表：key → 按钮上的字。act/chrome 两类条目走这里。 */
-var UI_ACT = {
-  vfxMeasure:{act:'vfxMeasure', label:'在当前档位测一秒',
-    after:'<span class="mnote" id="vfxStats">尚未测过</span>'},
-  forgetInputs:{act:'forgetInputs', label:'清除记住的填写内容'},
-  dataDir:{act:'openData', label:'打开存档目录'},
-  exportCfg:{act:'exportCfg', label:'导出全部配置'},
-  importCfg:{act:'importCfg', label:'导入配置…'},
-  version:{act:'copyVersion', label:'复制版本信息'},
-  manual:{act:'manual', label:'打开说明书'},
-  diag:{act:'diag', label:'导出诊断包'}
-};
-/* 说明文字：能用运行时的就说运行时的（例如背景图那一行要讲清缩放与导入），
-   其余用设计清单里的原文。 */
-var UI_HINT = { bgImage:wallHintText, glass:glassHintText, musicList:musicHintText };
-
-function uiSpecGroups(){ return (ui && ui.spec) || []; }
-function uiShortName(n){ return String(n || '').split('（')[0]; }
-function uiGroupByName(n){
-  var g = uiSpecGroups();
-  for(var i = 0; i < g.length; i++){ if(g[i].name === n){ return g[i]; } }
-  return null;
+/* 板块与卡片的小图标。内联 SVG，只跟着 currentColor 走 ——
+   不引图标字体也不引外部文件：面板的观感不该给程序添依赖。 */
+function uiIcon(name){
+  var a = 'viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" ' +
+    'stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"';
+  if(name === 'theme'){
+    return '<svg ' + a + '><circle cx="8" cy="8" r="5.4"/><path d="M8 2.6v10.8"/>' +
+      '<path d="M2.6 8h10.8"/></svg>';
+  }
+  if(name === 'aux'){
+    return '<svg ' + a + '><path d="M3 13l6.6-6.6"/><circle cx="11.2" cy="4.8" r="2.5"/>' +
+      '<path d="M3.4 8.4l4.2 4.2"/></svg>';
+  }
+  return '<svg ' + a + '><circle cx="8" cy="8" r="5.6"/><path d="M8 7.3v3.9"/>' +
+    '<path d="M8 5v.1"/></svg>';
 }
+/* 强调色圆点自带的预览色。看着和 CSS 重复，但**不能**改成 var(--sig)：
+   点任意一个圆点会立刻保存并套用，data-accent 一变所有圆点都会变成同一个颜色，
+   预览就失去意义了。它必须是各自独立的色值。 */
 function uiAccentDots(u){
   return uiAccents().map(function(a){
     return '<button type="button" class="mdot' + (u.accent === a[0] ? ' on' : '') +
@@ -2247,176 +2214,215 @@ function uiAccentDots(u){
       '" style="background:' + a[2] + '"></button>';
   }).join('');
 }
-/* 按条目渲染它的控件。ctl 为空说明这条当前不可操作，交给调用方置灰。 */
-function uiCtl(item, u){
-  var key = item.key, c = UI_CTL[key] || {};
-  switch(item.ctl){
-    case 'dots':  return uiAccentDots(u);
-    case 'seg':   return uiSeg(key, u[key], c.opts || []);
-    case 'sw':    return uiSw(key, c.on ? c.on(u) : false, c.label || '');
-    case 'wall':  return uiWallPicker(u);
-    case 'music': return uiMusicList(u);
-    case 'field': return uiField(key, c.cls || 'small', u[key], c.ph || '', c.suf || '');
-    case 'act':
-      if(key === 'bgmCtl'){
-        return '<button type="button" class="btn sm" data-act="bgmPrev">上一首</button> ' +
-          '<button type="button" class="btn sm" data-act="bgmPlay">播放 / 暂停</button> ' +
-          '<button type="button" class="btn sm" data-act="bgmNext">下一首</button>';
-      }
-      var a = UI_ACT[key];
-      return a ? '<button type="button" class="btn sm" data-act="' + a.act + '">' + a.label +
-        '</button>' + (a.after ? ' ' + a.after : '') : '';
-    default: return '';
-  }
+/* 一行设置：左边选项名，右边控件，下面一行小字说明。
+   detail 放进 title —— 鼠标停上去能看更完整的解释，但不占版面。 */
+function uiRow(label, control, short, detail){
+  return '<div class="mrow"' + (detail ? ' title="' + uiEsc(detail) + '"' : '') + '>' +
+    '<span class="ml">' + label + '</span><div class="md">' + control +
+    (short ? '<span class="mhint">' + short + '</span>' : '') + '</div></div>';
 }
-function uiLive(item){ return !!(item.key && item.ctl && item.ctl !== 'chrome'); }
-
-function uiRowHTML(item, u){
-  var chip;
-  if(uiLive(item)){ chip = '<span class="mchip mchip-live">可用</span>'; }
-  else if(item.mark === 'ref'){ chip = '<span class="mchip">仅作参考</span>'; }
-  else if(item.mark === 'land'){ chip = '<span class="mchip mchip-plan">规划中</span>'; }
-  else { chip = '<span class="mchip mchip-plan">预留</span>'; }
-  if(item.extra){ chip += '<span class="mchip mchip-src">本工具自有</span>'; }
-
-  var meta = '<span class="mmeta">可选值 ' + uiEsc(item.values || '—') +
-    '　·　生效 ' + uiEsc(item.effect || '—') + '</span>';
-  var hl = (uiHl && uiHl === item.name) ? ' hl' : '';
-
-  if(!uiLive(item)){
-    // 置灰条目：整行带提示，说明为什么点不了
-    return '<div class="mrow sv off' + hl + '" title="该功能暂未开发，仅预留配置项，当前修改无效。">' +
-      '<span class="ml">' + uiEsc(item.name) + chip + '</span>' +
-      '<div class="md"><span class="mdesc">' + uiEsc(item.desc || '') + '</span>' + meta + '</div></div>';
-  }
-  var hf = UI_HINT[item.key];
-  var hint = hf ? hf(u) : uiEsc(item.desc || '');
-  return '<div class="mrow sv' + hl + '"><span class="ml">' + uiEsc(item.name) + chip + '</span>' +
-    '<div class="md">' + uiCtl(item, u) + '<span class="mhint">' + hint + '</span>' + meta + '</div></div>';
+function uiCard(title, rows){
+  return '<div class="mcard"><div class="mcardh">' + title + '</div>' + rows + '</div>';
 }
-function uiNavHTML(){
-  var g = uiSpecGroups(), h = '';
-  for(var i = 0; i < g.length; i++){
-    h += '<button type="button" class="mnavi' + (g[i].name === uiMod ? ' on' : '') +
-      '" data-gomod="' + uiEsc(g[i].name) + '"><span class="mnavt">' + (i + 1) + '　' +
-      uiEsc(uiShortName(g[i].name)) + '</span><span class="mnavc">' + g[i].live + '/' + g[i].planned +
-      '</span></button>';
+/* 板块标题。board 非空时右上角带「恢复本板块默认」——
+   它和底部的「重置全部设置」是两级：一个只管这一块，一个管全部。 */
+function uiFaceHead(icon, title, sub, board){
+  return '<div class="mfaceh"><span class="ic">' + uiIcon(icon) + '</span>' +
+    '<span class="tt">' + title + '</span><span class="sub">' + sub + '</span>' +
+    (board ? '<button type="button" class="btn sm" data-act="resetBoard" data-board="' +
+      uiEsc(board) + '">恢复本板块默认</button>' : '') + '</div>';
+}
+/* 只读信息：值全部来自服务端，界面上只有文本，没有任何可编辑控件。 */
+function uiInfoRow(k, v, mono){
+  return '<dt>' + k + '</dt><dd' + (mono ? ' class="mono"' : '') + '>' + (v || '—') + '</dd>';
+}
+function uiBytes(n){
+  n = Number(n) || 0;
+  if(n < 1024){ return n + ' B'; }
+  if(n < 1024 * 1024){ return (n / 1024).toFixed(1) + ' KB'; }
+  return (n / 1024 / 1024).toFixed(2) + ' MB';
+}
+function uiStat(k, bytes, files){
+  return '<div class="mstat"><div class="k">' + k + '</div><div class="v">' + uiBytes(bytes) +
+    '</div><div class="n">' + (files || 0) + ' 个文件</div></div>';
+}
+function uiReadonlyHTML(u){
+  var st = u.storage || {}, it = st.items || {}, cf = u.configFile || {};
+  var music = (u.musicList || []).length;
+  var h = '<section class="mface">';
+  h += uiFaceHead('info', '只读信息', '以下内容仅供查看，面板里不提供修改入口', '');
+  h += '<div class="mcard"><dl class="minfo">';
+  h += uiInfoRow('程序版本', uiEsc(u.version || ''), true);
+  h += uiInfoRow('运行环境', uiEsc(u.platform || ''), false);
+  h += uiInfoRow('数据目录', uiEsc(u.dataDir || ''), true);
+  h += uiInfoRow('配置文件', uiEsc(cf.path || '') + (cf.exists ? '' : '（还没生成）'), true);
+  if(cf.exists){
+    h += uiInfoRow('配置写入时间', uiEsc(cf.modified || '') + '　·　' + uiBytes(cf.bytes), true);
   }
+  h += uiInfoRow('背景音乐', music ? (music + ' 首') : '还没有', false);
+  h += uiInfoRow('存档合计', uiBytes(st.totalBytes) + '　·　' + (st.totalFiles || 0) + ' 个文件', true);
+  h += uiInfoRow('隐私', '不联网、不上报、不采集使用数据；全部内容都在上面这个目录里', false);
+  h += '</dl>';
+  if(u.configFault){
+    h += '<div class="mnotice"><span class="ic">' + uiIcon('info') + '</span><span>' +
+      '上次读取配置文件时出错，已丢弃损坏内容并回到默认设置；原文件没有被改写，' +
+      '需要的话可以从数据目录里取出来看。<br>原因：' + uiEsc(u.configFault) + '</span></div>';
+  }
+  h += '<div class="mstats">' +
+    uiStat('背景图缓存', it.cache && it.cache.bytes, it.cache && it.cache.files) +
+    uiStat('壁纸原图', it.wall && it.wall.bytes, it.wall && it.wall.files) +
+    uiStat('音乐', it.music && it.music.bytes, it.music && it.music.files) +
+    uiStat('配置与日志',
+      ((it.config && it.config.bytes) || 0) + ((it.changes && it.changes.bytes) || 0),
+      ((it.config && it.config.files) || 0) + ((it.changes && it.changes.files) || 0)) +
+    '</div></div></section>';
   return h;
 }
-/* 这个模块里有没有「会落盘」的控件。
-   只有动作项的模块（配置管理、关于与帮助）没有可重置的东西 ——
-   给它们显示一个重置按钮，点下去只会得到一句"没有可重置项"。 */
-function uiResettable(g){
-  for(var i = 0; i < g.items.length; i++){
-    var it = g.items[i];
-    if(it.key && (it.ctl === 'seg' || it.ctl === 'sw' || it.ctl === 'field' || it.ctl === 'dots')){
-      return true;
-    }
+function uiChangesHTML(u){
+  var list = (u && u.changes) || [];
+  var h = '<section class="mface">';
+  h += uiFaceHead('info', '设置变更记录',
+    '共 ' + list.length + ' 条，上限 ' + (u.changeMax || 500) + ' 条', '');
+  if(!list.length){
+    return h + '<div class="mcard">还没有改动记录。改过设置之后，这里会逐条记下时间、板块、' +
+      '选项名与前后取值；记录只存取值本身，不含任何与网络环境或个人身份有关的内容。</div></section>';
   }
-  return false;
+  h += '<div class="mcard"><div class="mchg">';
+  for(var i = list.length - 1; i >= 0; i--){   // 倒序：最近改的排在最上面
+    var c = list[i];
+    h += '<div class="mchgr"><span class="t">' + uiEsc(c.at) + '</span>' +
+      '<span class="m">' + uiEsc(c.module) + '</span>' +
+      '<span class="i">' + uiEsc(c.item) + '</span>' +
+      '<span class="v">' + uiEsc(c.from) + ' → ' + uiEsc(c.to) + '</span></div>';
+  }
+  h += '</div></div></section>';
+  return h;
 }
-function uiModHTML(g, u){
-  var rows = '';
-  for(var i = 0; i < g.items.length; i++){
-    var it = g.items[i];
-    if(it.ctl === 'chrome'){ continue; }                       // 由标题栏与底栏承担，不重复出现
-    if(!uiFull && !uiLive(it)){ continue; }                    // 简洁视图只列可操作的
-    rows += uiRowHTML(it, u);
+function uiSettingsHTML(u){
+  if(uiView === 'changes'){
+    return '<div class="mset">' + uiChangesHTML(u) +
+      '<div class="mfoot"><button type="button" class="btn sm" data-act="changesBack">返回设置</button>' +
+      '<button type="button" class="btn sm" data-act="changesClear">清空记录</button></div></div>';
   }
-  if(!rows){
-    rows = '<div class="mbar">这个模块目前没有可操作的设置项。切到「完整参考」可以看到它规划中的条目。</div>';
-  }
-  return '<div class="mmodh"><span class="mmt">' + uiEsc(uiShortName(g.name)) + '</span>' +
-    '<span class="mmc">' + g.live + ' 项可操作 · 规划 ' + g.planned + ' 项</span>' +
-    (uiResettable(g) ? '<button type="button" class="btn sm" data-act="resetModule">重置本分类为默认</button>' : '') +
-    '</div>' + rows;
-}
-/* 搜索结果。名称命中排在说明命中之前 —— 搜「毛玻璃」时想要的是那一行设置本身，
-   而不是所有提到过它的说明。 */
-function uiSearchHTML(){
-  uiHits = [];
-  if(!uiQuery){ return ''; }
-  var q = uiQuery.toLowerCase(), g = uiSpecGroups(), byName = [], byBody = [];
-  for(var i = 0; i < g.length; i++){
-    var items = g[i].items;
-    for(var j = 0; j < items.length; j++){
-      var it = items[j];
-      if(String(it.name || '').toLowerCase().indexOf(q) >= 0){
-        byName.push({mod:g[i].name, item:it});
-      }else if(((it.desc || '') + ' ' + (it.values || '')).toLowerCase().indexOf(q) >= 0){
-        byBody.push({mod:g[i].name, item:it});
-      }
-    }
-  }
-  uiHits = byName.concat(byBody);
-  if(!uiHits.length){
-    return '<div class="mbar">没有匹配「' + uiEsc(uiQuery) + '」的设置项。</div>';
-  }
-  var h = '<div class="mhits">', max = Math.min(uiHits.length, 60);
-  for(var k = 0; k < max; k++){
-    h += '<button type="button" class="mhit" data-hit="' + k + '"><b>' + uiEsc(uiHits[k].item.name) +
-      '</b><span>' + uiEsc(uiShortName(uiHits[k].mod)) + '</span></button>';
-  }
-  if(uiHits.length > max){
-    h += '<div class="mbar">还有 ' + (uiHits.length - max) + ' 条命中，先显示前 ' + max + ' 条。</div>';
-  }
-  return h + '</div>';
-}
-function uiTopHTML(){
-  return '<div class="mtop"><div class="msearch">' +
-    '<input type="search" id="mSearch" placeholder="搜索设置项：名称、说明或可选值" value="' + uiEsc(uiQuery) + '">' +
-    '<div class="mseg" data-view="' + (uiFull ? 'full' : 'simple') + '">' +
-    '<button type="button" data-vv="simple"' + (uiFull ? '' : ' class="on"') + '>简洁</button>' +
-    '<button type="button" data-vv="full"' + (uiFull ? ' class="on"' : '') + '>完整参考</button></div></div>' +
-    (uiFull ? '<div class="msvc">完整视图把规划中与仅作参考的条目一并列出并置灰，' +
-      '灰掉的条目当前修改无效，悬浮可看说明。</div>' : '') +
-    '<div id="mHits">' + uiSearchHTML() + '</div>' +
-    (uiImportNote ? '<div class="mbar">' + uiImportNote + '</div>' : '') + '</div>';
-}
-function uiFootHTML(u){
-  return '<div class="mfoot">' +
+  var h = '<div class="mset">';
+
+  /* —— 板块一：主题外观。全部实时生效，所以没有任何「重启生效」标注 —— */
+  h += '<section class="mface">';
+  h += uiFaceHead('theme', '主题外观', '配色、背景、特效与排版，改完立刻生效', '主题外观');
+  h += uiCard('配色',
+    uiRow('主题', uiSeg('theme', u.theme, uiThemes()),
+      '浅色与高对比只换底色与字色，版式与按钮位置都不动。',
+      '高对比是给「看不清」的处境用的（低端屏、白天反光、投屏），不是另一种口味。') +
+    uiRow('强调色', uiAccentDots(u), '界面里「这条路通了」用的就是这个颜色。',
+      '警告与错误始终是琥珀与红，不随强调色变。') +
+    uiRow('材质', uiSeg('flat', u.flat, [['off','立体'],['on','扁平']]),
+      '扁平去掉圆角、外阴影、渐变与光晕，只留颜色与 1px 线条。',
+      '它是纯减法，绘制只会更省；焦点框会换成描边，键盘操作一样看得见。') +
+    uiRow('圆角大小', uiSeg('radii', u.radii, [['sharp','利落'],['std','标准'],['round','圆润']]),
+      '统一调整面板、卡片与按钮的圆角。',
+      '它改的是三个圆角令牌（6 / 9 / 13px 那一组）。选「材质：扁平」时圆角一律归零 —— 两者冲突时以扁平为准。'));
+  h += uiCard('背景',
+    uiRow('背景光效', uiSw('backdrop', u.backdrop !== 'off', '显示极光与网格'),
+      '两层装饰渐变，关掉它不影响你自选的背景图片。',
+      '它与背景图片各自独立：关掉光效，照片还在。') +
+    uiRow('背景图片', uiWallPicker(u), wallHintText(u),
+      '图片按比例铺满窗口，上面压一层与主题同色的暗化层，保证任意照片上文字都读得清。'));
+  h += uiCard('特效',
+    uiRow('视觉美化', uiSw('vfx', u.vfx !== 'off', '科幻外观总开关'),
+      '关掉等于面板实心、去掉光晕与淡入，回到基础扁平外观。',
+      '它只影响观感：开关前后工具的功能、输入输出、计算逻辑完全一致。') +
+    uiRow('毛玻璃', uiSeg('glass', u.glass, [['off','关闭'],['low','低'],['mid','中'],['high','高']]),
+      glassHintText(u), '模糊只加在局部面板上，不会铺到整页。') +
+    uiRow('科幻轮廓微光', uiSw('glow', u.glow !== 'off', '面板描边与四角微光'),
+      '静态的一次性光晕，画好一次就不再重绘。',
+      '它不挂过渡 —— 给阴影挂过渡等于每次过渡都逐帧重新光栅化。') +
+    uiRow('面板淡入', uiSw('fade', u.fade !== 'off', '设置面板出现时淡入'),
+      '只动透明度、不动位置。',
+      '玻璃面板一旦位移，背后那块模糊就得每帧重新采样。选「动效：精简」或系统开了「减少动态效果」时自动不生效。') +
+    uiRow('帧率自动降级', uiSw('noDegrade', !u.noDegrade, '帧率过低时询问我'),
+      '连续两次量到偏低就问你一次要不要降到「低」档。',
+      '每 20 秒量一次，每次只抓约一秒，且在任务执行期间不量。想强制维持高特效就取消勾选。') +
+    uiRow('帧率实测',
+      '<button type="button" class="btn sm" data-act="vfxMeasure">在当前档位测一秒</button> ' +
+      '<span class="mnote" id="vfxStats">尚未测过</span>',
+      '哪个档位合适由你的机器说了算：换一档点一次。',
+      '它不落盘，也不会改变任何设置。低于 45 帧就说明这一档对你的机器偏重。'));
+  h += uiCard('排版',
+    uiRow('界面字号', uiSeg('scale', u.scale, [['std','标准'],['big','大']]),
+      '只把字放大一号，控件位置与版式都不动。',
+      '主题解决「颜色读不读得清」，字号解决「字够不够大」。') +
+    uiRow('动画效果', uiSeg('motion', u.motion, [['full','完整'],['lite','精简']]),
+      '精简去掉所有过渡与运行点的呼吸动画（点本身还在）。',
+      '系统设置里的「减少动态效果」始终优先，与这个开关是同一套规则。') +
+    uiRow('侧边栏样式', uiSeg('rail', u.rail, [['std','标准'],['compact','紧凑']]),
+      '紧凑去掉任务列表里的说明行、收紧行距，一屏能多看几项。',
+      '只影响左栏任务列表的排版，任务的名称、顺序与行为都不变。'));
+  h += '</section>';
+
+  /* —— 板块二：辅助小工具。这一段是可选的附加项 —— */
+  h += '<section class="mface">';
+  h += uiFaceHead('aux', '辅助小工具', '软件附带的附加功能，可按需开关', '辅助小工具');
+  h += '<div class="mbenefit">' + uiIcon('aux') +
+    '<span>本板块为附加辅助选项，不影响软件主体基础功能运行。关掉其中任何一项，联机本身照常工作。</span></div>';
+  h += uiCard('背景音乐',
+    uiRow('曲库', uiMusicList(u), musicHintText(u),
+      '曲库就是存档里的 music 文件夹：你可以自己往里放、改名、删除，点「刷新」后生效。') +
+    uiRow('播放顺序', uiSeg('musicMode', u.musicMode, [['order','顺序'],['shuffle','随机']]),
+      '随机播放不会连续两首抽到同一首。',
+      '曲库里只有一首时，随机没有意义，此时与顺序播放等价。') +
+    uiRow('循环', uiSeg('musicLoop', u.musicLoop, [['off','不循环'],['all','列表循环'],['one','单曲循环']]),
+      '选「不循环」时，顺序播到最后一首就停下。',
+      '随机模式下会一直播下去，不受「不循环」影响。') +
+    uiRow('音量', uiField('musicVol', 'small', u.musicVol, '70', ''),
+      '0 到 100，与系统音量是叠乘关系。',
+      '听不见时先看系统音量，再看这里是不是被调成了 0。') +
+    uiRow('播放控制',
+      '<button type="button" class="btn sm" data-act="bgmPrev">上一首</button> ' +
+      '<button type="button" class="btn sm" data-act="bgmPlay">播放 / 暂停</button> ' +
+      '<button type="button" class="btn sm" data-act="bgmNext">下一首</button>',
+      '底栏那个音符按钮也能播放与暂停，不用每次打开设置。',
+      '它默认不自动播放 —— 这是个会长时间开着的工具，不该在没人点的时候出声。'));
+  h += uiCard('填表与日志',
+    uiRow('记住上次填过的值', uiSw('remember', u.remember !== '0', '记住上次填过的值'),
+      '按「任务 + 字段」记住填写内容，下次自动带出。',
+      '关掉只是不再记新的；已经记下的用下面「清除」处理。') +
+    uiRow('清除记住的填写内容',
+      '<button type="button" class="btn sm" data-act="forgetInputs">清除记住的填写内容</button>',
+      '把已记住的填写值一次清空，界面设置不受影响。',
+      '它只清填写过的表单值，不动面板上的任何设置。') +
+    uiRow('日志保留行数', uiField('logKeep', 'small', u.logKeep, '2000', '行'),
+      '两层（结论 / 原始输出）各留多少行，范围 200 ~ 20000。',
+      '超出范围的取值会被回退到默认。') +
+    uiRow('默认游戏端口', uiField('defPort', 'small', u.defPort, '25565', ''),
+      '填了它，所有「游戏端口」留空的表单都用这个值。',
+      '单个任务里自己填过的以它为准，不受这里影响。') +
+    uiRow('默认中转服务器', uiField('defRelay', '', u.defRelay, 'turn:主机:3478 或 mclbx://…', ''),
+      '填了它，所有「中转服务器」留空的表单都用这个值。',
+      '它只是省去重复填写，不会自动启用中继 —— 用不用中继仍由每个任务自己决定。'));
+  h += '</section>';
+
+  /* —— 只读信息 —— */
+  h += uiReadonlyHTML(u);
+
+  /* —— 维护操作：作用于整份配置或整个存档目录，本身不是设置项 —— */
+  h += '<div class="mfoot">' +
     '<button type="button" class="btn sm" data-act="resetAll">重置全部设置</button>' +
     '<button type="button" class="btn sm" data-act="exportCfg">导出全部配置</button>' +
     '<button type="button" class="btn sm" data-act="importCfg">导入配置…</button>' +
     '<button type="button" class="btn sm" data-act="changes">变更记录</button>' +
+    '<button type="button" class="btn sm" data-act="openData">打开存档目录</button>' +
+    '<button type="button" class="btn sm" data-act="copyVersion">复制版本信息</button>' +
+    '<button type="button" class="btn sm" data-act="diag">导出诊断包</button>' +
     '<span class="msaved" id="mSaved" hidden>已保存</span>' +
-    '<span class="mnote">当前版本 ' + uiEsc(u.version || '') + '。设置与日志都在数据目录 <code>' +
-    uiEsc(u.dataDir || '') + '</code> 下（config.json / gui.log）。' +
-    '导出的配置里含中转凭据，发给别人之前先自己看一眼。</span></div>';
+    '<span class="mnote">改动即时生效也即时落盘，面板里没有「未保存」这个状态。' +
+    '导出的配置文件里含中转凭据，发给别人之前先自己看一眼。' +
+    '「导出诊断包」会把日志、环境信息与设置（不含任何凭据以外的个人内容）打成一个文件，' +
+    '排查问题时用它比截图准。</span></div>';
+
+  h += '</div><input type="file" id="cfgFile" accept=".json,application/json" style="display:none">';
+  return h;
 }
-function uiChangesHTML(u){
-  var list = (u && u.changes) || [];
-  var h = '<div class="mmodh"><span class="mmt">设置变更记录</span>' +
-    '<span class="mmc">共 ' + list.length + ' 条，上限 ' + (u.changeMax || 500) + ' 条</span>' +
-    '<button type="button" class="btn sm" data-act="changesBack">返回设置</button>' +
-    '<button type="button" class="btn sm" data-act="changesClear">清空记录</button></div>';
-  if(!list.length){
-    return h + '<div class="mbar">还没有改动记录。改过设置之后，这里会逐条记下时间、模块、' +
-      '选项名与前后取值；记录只存取值，不含任何与网络环境或个人身份有关的内容。</div>';
-  }
-  h += '<div class="mchg">';
-  for(var i = list.length - 1; i >= 0; i--){   // 倒序：最近改的排在最上面
-    var c = list[i];
-    h += '<div class="mchgr"><span class="t">' + uiEsc(c.at) + '</span>' +
-      '<span class="m">' + uiEsc(uiShortName(c.module)) + '</span>' +
-      '<span class="i">' + uiEsc(c.item) + '</span>' +
-      '<span class="v">' + uiEsc(c.from) + ' → ' + uiEsc(c.to) + '</span></div>';
-  }
-  return h + '</div>';
-}
-function uiSettingsHTML(u){
-  if(uiView === 'changes'){
-    return '<div class="mset">' + uiChangesHTML(u) + '</div>';
-  }
-  var gs = uiSpecGroups();
-  if(!uiMod || !uiGroupByName(uiMod)){ uiMod = gs.length ? gs[0].name : ''; }
-  var g = uiGroupByName(uiMod);
-  return '<div class="mset' + (uiFull ? '' : ' simple') + '">' +
-    '<div class="mnav">' + uiNavHTML() + '</div>' +
-    '<div class="mcontent">' + uiTopHTML() + (g ? uiModHTML(g, u) : '') + uiFootHTML(u) + '</div>' +
-    '</div><input type="file" id="cfgFile" accept=".json,application/json" style="display:none">';
-}
+
 async function openSettings(){
   if(!ui){
     try{ ui = await (await fetch('/api/settings')).json(); }catch(e){ ui = null; }
@@ -2426,20 +2432,6 @@ async function openSettings(){
   $('modalBody').innerHTML = uiSettingsHTML(ui);
   uiBind();
   setHidden($('modal'), false);
-}
-/* 跳到某条设置：切到它所在的模块、清掉搜索词，并让它亮一下。
-   高亮是短暂的 —— 它只是告诉你"到了"，不该在面板上长期占一个视觉重点。 */
-function uiJumpTo(mod, itemName){
-  uiMod = mod || uiMod;
-  uiQuery = '';
-  uiHl = itemName || '';
-  openSettings();
-  if(uiHlTimer){ clearTimeout(uiHlTimer); }
-  uiHlTimer = setTimeout(function(){
-    uiHl = '';
-    var el = document.querySelector('#modalBody .mrow.hl');
-    if(el){ el.classList.remove('hl'); }
-  }, 1600);
 }
 function uiBind(){
   var body = $('modalBody');
@@ -2459,20 +2451,17 @@ function uiBind(){
       uiSave();
       return;
     }
-    // 切模块与切视图都会重画整个面板。重画而不是就地显隐：
-    // 模块数量不多，重画的成本远低于维护两套显示逻辑。
-    if(b.hasAttribute('data-gomod')){ uiMod = b.getAttribute('data-gomod'); openSettings(); return; }
-    if(b.hasAttribute('data-vv')){
-      uiFull = b.getAttribute('data-vv') === 'full';
-      openSettings();
-      return;
+    if(b.hasAttribute('data-act')){
+      var act = b.getAttribute('data-act');
+      // 「恢复本板块默认」的范围写在按钮上：板块名不经过 uiAction 的参数，
+      // 免得在两个地方各拼一次字符串。
+      if(act === 'resetBoard'){
+        var board = b.getAttribute('data-board') || '';
+        uiAskReset(board, '「' + board + '」这一组');
+        return;
+      }
+      uiAction(act);
     }
-    if(b.hasAttribute('data-hit')){
-      var h = uiHits[parseInt(b.getAttribute('data-hit'), 10)];
-      if(h){ uiJumpTo(h.mod, h.item.name); }
-      return;
-    }
-    if(b.hasAttribute('data-act')){ uiAction(b.getAttribute('data-act')); }
   };
   body.onchange = function(e){
     if(e.target && e.target.getAttribute && e.target.getAttribute('data-sw')){ uiSave(); }
@@ -2481,24 +2470,6 @@ function uiBind(){
     inp.onchange = uiSave;
     inp.onkeydown = function(e){ if(e.key === 'Enter'){ uiSave(); } };
   });
-  /* 搜索只在结果区上重画，不重画整个面板 —— 重画会把输入框连同光标一起换掉，
-     于是每敲一个字焦点就没了。 */
-  var si = $('mSearch');
-  if(si){
-    si.oninput = function(){
-      uiQuery = (si.value || '').trim();
-      var box = $('mHits');
-      if(box){ box.innerHTML = uiSearchHTML(); }
-    };
-    si.onkeydown = function(e){
-      if(e.key === 'Escape'){
-        si.value = ''; uiQuery = '';
-        var box = $('mHits');
-        if(box){ box.innerHTML = ''; }
-      }
-      if(e.key === 'Enter' && uiHits.length){ uiJumpTo(uiHits[0].mod, uiHits[0].item.name); }
-    };
-  }
   var fi = $('wallFile');
   if(fi){ fi.onchange = function(){ if(fi.files && fi.files[0]){ uiImportWall(fi.files[0]); } }; }
   var cf = $('cfgFile');
@@ -2599,6 +2570,19 @@ async function uiSave(){
   // logKeep 按十进制字符串收：服务端两条路（读设置 / 保存）给的是同一种形态，客户端不再猜类型
   var lk = parseInt(r.logKeep, 10);
   if(!isNaN(lk)){ LOG_KEEP = lk; }
+  // 有取值不合法时把话说清楚：安静地把它改成另一个值，
+  // 用户只会以为"保存没生效"，然后反复试同一个非法输入。
+  var cor = r.corrected || [];
+  uiCorrections = cor;
+  if(cor.length){
+    var parts = cor.slice(0, 3).map(function(c){
+      return c.name + '（' + c.sent + ' → ' + c.used + '）';
+    });
+    toast('有 ' + cor.length + ' 项取值不合法，已回退：' + parts.join('、') +
+      (cor.length > 3 ? ' 等' : ''), true);
+    // 重画一次，让控件上显示的是真正生效的值，而不是用户刚敲进去的那个
+    openSettings();
+  }
   var s = $('mSaved');
   if(s){
     setHidden(s, false);
@@ -2843,10 +2827,9 @@ async function uiAction(a){
     toast('已清空 ' + ((cl && cl.cleared) || 0) + ' 条记录');
     return;
   }
-  if(a === 'resetAll' || a === 'resetModule'){
+  if(a === 'resetAll'){
     // 先问一句再动手：重置是"会连改好几项"的操作，不能点一下就生效
-    uiAskReset(a === 'resetAll' ? 'all' : uiMod,
-      a === 'resetAll' ? '全部设置' : ('「' + uiShortName(uiMod) + '」这一组'));
+    uiAskReset('all', '全部设置');
     return;
   }
   if(a === 'resetCancel'){
