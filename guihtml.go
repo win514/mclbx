@@ -64,7 +64,7 @@ const guiShellHTML = `<!doctype html>
   <header class="topbar">
     <span class="glyph"></span>
     <div class="brand"><b>mclbx</b><span class="sub">联机工具</span></div>
-    <nav class="nav" id="nav">
+    <nav class="nav" id="nav" aria-label="页面">
       <button class="navi on" id="btnWork" data-page="work">工作台</button>
       <button class="navi" id="btnSettings" data-page="settings" title="主题外观、辅助工具与程序状态">设置</button>
       <button class="navi" id="btnManual" data-page="manual">说明书</button>
@@ -190,8 +190,8 @@ const guiShellHTML = `<!doctype html>
             <button class="btn sm" id="btnCopyLog">复制</button>
           </div>
         </div>
-        <div class="log" id="logUser"></div>
-        <div class="log" id="logRaw" hidden></div>
+        <div class="log" id="logUser" role="log" aria-live="polite"></div>
+        <div class="log" id="logRaw" role="log" aria-live="polite" hidden></div>
       </section>
     </div>
   </main>
@@ -228,8 +228,8 @@ const guiShellHTML = `<!doctype html>
 <audio id="bgm" preload="none"></audio>
 
 <!-- 唯一的浮层：操作原理性说明（点开看完就关）。设置不再是浮层，说明书也已经是页。 -->
-<div class="modal" id="modal" hidden>
-  <div class="mbox">
+<div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="mbox" tabindex="-1">
     <div class="mhead"><span class="mt" id="modalTitle"></span><span class="spacer"></span>
       <button class="btn sm" id="modalClose">关闭</button></div>
     <div class="mbody" id="modalBody"></div>

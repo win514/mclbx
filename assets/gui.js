@@ -414,7 +414,7 @@ function renderWork(){
 function showHelp(title, body){
   setText($('modalTitle'), title);
   setText($('modalBody'), body + ' 完整说明见《使用说明书》。');
-  setHidden($('modal'), false);
+  openModal();
 }
 function buildArgs(t){
   var parts = [t.key];
@@ -544,7 +544,9 @@ function refreshLog(){
   setHidden($('logUser'), layer !== 'user');
   setHidden($('logRaw'), layer !== 'raw');
   Array.prototype.forEach.call($('segs').querySelectorAll('.seg'), function(s){
-    s.classList.toggle('on', s.getAttribute('data-f') === layer);
+    var cur = s.getAttribute('data-f') === layer;
+    s.classList.toggle('on', cur);
+    s.setAttribute('aria-pressed', cur ? 'true' : 'false');   // 同理：高亮读屏读不到
     if(s.getAttribute('data-f') === 'raw'){ setText(s, '原始输出 ' + rawLines.length); }
   });
   setText($('linecnt'), '结论 ' + userLines.length + ' · 原始 ' + rawLines.length);
@@ -907,7 +909,10 @@ function go(next){
   page = next;
   for(var k in PAGES){ setHidden($(PAGES[k]), k !== next); }
   Array.prototype.forEach.call($('nav').children, function(b){
-    b.classList.toggle('on', b.getAttribute('data-page') === next);
+    var cur = b.getAttribute('data-page') === next;
+    b.classList.toggle('on', cur);
+    // 给辅助技术一个明确说法：当前在哪一页。视觉上的高亮它读不到。
+    if(cur){ b.setAttribute('aria-current', 'page'); } else { b.removeAttribute('aria-current'); }
   });
   if(next === 'settings'){ renderSettings(); }
   if(next === 'manual'){ loadManual(); }
@@ -1767,7 +1772,7 @@ async function uiAction(a, btn){
   if(a === 'diag'){
     // 导出诊断包是个真正的"操作"，所以照操作那条路走（会出现在日志区里）。
     // 走之前先回工作台 —— 结果和日志都在那一页，留在设置页会看不到自己刚做了什么。
-    setHidden($('modal'), true);
+    closeModal();
     go('work');
     var j = await api('/api/start', { key:'diag', inputs:{} });
     if(!j || !j.ok){ toast((j && j.err) || '启动失败', true); return; }
@@ -1805,8 +1810,48 @@ $('btnQuit').onclick = quitApp;
 $('btnClear').onclick = resetLog;
 $('btnCopyLog').onclick = function(){ copy((layer === 'user' ? userLines : rawLines).join('\n')); };
 $('btnCopyAddr').onclick = function(){ copy(addr); };
-$('modalClose').onclick = function(){ setHidden($('modal'), true); };
-$('modal').onclick = function(e){ if(e.target === $('modal')){ setHidden($('modal'), true); } };
+/* ---- 浮层的键盘契约（对齐 WAI-ARIA 的 dialog 模式）----
+   打开时把焦点移进对话框、Tab 只在框内循环、关闭时把焦点还给当初打开它的那个按钮。
+   少任何一条，键盘用户要么"掉"到后面的页面上，要么关掉之后不知道自己在哪、只能从头 Tab。
+   关闭入口有四条（关闭按钮、点背板、Esc、导出诊断包之后），全部走 closeModal ——
+   所以"直接把 hidden 设成 true"这句话只准出现在 closeModal 里，别处再写一遍，
+   焦点归还就会有的时候有、有的时候没有。 */
+var modalOpener = null;
+function modalFocusable(){
+  var box = document.querySelector('.mbox');
+  if(!box){ return []; }
+  return Array.prototype.filter.call(
+    box.querySelectorAll('button,[href],input,select,textarea,[tabindex]'),
+    function(el){ return !el.disabled && el.tabIndex >= 0; });
+}
+function openModal(){
+  modalOpener = document.activeElement;
+  setHidden($('modal'), false);
+  var box = document.querySelector('.mbox');
+  if(box){ try{ box.focus(); }catch(e){} }   // 焦点进框：读屏会先念它的标题（aria-labelledby）
+  document.addEventListener('keydown', modalTrap, true);
+}
+function closeModal(){
+  if(!$('modal').hidden){ setHidden($('modal'), true); }
+  document.removeEventListener('keydown', modalTrap, true);
+  if(modalOpener && modalOpener.focus){ try{ modalOpener.focus(); }catch(e){} }
+  modalOpener = null;
+}
+/* Tab 不许跑出框：正向的最后一个、反向的第一个都拦下来送到另一端。
+   框里一个可聚焦元素都没有时把焦点按在框上，别让它漏到后面的页面。 */
+function modalTrap(e){
+  if(e.key !== 'Tab'){ return; }
+  var box = document.querySelector('.mbox');
+  if(!box){ return; }
+  var items = modalFocusable(), first = items[0], last = items[items.length - 1];
+  if(!first){ e.preventDefault(); box.focus(); return; }
+  if(e.shiftKey && (document.activeElement === first || document.activeElement === box)){
+    e.preventDefault(); last.focus(); return;
+  }
+  if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+}
+$('modalClose').onclick = function(){ closeModal(); };
+$('modal').onclick = function(e){ if(e.target === $('modal')){ closeModal(); } };
 /* 【视觉美化，非核心功能】启动美化层。
    它只把设置写成 <html> 上的属性，不落盘、也不回头改设置 —— 改档位仍然只从设置面板那一条路走。 */
 VFX.init(window.MCLBX_UI || null);
@@ -1818,7 +1863,7 @@ Array.prototype.forEach.call($('segs').querySelectorAll('.seg'), function(sg){
 });
 document.addEventListener('keydown', function(e){
   if(e.key === 'Escape'){
-    if(!$('modal').hidden){ setHidden($('modal'), true); return; }
+    if(!$('modal').hidden){ closeModal(); return; }
     clearSel();
     return;
   }

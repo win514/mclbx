@@ -659,6 +659,9 @@ input{font:inherit;color:inherit}
 .ck input:checked+.bx::after{content:"";position:absolute;left:4.5px;top:1.5px;width:5px;height:9px;
   border-right:2px solid var(--cheek);border-bottom:2px solid var(--cheek);transform:rotate(42deg)}
 .ck input:checked~.tx{color:var(--ink)}
+/* 勾选框的可见焦点：真 input 是 opacity:0 铺在上面（鼠标点要用它、键盘也要能 Tab 到），
+   所以焦点环必须画在旁边那个看得见的方框上 —— 否则键盘用户完全看不出焦点落在哪一项。 */
+.ck input:focus-visible+.bx{outline:2px solid var(--sig-focus);outline-offset:2px}
 .runbar{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) var(--s5) var(--s4);
   border-top:1px solid var(--line)}
 .run{padding:11px 26px;border-radius:var(--r1);font:600 var(--fs-13-5)/1 var(--ui);color:var(--cheek);
