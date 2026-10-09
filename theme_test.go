@@ -346,11 +346,11 @@ func TestNoNonexistentVariablesInCSS(t *testing.T) {
 			}
 		}
 	}
-	// 毛玻璃档位同理：--glass-blur 与三档不透明度是按档位声明的（与字号档同一形态，不是主题私有变量）。
-	// 档位块带 :not([data-theme="contrast"])，选择器要照抄，否则这里collect不到、会误报成"变量没定义"。
-	for _, name := range glassLevels {
-		if name == "0" {
-			continue // 0 是关闭，没有属于自己的块
+	// 毛玻璃同理：--glass-blur 与三档不透明度是按开态声明的（与字号档同一形态，不是主题私有变量）。
+	// 开态块带 :not([data-theme="contrast"])，选择器要照抄，否则这里 collect 不到、会误报成"变量没定义"。
+	for _, name := range glassValues {
+		if name == uiGlassOff {
+			continue // off 是关闭，没有属于自己的块
 		}
 		sel := `:root[data-glass="` + name + `"]:not([data-theme="contrast"])`
 		if hasBlock(guiPageHTML, sel) {

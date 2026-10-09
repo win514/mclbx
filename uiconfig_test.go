@@ -272,8 +272,8 @@ func TestExportImportRoundTrip(t *testing.T) {
 		t.Errorf("自己导出的文件里出现了不认识的条目：%v", res.Skipped)
 	}
 	got := loadUI()
-	// 毛玻璃在这里顺手验一遍迁移：存进去的 "high" 是旧四档的写法，归一化后应当是 10。
-	if got.Theme != "dark" || got.Glass != "10" || got.LogKeep != "1500" {
+	// 毛玻璃在这里顺手验一遍迁移：存进去的 "high" 是更早那版的写法，归一化后应当是 on（开）。
+	if got.Theme != "dark" || got.Glass != "on" || got.LogKeep != "1500" {
 		t.Errorf("导入后取值不对：theme=%q glass=%q logKeep=%q", got.Theme, got.Glass, got.LogKeep)
 	}
 }

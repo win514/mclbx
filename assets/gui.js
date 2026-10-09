@@ -77,19 +77,23 @@ function copy(text){
    （原来的帧率巡检与"要不要降档"的询问随「帧率自动降级」那一项一起撤销了：那个询问的
    "以后别再问"只能存在设置里，设置项没了它就会反复开口。） */
 var VFX = (function(){
-  /* 档位是 0-10 的整数，"0" 就是关闭。GLASS_DEF 与 guiconfig.go 的 uiGlassDefault、
-     面板里 UI_DEF 的那一份必须一致 —— 三处都对不上时症状是"首屏与设置里显示的不是同一个值"。 */
-  var GLASS_MAX = 10, GLASS_DEF = '1';
-  var st = { glass:GLASS_DEF, level:'0' };
+  /* 毛玻璃只有开与关。GLASS_DEF 与 guiconfig.go 的 uiGlassDefault、面板里 UI_DEF 的那一份
+     必须一致 —— 三处都对不上时症状是"首屏与设置里显示的不是同一个值"。
+     档位（0-10）已经取消：实测相邻档位看不出差别，一根调了没反应的滑杆比一个开关更糟。 */
+  var GLASS_DEF = 'on';
+  var st = { glass:GLASS_DEF, level:GLASS_DEF };
   var probe = null;
 
   function root(){ return document.documentElement; }
-  /* 档位一律收成 "0"…"10" 的字符串。服务端给的是归一化过的，但 ?vfx= 与旧内存值不保证。 */
-  function normLevel(v){
-    var n = parseInt(v, 10);
-    if(isNaN(n) || n < 0){ return GLASS_DEF; }
-    if(n > GLASS_MAX){ return String(GLASS_MAX); }
-    return String(n);
+  /* 一律收成 "off" / "on"。服务端给的是归一化过的，但 ?vfx= 与旧内存值不保证，
+     所以旧的数字档也要能落到两态上：0 是关，非零是开。 */
+  function normGlass(v){
+    var s = String(v === undefined || v === null ? '' : v).trim().toLowerCase();
+    if(s === 'off'){ return 'off'; }
+    if(s === 'on' || s === 'low' || s === 'mid' || s === 'high'){ return 'on'; }
+    var n = parseInt(s, 10);
+    if(!isNaN(n)){ return n === 0 ? 'off' : 'on'; }
+    return GLASS_DEF;
   }
   /* 浏览器到底认不认 backdrop-filter。不认就退成"关闭模糊" —— 半透明底还在，版式不变。 */
   function supported(){
@@ -97,14 +101,15 @@ var VFX = (function(){
       return !!(window.CSS && CSS.supports && CSS.supports('backdrop-filter','blur(4px)'));
     }catch(e){ return false; }
   }
-  /* 地址栏上的 ?vfx=0…10（老的 off/low/mid/high 仍然认）：只为"逐档各测一遍"用，**不落盘**。
-     同一份界面不用改设置就能逐档对比，测完刷新即恢复用户自己的设置。 */
+  /* 地址栏上的 ?vfx=on|off（旧的 0…10 与 off/low/mid/high 仍然认）：只为对照用，**不落盘**。
+     同一份界面不用改设置就能开关一次毛玻璃，看完刷新即恢复用户自己的设置。 */
   function forced(){
     try{
-      var m = /[?&]vfx=(off|low|mid|high|10|[0-9])(?:&|$)/.exec(location.search || '');
+      var m = /[?&]vfx=([a-z0-9]+)(?:&|$)/.exec(location.search || '');
       if(!m){ return ''; }
-      var alias = { off:'0', low:'3', mid:'6', high:'10' };
-      return alias[m[1]] || m[1];
+      var t = m[1];
+      if(t === 'off' || t === '0'){ return 'off'; }
+      return 'on';
     }catch(e){ return ''; }
   }
   function busy(on){ try{ root().setAttribute('data-vfx-busy', on ? 'on' : 'off'); }catch(e){} }
@@ -112,10 +117,11 @@ var VFX = (function(){
   function apply(u){
     try{
       u = u || {};
-      if(u.glass !== undefined && u.glass !== null && u.glass !== ''){ st.glass = normLevel(u.glass); }
+      if(u.glass !== undefined && u.glass !== null && u.glass !== ''){ st.glass = normGlass(u.glass); }
 
       var lv = st.glass;
-      if(lv !== '0' && !supported()){ lv = '0'; }
+      // 浏览器不认 backdrop-filter 时退成 off：半透明底还在、版式不变，只是不做模糊。
+      if(lv !== 'off' && !supported()){ lv = 'off'; }
       var f = forced();
       if(f){ lv = f; }
       st.level = lv;
@@ -999,14 +1005,13 @@ function wallHintText(u){
   return '点「导入图片…」选一张图（JPEG / PNG / GIF，单张上限 32MB）；也可以把图放进存档的 wallpapers 目录再点「刷新」。建议用不透明的图：透明区域转成 JPEG 后会发黑。';
 }
 function glassHintText(u){
-  if(u.vfx === 'off'){ return '总开关关着，这一档暂时不生效；重新打开「视觉美化」后回到这一档。'; }
-  var n = parseInt(u.glass, 10);
-  if(isNaN(n)){ n = 1; }
-  if(n === 0){ return '0 = 关闭：面板实心、不做模糊，最省的一档。'; }
-  var cost = n >= 8 ? '这一档开销明显，低配机器可能掉帧，建议先「帧率实测」。'
-    : n >= 4 ? '中等档：任务执行期间自动让位，跑完立刻恢复。'
-    : '偏保守的一档：观感接近实心，开销最小。';
-  return '0 到 10：越大越透明、模糊越强。' + cost + (u.bgImage ? '已设背景图，面板会补一点不透明度。' : '');
+  var v = String(u.glass === undefined || u.glass === null ? '' : u.glass).trim().toLowerCase();
+  // 旧的数字档也要认：0 是关，非零是开。
+  var off = v === 'off' || parseInt(v, 10) === 0;
+  var head = off ? '关：面板实心、不做模糊。' : '开：面板半透明并做模糊，且是最透明那一档。';
+  var tail = off ? '' : '任务执行期间自动让位，跑完立刻恢复。';
+  var wall = (!off && u.bgImage) ? '已设背景图，面板会补一点不透明度。' : '';
+  return head + tail + wall;
 }
 /* 图库选择器。
    配置里存的是「导入后的文件名」，所以这里给下拉列表而不是让用户敲路径 —— 路径那种做法
@@ -1122,7 +1127,7 @@ function uiSub(title, extra){
    remember 存的是"关掉"的反面，logKeep 服务端给的是生效值，都要先还原成同一个口径再比。 */
 var UI_DEF = {
   theme:'auto', accent:'mint', flat:'off', radii:'std', backdrop:'on', bgImage:'',
-  glass:'1', fade:'on', scale:'std', motion:'full',
+  glass:'on', fade:'on', scale:'std', motion:'full',
   rail:'std', musicMode:'order', musicLoop:'all', musicVol:'70', remember:'',
   logKeep:'2000', defPort:'', defRelay:''
 };
@@ -1170,7 +1175,7 @@ function uiThemeHTML(u){
     /* 视觉特效自成一个分组：这一组管的是"面板长什么样"，
        与上面那几项（配色、背景）和下面那几项（字号、动效、侧栏）不是一类。 */
     uiSub('视觉特效', '面板的半透明与模糊；恒开，无总开关') +
-    uiItem('glass', '毛玻璃', uiRange('glass', u.glass, 0, 10),
+    uiItem('glass', '毛玻璃', uiSeg('glass', u.glass, [['off', '关'], ['on', '开']]),
       glassHintText(u),
       '模糊按层次分配：主容器一档、浮层更强；面板内部卡片只半透明。' +
       '设了背景图时两者并存，文字对比度仍达标。高对比主题不参与。') +
@@ -1178,9 +1183,9 @@ function uiThemeHTML(u){
       '只动透明度，不动位置。',
       '「动画效果：精简」或系统「减少动态效果」下自动关闭。') +
     uiItem('', '帧率实测',
-      '<button type="button" class="btn sm" data-act="vfxMeasure">在当前档位测一秒</button>' +
+      '<button type="button" class="btn sm" data-act="vfxMeasure">在当前设置测一秒</button>' +
       '<span class="mi-out" id="vfxStats">尚未测过</span>',
-      '换一档点一次；不落盘、不改设置。') +
+      '开关切换后点一次；不落盘、不改设置。') +
     uiItem('scale', '界面字号', uiSeg('scale', u.scale, [['std','标准'],['big','大']]),
       '只放大字号，版式不动。') +
     uiItem('motion', '动画效果', uiSeg('motion', u.motion, [['full','完整'],['lite','精简']]),
@@ -1384,7 +1389,7 @@ function uiCollect(){
   var out = {
     theme:u.theme || 'auto', accent:u.accent || 'mint', motion:u.motion || 'full',
     backdrop:u.backdrop || 'on', scale:u.scale || 'std', flat:u.flat || 'off',
-    glass:u.glass || '1', fade:u.fade || 'on',
+    glass:u.glass || 'on', fade:u.fade || 'on',
     bgImage:u.bgImage || '', musicMode:u.musicMode || 'order', musicLoop:u.musicLoop || 'all',
     musicVol:u.musicVol || '70', remember:u.remember || '', logKeep:u.logKeep || '',
     defPort:u.defPort || '', defRelay:u.defRelay || '',

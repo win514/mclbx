@@ -298,7 +298,7 @@
 
    这一层恒开，不再有总开关（实测它对帧率没有可测影响，"关掉"省不下什么、
    却要一套三处接线的开关）。属性（首屏由服务端注入，避免"先实心、再闪成玻璃"）：
-     data-glass     0-10               毛玻璃档位：0 = 关闭（实心、不模糊），1-10 越大越透明
+     data-glass     on/off             毛玻璃：off = 实心不模糊，on = 最透明那一档
      data-fade      on/off              浮层淡入
      data-vfx-busy  on/off              运算期间让位（脚本在任务执行时挂上）
 
@@ -313,71 +313,62 @@
    层次：--glass-1 主容器（带模糊）／--glass-2 面板内的次级卡片（只半透明）／--glass-3 浮层（模糊更强）。
    设了背景图时**不再整段让位**：那样等于"用户一设背景图就把毛玻璃关掉"，两个本该并存的功能被做成互斥。
    照片的明暗由压暗层（--wall-scrim）与背景图补偿（--w1/--w2/--w3）收进一个有界区间，
-   文字对比度就还守得住 —— 逐档的数值由 TestGlassOverPageKeepsTextReadable 核对，不靠眼睛。 */
+   文字对比度就还守得住 —— 开态的取值由 TestGlassOverPageKeepsTextReadable 核对，不靠眼睛。 */
 /* ---- 层次一：主容器的面 ---- */
-:root:not([data-glass="0"]) .panel,
-:root:not([data-glass="0"]) .topbar,
-:root:not([data-glass="0"]) .statusbar{background-image:none;background-color:var(--glass-1)}
+:root[data-glass="on"] .panel,
+:root[data-glass="on"] .topbar,
+:root[data-glass="on"] .statusbar{background-image:none;background-color:var(--glass-1)}
 /* ---- 层次二：面板内部的次级卡片与控件底。更透，靠边框与阴影撑出形 ---- */
-:root:not([data-glass="0"]) .op,
-:root:not([data-glass="0"]) .capcell,
-:root:not([data-glass="0"]) .log{background-color:var(--glass-2)}
+:root[data-glass="on"] .op,
+:root[data-glass="on"] .capcell,
+:root[data-glass="on"] .log{background-color:var(--glass-2)}
 /* 顶边比其余三边亮一档。顶栏只有下边框（它贴的是视口上沿），那一档得落在下边框上 ——
    给它写 border-top-color 是一条永远不生效的死规则。 */
-:root:not([data-glass="0"]) .panel,
-:root:not([data-glass="0"]) .op,
-:root:not([data-glass="0"]) .log,
-:root:not([data-glass="0"]) .statusbar{border-top-color:var(--line2)}
-:root:not([data-glass="0"]) .topbar{border-bottom-color:var(--line2)}
+:root[data-glass="on"] .panel,
+:root[data-glass="on"] .op,
+:root[data-glass="on"] .log,
+:root[data-glass="on"] .statusbar{border-top-color:var(--line2)}
+:root[data-glass="on"] .topbar{border-bottom-color:var(--line2)}
 /* 面板自己的悬停/选中态原本是实心色，玻璃下要跟着一起变透明，否则鼠标一划过就"啪"地变实了 */
-:root:not([data-glass="0"]) .op:hover,
-:root:not([data-glass="0"]) .op.on{background-color:var(--glass-1)}
+:root[data-glass="on"] .op:hover,
+:root[data-glass="on"] .op.on{background-color:var(--glass-1)}
 /* 被判定"环境不支持"的条目本来就是置灰的，鼠标划过不该亮起玻璃悬停色。
    上面那条 :hover 的特异性比 .op.off:hover 高，所以这里必须显式压回去。 */
-:root:not([data-glass="0"]) .op.off:hover{background-color:var(--surf)}
+:root[data-glass="on"] .op.off:hover{background-color:var(--surf)}
 
-/* 档位表：0 = 关闭（规则里靠 :not([data-glass="0"]) 排除），1-10 越大越透明、模糊同步增强。
-   三条约束把这一列数钉住：
-     · 三档不透明度逐档递减，模糊逐档递增；
+/* 开态：此前最透明的那一档。
+   档位表已经取消 —— 实测相邻档位看不出差别（0 到 10 的三档不透明度只差 0.35、面板模糊
+   只差 13px），十个中间态于是只换来十块要维护的规则和一根调了没反应的滑杆。
+   所以这里只留最透明那一组的取值，并且照旧受两条约束：
      · 上限压在面板 16px / 浮层 20px —— 再往上收益很小，代价却按「玻璃面积 × 变化频率」涨；
-     · 每一档都必须让文字守得住 4.5（含设了背景图的极端情形），由
-       TestGlassOverPageKeepsTextReadable 逐档核对，不是靠眼睛。
-   高对比主题整个排除在外：它的三档面本来就接近实心，随档位变透明等于把"看清"这件事交出去。
-   把排除写进选择器而不是靠源码顺序，是为了让"哪一档作用于哪些主题"一眼看得出来。 */
-:root[data-glass="1"]:not([data-theme="contrast"]){--g1a:.85;--g2a:.72;--g3a:.95;--glass-blur:3px;--blur-3:6px}
-:root[data-glass="2"]:not([data-theme="contrast"]){--g1a:.83;--g2a:.69;--g3a:.945;--glass-blur:4px;--blur-3:7px}
-:root[data-glass="3"]:not([data-theme="contrast"]){--g1a:.81;--g2a:.66;--g3a:.94;--glass-blur:5px;--blur-3:9px}
-:root[data-glass="4"]:not([data-theme="contrast"]){--g1a:.79;--g2a:.63;--g3a:.935;--glass-blur:6px;--blur-3:10px}
-:root[data-glass="5"]:not([data-theme="contrast"]){--g1a:.76;--g2a:.60;--g3a:.93;--glass-blur:7px;--blur-3:12px}
-:root[data-glass="6"]:not([data-theme="contrast"]){--g1a:.73;--g2a:.57;--g3a:.925;--glass-blur:9px;--blur-3:14px}
-:root[data-glass="7"]:not([data-theme="contrast"]){--g1a:.70;--g2a:.54;--g3a:.92;--glass-blur:10px;--blur-3:16px}
-:root[data-glass="8"]:not([data-theme="contrast"]){--g1a:.66;--g2a:.50;--g3a:.915;--glass-blur:12px;--blur-3:17px}
-:root[data-glass="9"]:not([data-theme="contrast"]){--g1a:.62;--g2a:.45;--g3a:.91;--glass-blur:14px;--blur-3:19px}
-:root[data-glass="10"]:not([data-theme="contrast"]){--g1a:.57;--g2a:.40;--g3a:.90;--glass-blur:16px;--blur-3:20px}
+     · 开态必须让文字守得住 4.5（含设了背景图的极端情形），由
+       TestGlassOverPageKeepsTextReadable 核对，不是靠眼睛。
+   高对比主题排除在外：它的三档面本来就接近实心，随档位变透明等于把"看清"这件事交出去。
+   把排除写进选择器而不是靠源码顺序，是为了让"这一态作用于哪些主题"一眼看得出来。 */
+:root[data-glass="on"]:not([data-theme="contrast"]){--g1a:.57;--g2a:.40;--g3a:.90;--glass-blur:16px;--blur-3:20px}
 /* 设了背景图：照片的明暗不由我们决定，除压暗层之外再补一点不透明度。
-   补偿量与档位无关，所以被"最不透明的那一档"（档位 1）卡住上限：
-   每一档的 不透明度 + 补偿 恰好还是原来那组取值 —— 背景图下的观感不动，
+   补偿量与开态配对，合起来正好还是原来那组取值 —— 背景图下的观感不动，
    让出来的差额全归普通模式，玻璃整体更透。和上面一样不能越 1。 */
 :root[data-wall="on"]:not([data-theme="contrast"]){--w1:.14;--w2:.28;--w3:.05}
 
 /* 真毛玻璃只在这几处 —— 一是薄条或静止内容的主容器，二是浮层。
    :not([data-vfx-busy="on"]) 就是运算期间的让位；高对比主题排除在外 ——
    它的三档面本来就接近实心，给它挂模糊只会白花 GPU。 */
-:root:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .topbar,
-:root:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .statusbar,
-:root:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .stage>.panel:not(.logpanel){
+:root[data-glass="on"]:not([data-theme="contrast"]):not([data-vfx-busy="on"]) .topbar,
+:root[data-glass="on"]:not([data-theme="contrast"]):not([data-vfx-busy="on"]) .statusbar,
+:root[data-glass="on"]:not([data-theme="contrast"]):not([data-vfx-busy="on"]) .stage>.panel:not(.logpanel){
   contain:layout;
   backdrop-filter:blur(var(--glass-blur)) saturate(1.08)}
 /* 设置页外壳：一页占满，内部滚动。模糊加在外壳上而不是那些分类卡上 ——
    外壳不动，背后那层静止背景的模糊结果就能一直复用；卡片跟着滚，加在卡上就要每帧重算。 */
-:root:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .setpage{
+:root[data-glass="on"]:not([data-theme="contrast"]):not([data-vfx-busy="on"]) .setpage{
   contain:layout;
   backdrop-filter:blur(var(--glass-blur)) saturate(1.08)}
 /* 浮层：最实的一档 + 最强的一档模糊，并比主容器多含一层绘制隔离。 */
-:root:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .mbox{
+:root[data-glass="on"]:not([data-theme="contrast"]):not([data-vfx-busy="on"]) .mbox{
   contain:layout paint;
   backdrop-filter:blur(var(--blur-3)) saturate(1.12)}
-:root:not([data-glass="0"]) .mbox{background-color:var(--glass-3)}
+:root[data-glass="on"] .mbox{background-color:var(--glass-3)}
 
 /* 科幻轮廓微光：静态的一次性光晕，**不挂 transition** ——
    给阴影挂过渡等于每次过渡都逐帧重新光栅化，那正是扁平化那一段里记下的坑。

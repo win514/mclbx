@@ -197,14 +197,14 @@ func cssNoCommentsOne(sel string) string {
 	return regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(sel, "")
 }
 
-// 每一条模糊规则都必须同时挂着两道闸：档位不为 0、"当前不在运算期间"。
+// 每一条模糊规则都必须同时挂着两道闸：毛玻璃开着、"当前不在运算期间"。
 // 少任何一道，界面就会在不该花钱的时候花钱。
 // （原来还有第三道「视觉美化总开关」，那个开关已撤销 —— 实测它对帧率没有可测影响，
-// 关掉它省不下什么，却要付一套三处接线的成本。）
+// 关掉它省不下什么，却要付一套三处接线的成本。档位那道闸也已随档位取消而改成 on/off。）
 func TestGlassYieldsWhileBusy(t *testing.T) {
 	for _, r := range blurRules(t) {
 		sel := strings.Join(strings.Fields(r.sel), " ")
-		for _, want := range []string{`:not([data-glass="0"])`, `:not([data-vfx-busy="on"])`} {
+		for _, want := range []string{`[data-glass="on"]`, `:not([data-vfx-busy="on"])`} {
 			if !strings.Contains(sel, want) {
 				t.Errorf("这条模糊规则少了 %s，等于绕开了那道闸：\n  %s", want, sel)
 			}
@@ -216,56 +216,11 @@ func TestGlassYieldsWhileBusy(t *testing.T) {
 	}
 }
 
-// 档位表必须是**有界、单调、且与档位清单一一对应**的：
-// 1-10 里三档不透明度逐档递减（数值越大越透明），模糊逐档递增，且上限压在面板 16px / 浮层 20px。
-//
-// 档位是离散整数而不是任意像素值，为的就是让用户拿不到一个把界面拖垮的取值；
-// 0 是"关闭"，它不该有自己的强度块 —— 有块就等于把 0 当成了又一个档位。
-func TestGlassLevelsAreBoundedAndOrdered(t *testing.T) {
-	nums := regexp.MustCompile(`--(g[123]a|glass-blur|blur-3):([\d.]+)`)
-	val := map[string]map[int]float64{"g1a": {}, "g2a": {}, "g3a": {}, "glass-blur": {}, "blur-3": {}}
-	for i := 1; i <= 10; i++ {
-		lv := strconv.Itoa(i)
-		body := cssRule(t, `:root[data-glass="`+lv+`"]:not([data-theme="contrast"])`)
-		found := map[string]bool{}
-		for _, m := range nums.FindAllStringSubmatch(body, -1) {
-			f, err := strconv.ParseFloat(m[2], 64)
-			if err != nil {
-				t.Fatalf("档位 %s 的 %s=%q 解析不了", lv, m[1], m[2])
-			}
-			val[m[1]][i] = f
-			found[m[1]] = true
-		}
-		for _, k := range []string{"g1a", "g2a", "g3a", "glass-blur", "blur-3"} {
-			if !found[k] {
-				t.Fatalf("档位 %s 没有给出 --%s —— 档位表与 glassLevels 对不上", lv, k)
-			}
-		}
-	}
-	if val["glass-blur"][10] > 16 {
-		t.Errorf("最高档的面板模糊是 %.0fpx，超过 16px —— 面板上承诺的上限是 16px", val["glass-blur"][10])
-	}
-	if val["blur-3"][10] > 20 {
-		t.Errorf("最高档的浮层模糊是 %.0fpx，超过 20px —— 浮层要比主容器强，但也不能无上限", val["blur-3"][10])
-	}
-	for i := 1; i < 10; i++ {
-		for _, k := range []string{"g1a", "g2a", "g3a"} {
-			if !(val[k][i] > val[k][i+1]) {
-				t.Errorf("档位 %d→%d 的 --%s 没有递减（越大要越透明）：%.3f→%.3f",
-					i, i+1, k, val[k][i], val[k][i+1])
-			}
-		}
-		for _, k := range []string{"glass-blur", "blur-3"} {
-			if !(val[k][i] < val[k][i+1]) {
-				t.Errorf("档位 %d→%d 的 --%s 没有递增：%.0f→%.0f", i, i+1, k, val[k][i], val[k][i+1])
-			}
-		}
-	}
-	if strings.Contains(cssRegion(t), `:root[data-glass="0"]`) {
-		t.Error(`出现了一块 :root[data-glass="0"] —— 0 是"关闭"，它只该由 :not([data-glass="0"]) 排除，` +
-			"不该有属于自己的强度块")
-	}
-}
+// 档位取消后，原来那条「不透明度逐档递减、模糊逐档递增且有界」的用例没有对象了：
+// 现在只有开态一组取值。它的两条实质约束搬到了 glass_toggle_test.go：
+//   · TestGlassOnUsesTheMostTransparentState —— 开态有界（面板 ≤16px、浮层 ≤20px）；
+//   · TestNoNumericGlassLevelsRemain —— 不留数字档位的死规则。
+// 而「开态必须让文字守住 4.5」仍由下面的 TestGlassOverPageKeepsTextReadable 盯着。
 
 // 整段可删：模糊必须全部落在视觉美化那一段里，段外一处都不许有。
 // 这条就是"美化模块独立、方便移除"的可执行版本 —— 段外有模糊，删那一段就会留下半拉样式。
@@ -436,14 +391,10 @@ func TestFlatAndGlassAreWiredEndToEnd(t *testing.T) {
 	if got := segOptions(t, "flat"); strings.Join(got, ",") != "off,on" {
 		t.Errorf("uiSeg('flat') 的取值是 %v，期望 off,on", got)
 	}
-	// 毛玻璃是 0-10 的滑杆：控件范围必须与 guiconfig.go 的上下限一致，
-	// 否则会出现"能选到 11"或"最高只到 8"这类只在一端露头的错。
-	if !strings.Contains(guiPageHTML, "uiRange('glass', u.glass, "+strconv.Itoa(uiGlassMin)+", "+strconv.Itoa(uiGlassMax)+")") {
-		t.Errorf("设置页的毛玻璃控件不是 uiRange('glass', u.glass, %d, %d) —— 滑杆范围必须与 "+
-			"guiconfig.go 的 uiGlassMin/uiGlassMax 一致", uiGlassMin, uiGlassMax)
-	}
-	if len(glassLevels) != uiGlassMax-uiGlassMin+1 || glassLevels[0] != "0" || glassLevels[uiGlassMax] != "10" {
-		t.Errorf("glassLevels 不是 0…%d 的全集：%v", uiGlassMax, glassLevels)
+	// 毛玻璃与「扁平化」同为两态开关：取值清单必须与 CSS 的块一一对应，
+	// 否则会出现"设置里给了一个样式表认不得的取值"这种选了没反应的死开关。
+	if got := segOptions(t, "glass"); strings.Join(got, ",") != "off,on" {
+		t.Errorf("uiSeg('glass') 的取值是 %v，期望 off,on", got)
 	}
 	for _, c := range []struct {
 		name string
@@ -454,18 +405,9 @@ func TestFlatAndGlassAreWiredEndToEnd(t *testing.T) {
 		{"非法材质", normalizeUI(guiUIState{Flat: "yes"}).Flat, "off"},
 		{"合法材质", normalizeUI(guiUIState{Flat: "on"}).Flat, "on"},
 		{"默认毛玻璃", normalizeUI(guiUIState{}).Glass, uiGlassDefault},
-		{"越界毛玻璃", normalizeUI(guiUIState{Glass: "11"}).Glass, uiGlassDefault},
-		{"非数字毛玻璃", normalizeUI(guiUIState{Glass: "yes"}).Glass, uiGlassDefault},
-		{"合法毛玻璃", normalizeUI(guiUIState{Glass: "7"}).Glass, "7"},
-		{"零档就是关闭", normalizeUI(guiUIState{Glass: "0"}).Glass, "0"},
-		{"档位去空格", normalizeUI(guiUIState{Glass: " 4 "}).Glass, "4"},
-		// 老配置里的四档、以及更早的 on/off 都要迁成"同一个意思"，而不是一律打回默认：
-		// 当初把档位调高的人要的就是更透的观感，迁移不该把这件事悄悄抹掉。
-		{"旧值 off", normalizeUI(guiUIState{Glass: "off"}).Glass, "0"},
-		{"旧值 low", normalizeUI(guiUIState{Glass: "low"}).Glass, "3"},
-		{"旧值 mid", normalizeUI(guiUIState{Glass: "mid"}).Glass, "6"},
-		{"旧值 on", normalizeUI(guiUIState{Glass: "on"}).Glass, "6"},
-		{"旧值 high", normalizeUI(guiUIState{Glass: "high"}).Glass, "10"},
+		{"非法毛玻璃", normalizeUI(guiUIState{Glass: "yes"}).Glass, uiGlassDefault},
+		{"合法毛玻璃", normalizeUI(guiUIState{Glass: "on"}).Glass, "on"},
+		// 旧数字档（0…10）与更早的 off/low/mid/high 落到两态上的逐格核对，见 glass_toggle_test.go。
 		{"默认淡入", normalizeUI(guiUIState{}).Fade, "on"},
 	} {
 		if c.got != c.want {
@@ -473,8 +415,8 @@ func TestFlatAndGlassAreWiredEndToEnd(t *testing.T) {
 		}
 	}
 	// 首屏注入：每个开关都要显式写在 <html> 上，缺省等于把语义交给猜测
-	a := normalizeUI(guiUIState{Flat: "on", Glass: "7", Fade: "on"}).htmlAttr()
-	for _, want := range []string{`data-flat="on"`, `data-glass="7"`,
+	a := normalizeUI(guiUIState{Flat: "on", Glass: "off", Fade: "on"}).htmlAttr()
+	for _, want := range []string{`data-flat="on"`, `data-glass="off"`,
 		`data-fade="on"`} {
 		if !strings.Contains(a, want) {
 			t.Errorf("htmlAttr 没有带上 %s：%q", want, a)
@@ -525,9 +467,9 @@ func TestFlatAndGlassAreWiredEndToEnd(t *testing.T) {
 	}
 }
 
-// 逐档特效下，工具本身必须完全一样。
+// 开关切换下，工具本身必须完全一样。
 //
-// 这是需求里「核心功能不受任何特效开关状态影响」的可执行版本：把 0-10 每一档各渲染一份页面，
+// 这是需求里「核心功能不受任何特效开关状态影响」的可执行版本：把毛玻璃的每种取值各渲染一份页面，
 // 抹掉两处**本来就该变**的注入点（<html> 上的属性、首屏那份 JSON）之后逐字节比对。
 // 也就是说美化只准通过属性与 CSS 起作用 —— 一旦它开始改结构、改脚本、改按钮文案，这条就红。
 func TestGlassLevelsChangeNothingButAttributes(t *testing.T) {
@@ -537,7 +479,7 @@ func TestGlassLevelsChangeNothingButAttributes(t *testing.T) {
 		return p
 	}
 	base := ""
-	for _, lv := range glassLevels {
+	for _, lv := range glassValues {
 		u := normalizeUI(guiUIState{Glass: lv})
 		p := strings.Replace(guiPageHTML, "@@UIATTRS@@", u.htmlAttr(), 1)
 		p = strings.Replace(p, "@@UIJSON@@", u.uiStartupJSON(), 1)
@@ -555,11 +497,11 @@ func TestGlassLevelsChangeNothingButAttributes(t *testing.T) {
 				"美化只准通过 <html> 属性与 CSS 起作用，不许改结构、脚本或文案", lv)
 		}
 	}
-	// 反过来确认这条不是空转：属性那一处确实随档位变
-	a := normalizeUI(guiUIState{Glass: "0"}).htmlAttr()
-	b := normalizeUI(guiUIState{Glass: "10"}).htmlAttr()
+	// 反过来确认这条不是空转：属性那一处确实随开关变
+	a := normalizeUI(guiUIState{Glass: "off"}).htmlAttr()
+	b := normalizeUI(guiUIState{Glass: "on"}).htmlAttr()
 	if a == b {
-		t.Fatal("0 档与 10 档的 htmlAttr 完全一样 —— 档位根本没传到页面上")
+		t.Fatal("关与开的 htmlAttr 完全一样 —— 毛玻璃开关根本没传到页面上")
 	}
 }
 
@@ -572,7 +514,7 @@ func TestGlassLevelsChangeNothingButAttributes(t *testing.T) {
 func TestAppearanceControlsExistInThePanel(t *testing.T) {
 	panel := bodyBetween(t, "function uiThemeHTML(u){", "function uiAboutHTML(u){")
 	for _, want := range []string{
-		"uiSeg('theme'", "uiAccentDots(u)", "uiSeg('flat'", "uiRange('glass'",
+		"uiSeg('theme'", "uiAccentDots(u)", "uiSeg('flat'", "uiSeg('glass'",
 		"uiSw('fade'", "uiSw('backdrop'",
 		"uiSeg('radii'", "uiSeg('rail'", "uiSeg('scale'", "uiSeg('motion'",
 		"uiWallPicker(", "vfxMeasure",
@@ -735,10 +677,12 @@ func TestGlassOverPageKeepsTextReadable(t *testing.T) {
 				{"纯白照片+压暗层", over(scrim, rgba{255, 255, 255, 1})},
 				{"纯黑照片+压暗层", over(scrim, rgba{0, 0, 0, 1})},
 			}
-			for lv := 1; lv <= 10; lv++ {
-				alpha := cssVars(cssRule(t, `:root[data-glass="`+strconv.Itoa(lv)+`"]:not([data-theme="contrast"])`))
+			// 档位取消后只剩开态一组取值；这里仍留一层循环，是为了让高对比主题那一支
+			// 与普通主题走同一条路径（两者取值的来源不同）。
+			for _, lv := range []string{"开态"} {
+				alpha := cssVars(cssRule(t, `:root[data-glass="on"]:not([data-theme="contrast"])`))
 				if theme == "contrast" {
-					// 高对比主题不参与档位：档位块用 :not([data-theme="contrast"]) 把它排除了，
+					// 高对比主题不参与玻璃：开态块用 :not([data-theme="contrast"]) 把它排除了，
 					// 它取的是主题块自己钉死的那一组不透明度。
 					alpha = cssVars(cssRule(t, `:root[data-theme="contrast"]`))
 				}
@@ -755,11 +699,11 @@ func TestGlassOverPageKeepsTextReadable(t *testing.T) {
 						a, err1 := strconv.ParseFloat(alpha[s.alphaVar], 64)
 						w, err2 := strconv.ParseFloat(add[s.addVar], 64)
 						if err1 != nil || err2 != nil {
-							t.Fatalf("主题 %s 档位 %d：%s 的不透明度取不到数值（%q / %q）",
+							t.Fatalf("主题 %s %s：%s 的不透明度取不到数值（%q / %q）",
 								theme, lv, s.name, alpha[s.alphaVar], add[s.addVar])
 						}
 						if a+w > 1 {
-							t.Errorf("主题 %s 档位 %d：%s 的不透明度 %.3f + 背景图补偿 %.3f 超过 1 —— "+
+							t.Errorf("主题 %s %s：%s 的不透明度 %.3f + 背景图补偿 %.3f 超过 1 —— "+
 								"越过 1 之后靠浏览器 clamp 兜底，那不是这套取值的口径", theme, lv, s.name, a, w)
 							continue
 						}
@@ -773,7 +717,7 @@ func TestGlassOverPageKeepsTextReadable(t *testing.T) {
 								}
 								if r := contrast(fg, plate); r+1e-9 < 4.5 {
 									failures = append(failures, fmt.Sprintf(
-										"%s+%s 档位%d 背景图=%v：%s 压在「%s + %s」上只有 %.2f，要求 ≥ 4.5",
+										"%s+%s %s 背景图=%v：%s 压在「%s + %s」上只有 %.2f，要求 ≥ 4.5",
 										theme, acc, lv, wall, tok, s.name, st.name, r))
 								}
 							}

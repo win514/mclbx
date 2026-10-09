@@ -31,7 +31,7 @@ type guiUIState struct {
 	Backdrop  string `json:"backdrop,omitempty"`  // on / off
 	Scale     string `json:"scale,omitempty"`     // std / big（界面字号，独立于主题）
 	Flat      string `json:"flat,omitempty"`      // on / off（扁平化，独立于主题）
-	Glass     string `json:"glass,omitempty"`     // 0-10 十进制字符串（毛玻璃档位）：0 = 关闭，越大越透明
+	Glass     string `json:"glass,omitempty"`     // on / off（毛玻璃）：off = 实心不做模糊，on = 最透明那一档
 	Fade      string `json:"fade,omitempty"`      // on / off（面板淡入）
 	BgImage   string `json:"bgImage,omitempty"`   // 背景图片名（存档 wallpapers 目录里的一个文件）；空 = 不用
 	Radii     string `json:"radii,omitempty"`     // sharp / std / round（界面圆角大小）
@@ -55,25 +55,22 @@ var accentValues = []string{"blue", "violet"}
 // scaleValues 界面字号白名单，是与 Motion/Backdrop 同级的独立维度。
 var scaleValues = []string{"std", "big"}
 
-// 毛玻璃档位：0 表示关闭，1-10 越大越透明（模糊随之增强）。
+// 毛玻璃：只有开与关两态。
 //
-// 它是离散的整数档而非像素值：既保证取值落在实测范围内，也让"数值越大越透明"
-// 这一条在界面上可预期。每个档位在 CSS 里有一块 :root[data-glass="N"] 与之一一对应，
-// 具体颜色由各主题的 --glass-rgb 决定（见 guihtml.go 的 VFX 段）。
+// 此前是 0-10 的档位，实测相邻档位看不出差别（0 到 10 的三档不透明度只差 0.35、面板模糊
+// 只差 13px），而每一档都要在 CSS 里维护一块、在设置里解释一遍。一个调了看不出效果的滑杆
+// 比一个开关更糟：用户会以为是自己没调对。
+//
+// 开态就是此前最透明的那一档（见 CSS 里 :root[data-glass="on"] 那一块），不再有中间态，
+// 因此也不必再维护一张档位表 —— 只有"值清单"用来核对取值与 CSS 块是否一一对应。
 const (
-	uiGlassMin     = 0
-	uiGlassMax     = 10
-	uiGlassDefault = "1"
+	uiGlassOff     = "off"
+	uiGlassOn      = "on"
+	uiGlassDefault = uiGlassOn
 )
 
-// glassLevels 全部合法档位（含 0）。用例拿它核对"档位表与 CSS 逐块对应"。
-var glassLevels = func() []string {
-	out := make([]string, 0, uiGlassMax-uiGlassMin+1)
-	for i := uiGlassMin; i <= uiGlassMax; i++ {
-		out = append(out, strconv.Itoa(i))
-	}
-	return out
-}()
+// glassValues 全部合法取值。用例拿它核对"取值清单与 CSS 逐块对应"。
+var glassValues = []string{uiGlassOff, uiGlassOn}
 
 // radiiValues 界面圆角白名单，与 CSS 的 :root[data-radii=…] 三个块对应。
 //
@@ -111,21 +108,18 @@ func normalizeUI(u guiUIState) guiUIState {
 	if u.Flat != "on" {
 		u.Flat = "off"
 	}
-	// 毛玻璃改为 0-10 的连续档：0 = 关闭，越大越透明。旧的四档与更早的 on/off 在这里迁移，
-	// 迁移后仍是"用户的意图"，而不是一律打回默认。
-	if n, err := strconv.Atoi(strings.TrimSpace(u.Glass)); err == nil && n >= uiGlassMin && n <= uiGlassMax {
-		u.Glass = strconv.Itoa(n)
-	} else {
-		switch strings.TrimSpace(u.Glass) {
-		case "off": // 早期的"关"（面板仍半透明、不做模糊）
-			u.Glass = "0"
-		case "low":
-			u.Glass = "3"
-		case "on", "mid": // "on" 是最早那版的"开"，当初迁到 mid
-			u.Glass = "6"
-		case "high":
-			u.Glass = "10"
-		default:
+	// 毛玻璃只有开与关。旧的数字档（0…10）与更早的 low/mid/high 在这里迁移：
+	// 非零档一律迁到 on（当初调高就是要更透，不该悄悄抹掉），"0" 迁到 off，
+	// 认不出来的值回落到默认（on）。
+	switch strings.ToLower(strings.TrimSpace(u.Glass)) {
+	case uiGlassOff:
+		u.Glass = uiGlassOff
+	case uiGlassOn, "low", "mid", "high":
+		u.Glass = uiGlassOn
+	default:
+		if n, err := strconv.Atoi(strings.TrimSpace(u.Glass)); err == nil && n == 0 {
+			u.Glass = uiGlassOff
+		} else {
 			u.Glass = uiGlassDefault
 		}
 	}
