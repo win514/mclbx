@@ -32,7 +32,11 @@ type guiUIState struct {
 	Backdrop  string `json:"backdrop,omitempty"`  // on / off
 	Scale     string `json:"scale,omitempty"`     // std / big（界面字号，独立于主题）
 	Flat      string `json:"flat,omitempty"`      // on / off（扁平化，独立于主题）
-	Glass     string `json:"glass,omitempty"`     // on / off（毛玻璃，独立于主题）
+	Glass     string `json:"glass,omitempty"`     // off / low / mid / high（毛玻璃档位）
+	VFX       string `json:"vfx,omitempty"`       // on / off（视觉美化总开关）
+	Glow      string `json:"glow,omitempty"`      // on / off（科幻轮廓微光）
+	Fade      string `json:"fade,omitempty"`      // on / off（面板淡入）
+	NoDegrade string `json:"noDegrade,omitempty"` // "1" = 关掉帧率自动降级
 	BgImage   string `json:"bgImage,omitempty"`   // 背景图片名（存档 wallpapers 目录里的一个文件）；空 = 不用
 	MusicMode string `json:"musicMode,omitempty"` // order / shuffle（顺序 / 随机）
 	MusicLoop string `json:"musicLoop,omitempty"` // off / all / one（不循环 / 列表循环 / 单曲循环）
@@ -52,6 +56,18 @@ var accentValues = []string{"blue", "violet"}
 
 // scaleValues 界面字号白名单，是与 Motion/Backdrop 同级的独立维度。
 var scaleValues = []string{"std", "big"}
+
+// glassValues 毛玻璃档位白名单，须与 CSS 的 :root[data-glass=…] 与界面上的四档一致。
+//
+// 它是一组**离散档位**而不是一个像素值：档位能保证任何取值都在实测过的范围内，
+// 用户拿不到一个「模糊 200px」把界面拖垮。数值本身见 CSS 里 --glass-blur 的定义。
+var glassValues = []string{"off", "low", "mid", "high"}
+
+// uiGlassDefault 毛玻璃的默认档位。
+//
+// 取 mid 而不是 high：high 是给愿意付代价的人备着的，默认值不该替所有人做这个决定。
+// 更要紧的是它被三件事兜着 —— 运算期间的自动让位、帧率过低时的降级询问、以及随时可关的总开关。
+const uiGlassDefault = "mid"
 
 // 日志每层保留的行数上限与下限。
 const (
@@ -81,8 +97,28 @@ func normalizeUI(u guiUIState) guiUIState {
 	if u.Flat != "on" {
 		u.Flat = "off"
 	}
-	if u.Glass != "on" {
-		u.Glass = "off"
+	// 毛玻璃从 on/off 改成了四档。老配置里的 "on" 是「面板半透明、不做实时模糊」那一版 ——
+	// 当初会去勾它的人要的就是玻璃观感，所以按推荐档位 mid 迁移，而不是把功能悄悄关掉。
+	if !containsStr(glassValues, u.Glass) {
+		if u.Glass == "on" {
+			u.Glass = "mid"
+		} else {
+			u.Glass = uiGlassDefault
+		}
+	}
+	// 视觉美化总开关与两个附加开关都是「默认开、只有明确写了 off 才关」。
+	// 总开关关掉时不改这里存的值 —— 用户再打开时要回到他原来选的那一档。
+	if u.VFX != "off" {
+		u.VFX = "on"
+	}
+	if u.Glow != "off" {
+		u.Glow = "on"
+	}
+	if u.Fade != "off" {
+		u.Fade = "on"
+	}
+	if u.NoDegrade != "1" {
+		u.NoDegrade = ""
 	}
 	// 旧配置里存的是路径，升级后要换成导入进存档的副本（只复制，原文件不动）。
 	// 放在这一层是因为读写两条路都经过它，迁移一次就够了。
@@ -141,9 +177,12 @@ func (u guiUIState) logKeep() int {
 }
 
 // htmlAttr 拼出 <html> 的主题属性，由服务端注入以避免首屏闪烁。
+//
+// 视觉美化那几项也在其中：它们决定首屏是不是"先实心、再闪成玻璃"。
+// 总开关与附加开关都注进去，而不是在 CSS 里用总开关去推 —— 少一层推导就少一处走偏。
 func (u guiUIState) htmlAttr() string {
-	return fmt.Sprintf(` data-theme="%s" data-accent="%s" data-motion="%s" data-backdrop="%s" data-scale="%s" data-flat="%s" data-glass="%s"`,
-		u.Theme, u.Accent, u.Motion, u.Backdrop, u.Scale, u.Flat, u.Glass)
+	return fmt.Sprintf(` data-theme="%s" data-accent="%s" data-motion="%s" data-backdrop="%s" data-scale="%s" data-flat="%s" data-glass="%s" data-vfx="%s" data-glow="%s" data-fade="%s"`,
+		u.Theme, u.Accent, u.Motion, u.Backdrop, u.Scale, u.Flat, u.Glass, u.VFX, u.Glow, u.Fade)
 }
 
 // wallAttr 拼出背景图片那一段：一个 data-wall 标记加一个行内变量。
@@ -167,6 +206,12 @@ func (u guiUIState) uiStartupJSON() string {
 		MusicMode string `json:"musicMode"`
 		MusicLoop string `json:"musicLoop"`
 		MusicVol  string `json:"musicVol"`
+		// 视觉美化：帧率自动降级那几个判断要在首屏就知道，省一次取设置的往返。
+		VFX       string `json:"vfx"`
+		Glass     string `json:"glass"`
+		Glow      string `json:"glow"`
+		Fade      string `json:"fade"`
+		NoDegrade bool   `json:"noDegrade"`
 	}{
 		Theme:     u.Theme,
 		FollowOS:  u.Theme == "auto",
@@ -174,6 +219,11 @@ func (u guiUIState) uiStartupJSON() string {
 		MusicMode: u.MusicMode,
 		MusicLoop: u.MusicLoop,
 		MusicVol:  u.MusicVol,
+		VFX:       u.VFX,
+		Glass:     u.Glass,
+		Glow:      u.Glow,
+		Fade:      u.Fade,
+		NoDegrade: u.NoDegrade == "1",
 	})
 	if err != nil {
 		return "{}"

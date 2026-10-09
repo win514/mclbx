@@ -78,44 +78,208 @@ func TestNoVersionDependentCSSFunctions(t *testing.T) {
 		"老一点的 WebView2 上整条声明会被丢掉，暗化层丢失会让壁纸上的字没法读", uniq)
 }
 
-// ---- 毛玻璃 ----
+// ---- 毛玻璃（视觉美化层）----
+//
+// 这一段的口径变过一次，值得写清楚：原来这里是「全表禁 backdrop-filter」，
+// 禁的其实是**占满视口又带模糊或动画**的图层 —— 那条实测红线（空闲 13%、运行中 51%）就是它。
+// 现在允许真毛玻璃，理由不是"模糊变便宜了"，而是把那个乘积的两个乘数都压住了：
+// 只加在局部面板上（面积），任务执行期间整体让位（变化频率）。
+// 下面几条把那两条压法写成判据。放宽的只有"能不能用"，边界一条都没松。
 
-// 全表禁真毛玻璃。backdrop-filter 的价值只是观感，代价却是「背后一变就要重新回读 + 重新模糊」，
-// 而"背后变"由别人触发 —— 一个正在运行的呼吸点就够让它逐帧重算。
-func TestGuiNoBackdropFilterAtAll(t *testing.T) {
-	css := cssRegion(t)
-	re := regexp.MustCompile(`(-webkit-)?backdrop-filter\s*:\s*([^;}]+)`)
-	for _, m := range re.FindAllStringSubmatch(css, -1) {
-		if v := strings.TrimSpace(m[2]); v != "none" {
-			t.Errorf("样式表里出现了真毛玻璃（%s:%s）：它会让面板背后每次变化都重新回读并模糊，"+
-				"代价按玻璃总面积 × 变化频率增长，几块面板加起来就等价于整屏", m[1], v)
+// vfxCSS 取出视觉美化那一段 CSS。它必须是**可以整段删掉**的，所以先能把它圈出来。
+// 起点取到注释的 `/*` 上，而不是注释里那行标题 —— 否则这一段自带的那段说明会被算成"段外"，
+// 剥注释时剥不干净，判据就会拿说明文字当声明。
+func vfxCSS(t *testing.T) string {
+	t.Helper()
+	i := strings.Index(guiPageHTML, "/* ============ 视觉美化（VFX）")
+	if i < 0 {
+		t.Fatal("找不到视觉美化那一段的起头标记 —— 它被改名或删掉了吗？这条检查等于没做")
+	}
+	j := strings.Index(guiPageHTML[i:], "\n*{box-sizing")
+	if j < 0 {
+		t.Fatal("找不到视觉美化那一段的结尾（全局 reset 那一行）")
+	}
+	return guiPageHTML[i : i+j]
+}
+
+// cssNoComments 剥掉注释。cssRules 会把选择器前面那段注释一起算进选择器，
+// 而说明用的注释里正好也写着这些类名 —— 不剥掉就会拿说明文字当规则判。
+func cssNoComments(t *testing.T) string {
+	t.Helper()
+	return regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(cssRegion(t), "")
+}
+
+// stripNot 去掉 :not(...) 那几段。
+// 判"这条规则碰没碰某个元素"时必须先去掉它：`.card:not(.logcard)` 里的 .logcard
+// 是**排除**，恰恰说明它不碰日志卡。不剥掉就会把这条最要紧的排除条件当成违规。
+func stripNot(sel string) string {
+	return regexp.MustCompile(`:not\([^)]*\)`).ReplaceAllString(sel, "")
+}
+
+// blurRules 取出真正会加模糊的规则（backdrop-filter:none 那种覆盖写法不算）。
+func blurRules(t *testing.T) []panelCSSRule {
+	t.Helper()
+	none := regexp.MustCompile(`backdrop-filter\s*:\s*none`)
+	var out []panelCSSRule
+	for _, r := range cssRules(cssNoComments(t)) {
+		if strings.Contains(r.body, "backdrop-filter") && !none.MatchString(r.body) {
+			out = append(out, r)
 		}
 	}
-	for _, js := range []string{"backdropFilter", "webkitBackdropFilter"} {
-		if strings.Contains(guiPageHTML, js) {
-			t.Errorf("脚本里出现了 %s —— 动态加上去的毛玻璃同样绕不过这条守卫", js)
+	return out
+}
+
+// 允许加模糊的地方。它们都是**局部**面板，且内容是间歇变化的。
+// 往这份名单里加东西之前先回答两个问题：它背后是谁？那块内容多久变一次？
+var blurAllowedSel = []string{".card:not(.logcard)", ".foot", ".mbox"}
+
+// 局部：模糊只准落在上面那几个面板上，一个都不许漏到别处（逐条选择器核，不是整串包含）。
+func TestBackdropFilterOnlyOnLocalSurfaces(t *testing.T) {
+	rules := blurRules(t)
+	if len(rules) == 0 {
+		t.Fatal("样式表里一处 backdrop-filter 都没有 —— 这条检查等于没做")
+	}
+	for _, r := range rules {
+		sel := strings.Join(strings.Fields(r.sel), " ")
+		for _, part := range strings.Split(sel, ",") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			ok := false
+			for _, allow := range blurAllowedSel {
+				if strings.Contains(part, allow) {
+					ok = true
+					break
+				}
+			}
+			if !ok {
+				t.Errorf("这条选择器加了 backdrop-filter，可它不在允许的局部面板里：\n  %s\n"+
+					"允许的是 %v —— 换地方之前先想清楚它背后是谁、那块内容多久变一次", part, blurAllowedSel)
+			}
 		}
 	}
 }
 
-// 毛玻璃那一族规则只准用颜色与边框，不许出现任何滤波或模糊函数。
-func TestGlassRulesUseNoFilter(t *testing.T) {
-	found := 0
-	for _, r := range cssRules(cssRegion(t)) {
-		sel := effSel(r.sel)
-		if !strings.Contains(sel, `data-glass="on"`) {
-			continue
-		}
-		found++
-		for _, bad := range []string{"backdrop-filter", "-webkit-filter", "filter:", "blur(", "animation"} {
-			if strings.Contains(r.body, bad) {
-				t.Errorf("%s 里出现了 %s —— 伪毛玻璃只能靠半透明色与 1px 边框，"+
-					"任何模糊或滤波都会把它变成每帧重算的图层", sel, bad)
+// 三类地方**永远**不许加模糊。它们对应三条各自成立的代价来源，不是同一件事的三种说法。
+func TestNoBackdropFilterOnChurningSurfaces(t *testing.T) {
+	banned := []struct{ cls, why string }{
+		{".logcard", "日志在任务执行期间持续追加，模糊要跟着一遍遍重算"},
+		{".log", "同上，它是流式内容"},
+		{".top", "整条顶栏，且进度链上那个点在运行期间一直在呼吸"},
+		{".modal", "整屏遮罩层：占满视口再配模糊，就是原来那条红线本身"},
+		{".bg", "整屏背景层"},
+		{".aurora", "整屏背景层"},
+		{".grid", "整屏背景层"},
+		{".t", "悬停有 transform:translateX，位移意味着每帧重新取样"},
+		{".gcard", "悬停有 transform:translateY，同上"},
+	}
+	token := regexp.MustCompile(`\.([A-Za-z][\w-]*)`)
+	for _, r := range blurRules(t) {
+		sel := stripNot(cssNoCommentsOne(r.sel))
+		for _, m := range token.FindAllStringSubmatch(sel, -1) {
+			got := "." + m[1]
+			for _, b := range banned {
+				if got == b.cls {
+					t.Errorf("%s 上加模糊了（%s）：%s", b.cls, got, b.why)
+				}
 			}
 		}
 	}
-	if found == 0 {
-		t.Fatal("找不到 data-glass 的规则 —— 这个开关被删了吗？这条检查等于没做")
+}
+
+// cssNoCommentsOne 只剥单段选择器里的注释（blurRules 那层已经剥过一遍，这里防按行拼接的写法）。
+func cssNoCommentsOne(sel string) string {
+	return regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(sel, "")
+}
+
+// 每一条模糊规则都必须同时挂着三道闸：总开关、档位不为 off、"当前不在运算期间"。
+// 少任何一道，界面就会在不该花钱的时候花钱。
+func TestGlassYieldsWhileBusy(t *testing.T) {
+	for _, r := range blurRules(t) {
+		sel := strings.Join(strings.Fields(r.sel), " ")
+		for _, want := range []string{`data-vfx="on"`, `:not([data-glass="off"])`, `:not([data-vfx-busy="on"])`} {
+			if !strings.Contains(sel, want) {
+				t.Errorf("这条模糊规则少了 %s，等于绕开了那道闸：\n  %s", want, sel)
+			}
+		}
+	}
+}
+
+// 四档必须是**有界且递增**的离散值：低档压在 5px 以内、高档不超过 16px。
+// 档位而不是任意像素值，是为了保证用户拿不到一个把界面拖垮的取值。
+func TestGlassLevelsAreBoundedAndOrdered(t *testing.T) {
+	val := map[string]float64{}
+	for _, lv := range []string{"low", "mid", "high"} {
+		body := cssRule(t, `:root[data-glass="`+lv+`"]`)
+		m := regexp.MustCompile(`--glass-blur:\s*([\d.]+)px`).FindStringSubmatch(body)
+		if m == nil {
+			t.Fatalf("档位 %s 没有给出 --glass-blur：%q", lv, body)
+		}
+		f, err := strconv.ParseFloat(m[1], 64)
+		if err != nil {
+			t.Fatalf("档位 %s 的模糊值 %q 解析不了", lv, m[1])
+		}
+		val[lv] = f
+	}
+	if val["low"] > 5 {
+		t.Errorf("低档是 %.0fpx，超过 5px —— 这一档的意义就是「最低性能消耗」，面板上也是这么写的", val["low"])
+	}
+	if val["high"] > 16 {
+		t.Errorf("高档是 %.0fpx，超过 16px —— 面板上承诺的上限是 16px", val["high"])
+	}
+	if !(val["low"] < val["mid"] && val["mid"] < val["high"]) {
+		t.Errorf("四档没有递增：低 %.0f / 中 %.0f / 高 %.0f", val["low"], val["mid"], val["high"])
+	}
+}
+
+// 整段可删：模糊必须全部落在视觉美化那一段里，段外一处都不许有。
+// 这条就是"美化模块独立、方便移除"的可执行版本 —— 段外有模糊，删那一段就会留下半拉样式。
+func TestBackdropFilterIsConfinedToTheVFXBlock(t *testing.T) {
+	inside := vfxCSS(t)
+	if !strings.Contains(inside, "backdrop-filter") {
+		t.Fatal("视觉美化那一段里没有 backdrop-filter —— 圈错地方了？这条检查等于没做")
+	}
+	outside := strings.Replace(cssRegion(t), inside, "", 1)
+	if m := regexp.MustCompile(`(-webkit-)?backdrop-filter\s*:\s*([^;}]+)`).FindStringSubmatch(outside); m != nil {
+		t.Errorf("视觉美化那一段之外还出现了 backdrop-filter（%s）：删掉美化层之后它会留下来，%s", m[1], m[2])
+	}
+}
+
+// 不写 will-change 是个决定，不是遗漏：给玻璃容器挂它会为每一块永久分配一个合成层。
+func TestNoWillChangeOnGlass(t *testing.T) {
+	// 剥注释：那一段的说明里正好写着"这里一个 will-change 都没写"，不剥就会拿说明当声明判
+	body := regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(vfxCSS(t), "")
+	if strings.Contains(body, "will-change") {
+		t.Error("视觉美化那一段里出现了 will-change —— 它会让每一块玻璃常驻一个合成层，" +
+			"而这些面板平时是静止的，即将变化这件事根本不成立；按需合成的代价更小")
+	}
+}
+
+// 面板淡入只准动 opacity。一旦动 transform，背后那层模糊就要每帧重新采样 ——
+// 那正是原来那条红线被触发的机制。
+func TestFadeOnlyAnimatesOpacity(t *testing.T) {
+	css := cssRegion(t)
+	i := strings.Index(css, "@keyframes vfx-fade")
+	if i < 0 {
+		t.Fatal("找不到 vfx-fade 关键帧 —— 面板淡入被删了吗？这条检查等于没做")
+	}
+	j := strings.Index(css[i:], "{")
+	body, ok := matchBraces(css[i+j:])
+	if !ok {
+		t.Fatal("vfx-fade 的花括号不配对")
+	}
+	if !strings.Contains(body, "opacity") {
+		t.Error("vfx-fade 没动 opacity —— 那它就不是淡入")
+	}
+	for _, bad := range []string{"transform", "filter", "box-shadow", "margin", "width", "height"} {
+		if strings.Contains(body, bad) {
+			t.Errorf("vfx-fade 里动了 %s：玻璃面板一动，背后那块纹理就得每帧重采样", bad)
+		}
+	}
+	// 时长必须走变量，精简动效与系统的"减少动态效果"才能把它归零
+	if !strings.Contains(css, "--vfx-fade:0s") {
+		t.Error("找不到把淡入时长归零的规则 —— 精简动效与系统「减少动态效果」就关不掉它")
 	}
 }
 
@@ -238,6 +402,11 @@ func TestFlatAndGlassAreWiredEndToEnd(t *testing.T) {
 	if got := segOptions(t, "flat"); strings.Join(got, ",") != "off,on" {
 		t.Errorf("uiSeg('flat') 的取值是 %v，期望 off,on", got)
 	}
+	// 毛玻璃从勾选框改成了四档，取值必须与 guiconfig.go 的白名单一致
+	if got := segOptions(t, "glass"); strings.Join(got, ",") != "off,low,mid,high" {
+		t.Errorf("uiSeg('glass') 的取值是 %v，期望 off,low,mid,high；"+
+			"它必须与 guiconfig.go 的 glassValues 与 CSS 的三个 --glass-blur 块一一对应", got)
+	}
 	for _, c := range []struct {
 		name string
 		got  string
@@ -246,39 +415,106 @@ func TestFlatAndGlassAreWiredEndToEnd(t *testing.T) {
 		{"默认材质", normalizeUI(guiUIState{}).Flat, "off"},
 		{"非法材质", normalizeUI(guiUIState{Flat: "yes"}).Flat, "off"},
 		{"合法材质", normalizeUI(guiUIState{Flat: "on"}).Flat, "on"},
-		{"默认毛玻璃", normalizeUI(guiUIState{}).Glass, "off"},
-		{"非法毛玻璃", normalizeUI(guiUIState{Glass: "1"}).Glass, "off"},
-		{"合法毛玻璃", normalizeUI(guiUIState{Glass: "on"}).Glass, "on"},
+		{"默认毛玻璃", normalizeUI(guiUIState{}).Glass, uiGlassDefault},
+		{"非法毛玻璃", normalizeUI(guiUIState{Glass: "1"}).Glass, uiGlassDefault},
+		{"合法毛玻璃", normalizeUI(guiUIState{Glass: "high"}).Glass, "high"},
+		// 老配置里存的是 "on"（那一版是"半透明、不模糊"）：当初勾它的人要的就是玻璃观感，
+		// 所以按推荐档位迁移，而不是把功能悄悄关掉
+		{"旧值迁移", normalizeUI(guiUIState{Glass: "on"}).Glass, "mid"},
+		{"默认总开关", normalizeUI(guiUIState{}).VFX, "on"},
+		{"总开关只认 off", normalizeUI(guiUIState{VFX: "yes"}).VFX, "on"},
+		{"关掉总开关", normalizeUI(guiUIState{VFX: "off"}).VFX, "off"},
+		// 总开关关掉时**不改**存着的档位：用户再打开时要回到他原来选的那一档
+		{"关总开关不动档位", normalizeUI(guiUIState{VFX: "off", Glass: "high"}).Glass, "high"},
+		{"默认微光", normalizeUI(guiUIState{}).Glow, "on"},
+		{"默认淡入", normalizeUI(guiUIState{}).Fade, "on"},
+		{"默认自动降级", normalizeUI(guiUIState{}).NoDegrade, ""},
+		{"关掉自动降级", normalizeUI(guiUIState{NoDegrade: "1"}).NoDegrade, "1"},
 	} {
 		if c.got != c.want {
 			t.Errorf("%s：得到 %q，期望 %q", c.name, c.got, c.want)
 		}
 	}
-	// 首屏注入：两个开关都要显式写在 <html> 上，缺省等于把语义交给猜测
-	a := normalizeUI(guiUIState{Flat: "on", Glass: "on"}).htmlAttr()
-	for _, want := range []string{`data-flat="on"`, `data-glass="on"`} {
+	// 首屏注入：每个开关都要显式写在 <html> 上，缺省等于把语义交给猜测
+	a := normalizeUI(guiUIState{Flat: "on", Glass: "high", VFX: "on", Glow: "on", Fade: "on"}).htmlAttr()
+	for _, want := range []string{`data-flat="on"`, `data-glass="high"`,
+		`data-vfx="on"`, `data-glow="on"`, `data-fade="on"`} {
 		if !strings.Contains(a, want) {
 			t.Errorf("htmlAttr 没有带上 %s：%q", want, a)
 		}
 	}
 	d := normalizeUI(guiUIState{}).htmlAttr()
-	for _, want := range []string{`data-flat="off"`, `data-glass="off"`} {
+	for _, want := range []string{`data-flat="off"`, `data-glass="` + uiGlassDefault + `"`,
+		`data-vfx="on"`, `data-glow="on"`, `data-fade="on"`} {
 		if !strings.Contains(d, want) {
 			t.Errorf("默认也要显式写 %s，否则默认值就靠猜", want)
 		}
 	}
-	// 改完要立刻生效，不能等重开界面
+	// 改完要立刻生效，不能等重开界面。
+	// 这四项属性由 VFX 统一写（它要先过一遍"浏览器认不认 backdrop-filter"），
+	// 所以这里查的是"uiApply 有没有把它递进去"。
 	apply := bodyBetween(t, "function uiApply", "async function uiSave")
-	for _, want := range []string{"data-flat", "data-glass"} {
-		if !strings.Contains(apply, want) {
-			t.Errorf("uiApply 没有设置 %s —— 改完要重开界面才看得到", want)
+	if !strings.Contains(apply, "VFX.apply(u)") {
+		t.Error("uiApply 没有把设置递给 VFX —— 改完档位要重开界面才看得到")
+	}
+	if !strings.Contains(apply, "data-flat") {
+		t.Error("uiApply 没有设置 data-flat")
+	}
+	// VFX 自己必须把这几项都写出来，少一项就等于那个开关失效
+	vfx := bodyBetween(t, "var VFX = (function(){", "async function api")
+	for _, want := range []string{"data-vfx", "data-glass", "data-glow", "data-fade"} {
+		if !strings.Contains(vfx, want) {
+			t.Errorf("VFX.apply 没有写 %s —— 那个开关点了没反应", want)
 		}
+	}
+	// 支持性检测与降级必须在内：不认 backdrop-filter 的老内核上要退成"不做模糊"，而不是报错破版
+	if !strings.Contains(vfx, "CSS.supports") || !strings.Contains(vfx, "'off'") {
+		t.Error("VFX 里没有 backdrop-filter 的支持性检测与降级 —— 老内核上会直接少一层样式")
+	}
+}
+
+// 四档特效下，工具本身必须完全一样。
+//
+// 这是需求里「核心功能不受任何特效开关状态影响」的可执行版本：把四档各渲染一份页面，
+// 抹掉两处**本来就该变**的注入点（<html> 上的属性、首屏那份 JSON）之后逐字节比对。
+// 也就是说美化只准通过属性与 CSS 起作用 —— 一旦它开始改结构、改脚本、改按钮文案，这条就红。
+func TestFourLevelsChangeNothingButAttributes(t *testing.T) {
+	blank := func(p string) string {
+		p = regexp.MustCompile(`<html lang="zh-CN"[^>]*>`).ReplaceAllString(p, "<html>")
+		p = regexp.MustCompile(`var u = \{[^\n]*\};`).ReplaceAllString(p, "var u = {};")
+		return p
+	}
+	base := ""
+	for _, lv := range glassValues {
+		u := normalizeUI(guiUIState{Glass: lv})
+		p := strings.Replace(guiPageHTML, "@@UIATTRS@@", u.htmlAttr(), 1)
+		p = strings.Replace(p, "@@UIJSON@@", u.uiStartupJSON(), 1)
+		// 注入点必须真的被替换掉了，否则下面比的是同一个没渲染的模板，等于没测
+		if strings.Contains(p, "@@UI") {
+			t.Fatalf("档位 %s：渲染后还剩着占位符", lv)
+		}
+		got := blank(p)
+		if base == "" {
+			base = got
+			continue
+		}
+		if got != base {
+			t.Fatalf("档位 %s 渲染出来的页面不止属性不同 —— "+
+				"美化只准通过 <html> 属性与 CSS 起作用，不许改结构、脚本或文案", lv)
+		}
+	}
+	// 反过来确认这条不是空转：属性那一处确实随档位变
+	a := normalizeUI(guiUIState{Glass: "off"}).htmlAttr()
+	b := normalizeUI(guiUIState{Glass: "high"}).htmlAttr()
+	if a == b {
+		t.Fatal("两档的 htmlAttr 完全一样 —— 档位根本没传到页面上")
 	}
 }
 
 // 三项能力都要在设置面板里有入口，背景层的两个 div 也要真的在页面上。
 func TestAppearanceControlsExistInThePanel(t *testing.T) {
-	for _, want := range []string{"uiSeg('flat'", "uiSw('glass'", "uiWallPicker(", "'/api/wall/import'"} {
+	for _, want := range []string{"uiSeg('flat'", "uiSeg('glass'", "uiWallPicker(", "'/api/wall/import'",
+		"uiSw('vfx'", "uiSw('glow'", "uiSw('fade'", "uiSw('noDegrade'", "vfxMeasure"} {
 		if !strings.Contains(guiPageHTML, want) {
 			t.Errorf("设置面板里缺少 %s —— 这个能力在界面上没有入口", want)
 		}
@@ -338,18 +574,20 @@ func TestGlassYieldsToWallpaper(t *testing.T) {
 	css := regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(cssRegion(t), "")
 	rules := 0
 	for _, r := range cssRules(css) {
-		sel := strings.Join(strings.Fields(r.sel), " ")
-		if !strings.Contains(sel, `data-glass="on"`) {
+		// 判据是"这条规则把面板做成了半透明"，而不是"选择器里写了某个字面量" ——
+		// 四档改造之后档位写成了 :not([data-glass="off"])，靠字面量找已经找不准了。
+		if !strings.Contains(r.body, "var(--glass") {
 			continue
 		}
 		rules++
+		sel := strings.Join(strings.Fields(r.sel), " ")
 		if !strings.Contains(sel, `:not([data-wall="on"])`) {
 			t.Errorf("玻璃规则 %s 没有排除「已设背景图」的情形 —— 半透明面板压在一张纯白照片上时，"+
 				"第三、四级灰会掉到 4.5 以下（实测最差 3.97）", sel)
 		}
 	}
 	if rules == 0 {
-		t.Fatal("找不到 data-glass 的规则 —— 这个开关被删了吗？这条检查等于没做")
+		t.Fatal("找不到任何半透明的面板规则 —— 玻璃这一块被删了吗？这条检查等于没做")
 	}
 }
 

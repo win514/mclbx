@@ -329,6 +329,25 @@ func TestNoNonexistentVariablesInCSS(t *testing.T) {
 			}
 		}
 	}
+	// 毛玻璃档位同理：--glass-blur 是按档位声明的（与字号档同一形态，不是主题私有变量）。
+	for _, name := range glassValues {
+		if name == "off" {
+			continue
+		}
+		if sel := `:root[data-glass="` + name + `"]`; hasBlock(guiPageHTML, sel) {
+			for v := range cssVars(cssBlock(t, sel)) {
+				declared[v] = true
+			}
+		}
+	}
+	// 任何一处 `:root{...}` 都算定义，不只第一处。
+	// 视觉美化那一段自带一个 :root 块（--vfx-fade 的时长），它必须留在那一段里 ——
+	// 那一段才是"可以整段删掉"的，把变量挪到基本块里反而会在删掉美化时留下孤儿。
+	for _, m := range regexp.MustCompile(`:root\{([^}]*)\}`).FindAllStringSubmatch(guiPageHTML, -1) {
+		for v := range cssVars(m[1]) {
+			declared[v] = true
+		}
+	}
 	for _, m := range regexp.MustCompile(`var\((--[a-z0-9-]+)\)`).FindAllStringSubmatch(guiPageHTML, -1) {
 		if !declared[m[1]] {
 			t.Errorf("用了 var(%s)，但整份样式表里没有定义它", m[1])

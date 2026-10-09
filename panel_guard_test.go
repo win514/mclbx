@@ -133,20 +133,52 @@ func TestLiteMotionMatchesSystemPreference(t *testing.T) {
 	}
 }
 
-// 空闲时不许留无限动画：animation: 只准出现在「执行中」的状态点上或被写成 animation:none。
+// 空闲时不许留**无限**动画。
+//
+// 口径原来更严：除「执行中」那个状态点外，全表不许出现 animation。加面板淡入时放宽成现在这样 ——
+// 真正烧 GPU 的是"永远在跑"的那种，而一次性动画（淡入 0.16 秒就结束）不是常驻开销。
+// 放宽带三条约束，缺一条它就变回常驻开销：不能是 infinite；必须有明确时长；
+// 不能挂在整屏图层上（整屏 + 动画正是那条「空闲 13%」红线的机制）。
 func TestNoIdleAnimation(t *testing.T) {
-	for _, r := range cssRules(cssRegion(t)) {
+	css := cssRegion(t)
+	infinite := regexp.MustCompile(`animation[^;}]*\binfinite\b`)
+	hasDur := regexp.MustCompile(`animation:[^;}]*\d+(\.\d+)?m?s`)
+	varDur := regexp.MustCompile(`animation:[^;}]*var\((--[\w-]+)\)`)
+	fullScreen := regexp.MustCompile(`inset\s*:\s*0(px)?\s*;`)
+	// 时长可以写字面量，也可以走变量（面板淡入走变量，好让精简动效把它归零）。
+	// 走变量时必须在样式表里查得到那个变量确实是个时间值 —— 否则"有明确时长"这句话没被验证到。
+	varIsTime := func(name string) bool {
+		return regexp.MustCompile(regexp.QuoteMeta(name) + `:\s*[\d.]+m?s`).MatchString(css)
+	}
+	for _, r := range cssRules(css) {
 		if !strings.Contains(r.body, "animation:") {
 			continue
 		}
 		sel := effSel(r.sel)
 		if strings.Contains(sel, ".dot.run") {
-			continue // 唯一允许：只在任务运行时存在，且只动 transform/opacity
+			continue // 有意保留：只在任务运行期间存在，是"正在干活"的唯一反馈
 		}
 		if regexp.MustCompile(`animation:\s*none`).MatchString(r.body) {
 			continue // 精简 / 系统偏好两条覆盖规则把它关掉
 		}
-		t.Errorf("%s 上出现了 animation —— 空闲动画会推翻「空闲 GPU 0.01%%」那条实测红线；"+
-			"要么去掉，要么做成只在运行期存在的形态", sel)
+		if infinite.MatchString(r.body) {
+			t.Errorf("%s 上是无限动画 —— 空闲时它会一直重绘，推翻「空闲 GPU 0.01%%」那条实测红线；"+
+				"要么去掉，要么做成按需触发的一次性动效", sel)
+			continue
+		}
+		finite := hasDur.MatchString(r.body)
+		if !finite {
+			if m := varDur.FindStringSubmatch(r.body); m != nil {
+				finite = varIsTime(m[1])
+			}
+		}
+		if !finite {
+			t.Errorf("%s 上的 animation 查不到明确时长：%q —— 看不出它一共跑多久，"+
+				"也就无从判断它会不会一直占着合成器", sel, strings.TrimSpace(r.body))
+			continue
+		}
+		if fullScreen.MatchString(r.body) {
+			t.Errorf("整屏图层 %s 上有动画 —— 占满视口的一次性动画同样是整屏逐帧重算", sel)
+		}
 	}
 }
