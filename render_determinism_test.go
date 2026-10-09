@@ -1,7 +1,6 @@
 package main
 
-// render_determinism_test.go 渲染确定性度量：默认跳过，设 MCLBX_DETERMINISM=<轮数> 运行；
-// 同时统计 GDI 对象增长与 GDI+ 画布创建失败次数。
+// render_determinism_test.go 渲染确定性度量：默认跳过，设 MCLBX_DETERMINISM=<轮数> 运行；统计 GDI 对象增长与 GDI+ 画布创建失败次数。
 
 import (
 	"os"

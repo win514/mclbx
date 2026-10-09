@@ -1,8 +1,6 @@
 package main
 
 // extreme_test.go 极端场景测试：慢速连接、资源上限、协议注入、并发规模。
-//
-// 每条用例描述无防护时的表现。
 
 import (
 	"bufio"

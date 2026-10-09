@@ -3,7 +3,6 @@
 package main
 
 // ownerdraw_test.go 验证 WM_ENABLE 改掉 BUTTON 类型位后，keepOwnerDraw 能补回 BS_OWNERDRAW。
-//
 // BUTTON 收到 WM_ENABLE 会把类型位由 BS_OWNERDRAW(0x0B) 改为 0x00/0x01。
 
 import (

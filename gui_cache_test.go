@@ -1,13 +1,8 @@
 package main
 
 // gui_cache_test.go 管界面服务的缓存口径。
-//
-// 起因是一次真实的排查：音乐放不出来，服务端明明已经在发修好的页面，浏览器里跑的却还是
-// 旧的函数 —— 页面没有缓存头，浏览器按启发式规则自己猜了一个新鲜期，于是换上新版 exe 之后
-// 打开的仍是上一份界面，用户看到的是「更新了，毛病还在」。
-//
-// 反过来也不能一刀切no-store：音频要 Range 拖动，背景图名字里带内容哈希，
-// 它们各自有该有的策略，被中间件抹掉才是新的 bug。
+// 页面无缓存头时浏览器会按启发式规则缓存旧页面，换新版 exe 后仍打开旧界面；
+// 但不能一刀切 no-store：音频要 Range 拖动，背景图名字里带内容哈希。
 
 import (
 	"net/http"
@@ -59,8 +54,7 @@ func TestGuiCachePolicyHeaderPerPath(t *testing.T) {
 	}
 }
 
-// 策略必须真的挂在服务上。少了这一行，上面的用例全都照样通过 ——
-// 那种「测了但没接上」的松弛正是这类改动最容易留下的缺口。
+// 策略必须真的挂在服务上；少了这一行，上面的用例全都照样通过。
 func TestGuiCachePolicyIsWired(t *testing.T) {
 	b, err := os.ReadFile("gui.go")
 	if err != nil {
@@ -72,8 +66,7 @@ func TestGuiCachePolicyIsWired(t *testing.T) {
 	}
 }
 
-// 音频不设 no-store（否则每拖一次进度就整段重下），但也不要长缓存：
-// 曲库里的文件是用户自己换的，多半没有 Last-Modified 之外的新鲜度信息。
+// 音频不设 no-store（否则每拖一次进度整段重下），也不要长缓存。
 func TestMusicResponseStaysRevalidated(t *testing.T) {
 	dir := withTempMusic(t)
 	writeTestMP3(t, filepath.Join(dir, "歌.mp3"), 4096, true)

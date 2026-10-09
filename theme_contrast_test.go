@@ -1,8 +1,6 @@
 package main
 
-// theme_contrast_test.go 对主题配色做对比度数值断言。
-//
-// 取值一律从 CSS 读取，不抄颜色常量。
+// theme_contrast_test.go 对主题配色做对比度数值断言；取值一律从 CSS 读取，不抄颜色常量。
 
 import (
 	"fmt"
@@ -99,8 +97,7 @@ type pair struct {
 }
 
 // 阈值统一为 4.5，适用于所有需要阅读的文字（含行号、底栏、计数等结构性文字）。
-//
-// 有意不纳入：1px 描边、装饰渐变与选中底色、悬浮态、页面氛围——它们不承载文字信息。
+// 有意不纳入：1px 描边、装饰渐变与选中底色、悬浮态、页面氛围 —— 它们不承载文字信息。
 var contrastTargets = []pair{
 	{"正文", "--ink", "", "", 4.5},
 	{"次级", "--ink2", "", "", 4.5},
@@ -252,7 +249,6 @@ func TestContrastTableReferencesRealVars(t *testing.T) {
 }
 
 // 控件边界检查：填充与描边中较强的一条不得低于 boundaryFloor，防止两者同时消失。
-//
 // 不变式：控件须「靠填充与面对比」或「靠描边与面对比」，两者至少一条成立。
 const boundaryFloor = 1.10
 

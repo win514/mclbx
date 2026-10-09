@@ -3,8 +3,7 @@
 package main
 
 // winnative.go —— 原生界面：用 Windows 自带控件绘制，不依赖浏览器引擎。
-//
-// 任务列表自绘，输入控件用系统控件，日志用 RichEdit，仅用一个 500ms 定时器轮询且状态未变不重绘。
+// 任务列表自绘，输入用系统控件，日志用 RichEdit，仅用一个 500ms 定时器轮询且状态未变不重绘。
 
 import (
 	"encoding/json"
@@ -513,8 +512,6 @@ func (u *nativeUI) freeGDI() {
 }
 
 // 文字度量
-//
-// 先在专用 DC 上测量文字宽度，再决定摆位、是否省略号与用哪套字体。
 
 // measure 量一串文字在指定字体下的宽度（像素）
 func (u *nativeUI) measure(s string, font uintptr) int32 {

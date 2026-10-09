@@ -82,8 +82,7 @@ func ipv6DNSLabel(ip net.IP) string {
 	return strings.ReplaceAll(ip.String(), ":", "-")
 }
 
-// stunProbeV6 用 IPv6 socket 询问 STUN，验证公网 IPv6 是否真的能出站（仅有地址不代表可出站）。
-// 只能证明出站可达，不能证明入站可达，故调用方应将其视为警告。
+// stunProbeV6 用 IPv6 socket 询问 STUN，验证公网 IPv6 能否出站；只能证明出站可达，调用方应视为警告。
 func stunProbeV6(servers []string, timeout time.Duration) (stunResult, bool) {
 	conn, err := net.ListenUDP("udp6", &net.UDPAddr{IP: net.IPv6unspecified, Port: 0})
 	if err != nil {
@@ -115,8 +114,7 @@ type stunResult struct {
 	RTT    time.Duration
 }
 
-// stunExchange 完成一次 STUN Binding 事务：向 dst 发请求，再从同一个 socket 接收响应。
-// conn 须为未 connect 的 UDP socket；只有以同一本地端口询问多台服务器，映射端口比较才有意义。
+// stunExchange 完成一次 STUN Binding 事务；conn 须为未 connect 的 UDP socket，以便跨服务器比对映射端口。
 func stunExchange(conn *net.UDPConn, dst *net.UDPAddr, timeout time.Duration) (stunResult, error) {
 	res := stunResult{Server: dst.String()}
 	var txid [12]byte
@@ -165,8 +163,7 @@ func stunExchange(conn *net.UDPConn, dst *net.UDPAddr, timeout time.Duration) (s
 	}
 }
 
-// stunQuery 新建 socket 查询单台 STUN 服务器；其结果不可用于跨服务器比对端口，
-// 需要比对时用 stunProbeShared。
+// stunQuery 新建 socket 查询单台 STUN 服务器；跨服务器比对端口请用 stunProbeShared。
 func stunQuery(server string, timeout time.Duration) (stunResult, error) {
 	dst, err := net.ResolveUDPAddr("udp", server)
 	if err != nil {
@@ -400,8 +397,7 @@ func localIPv4() string {
 	return "0.0.0.0"
 }
 
-// natVerdict 判断 NAT 出站映射行为；rs 须来自同一个 socket 的多台服务器。
-// 端口全一致为锥形、全不同为对称型、部分相同为不稳定、仅一台应答则无法判定。
+// natVerdict 判断 NAT 出站映射行为：端口全一致为锥形、全不同为对称型、部分相同为不稳定、仅一台应答无法判定。
 func natVerdict(rs []stunResult) string {
 	if len(rs) == 0 {
 		return "未知"

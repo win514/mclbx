@@ -9,9 +9,8 @@ import (
 	"testing"
 )
 
-// 带中文的 .ps1 必须是 UTF-8 with BOM：PowerShell 5.1 对无 BOM 脚本按本地代码页解码。
-//
-// 无 BOM 时中文会乱码，乱码中出现引号或括号即导致语法错误。
+// 带中文的 .ps1 必须是 UTF-8 with BOM：PowerShell 5.1 对无 BOM 脚本按本地代码页解码，
+// 中文会乱码，乱码中出现引号或括号即导致语法错误。
 func TestPs1FilesHaveBOM(t *testing.T) {
 	files, err := filepath.Glob("*.ps1")
 	if err != nil {
@@ -48,12 +47,8 @@ func TestPs1FilesHaveBOM(t *testing.T) {
 }
 
 // 工作区里不许有「名字只由点组成」的目录（`...`、`....`）。
-//
-// 这不是洁癖，是一个会静默吃掉改动的坑：Windows 的路径解析会把结尾的点剥掉，
-// 于是这种目录**按路径根本寻址不到它**（PowerShell 里写 `D:\仓库\...` 会被解析成上一层），
-// 而 git 又必须往里走 —— 结果是 `git add` 报一堆 "could not open directory" 之后整个失败，
-// 而 `commit` 照旧成功。提交看起来做了，实际什么都没带上。本地核对文件数才发现。
-// 这个坑在同一个工作流里已经踩过两次。
+// Windows 的路径解析会剥掉结尾的点，这种目录按路径寻址不到，
+// 且会让 `git add` 整个失败而 `commit` 仍成功。
 func TestNoDotOnlyDirectories(t *testing.T) {
 	ents, err := os.ReadDir(".")
 	if err != nil {
@@ -70,10 +65,7 @@ func TestNoDotOnlyDirectories(t *testing.T) {
 }
 
 // 工作区里不许留会被提交进去的临时文件与探针。
-//
-// 口径是「会被提交的」：.gitignore 已经挡住的东西（构建产物、日志、编辑器备份）不算 ——
-// 那些允许留在工作区。这里只抓两类：一次性探针（本项目用 zz_ 前缀命名），
-// 以及程序自己生成的运行数据目录（存档默认就落在 exe 同级，而 exe 常常就放在仓库目录里）。
+// 只抓两类：一次性探针（zz_ 前缀）与程序生成的运行数据目录（存档）。.gitignore 挡住的不管。
 func TestNoStrayFilesInWorkTree(t *testing.T) {
 	ents, err := os.ReadDir(".")
 	if err != nil {
@@ -93,8 +85,7 @@ func TestNoStrayFilesInWorkTree(t *testing.T) {
 	}
 }
 
-// 存档目录名必须被 .gitignore 挡住：它会生成在 exe 同级，而 exe 常常就放在仓库目录里，
-// 少了这一条就会有人把几百 KB 的配置与缓存一起提交上来。
+// 存档目录名必须被 .gitignore 挡住（它生成在 exe 同级，而 exe 常在仓库目录里）。
 func TestArchiveDirIsIgnored(t *testing.T) {
 	b, err := os.ReadFile(".gitignore")
 	if err != nil {

@@ -1,8 +1,7 @@
 package main
 
 // reconnect.go —— 断线自动重连：玩家侧监督循环 + 房主侧按代次接纳。
-//
-// ICE agent 进入 Failed 后不可自愈，只能整条重建，故失败后走带退避的重建循环。
+// ICE agent 进入 Failed 后不可自愈，只能整条重建。
 
 import (
 	"context"

@@ -308,9 +308,8 @@ func hiddenConsoleProcAttr() *syscall.SysProcAttr {
 	return &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
 }
 
-// materialize 将内嵌的 WebView2Loader.dll / 图标解出到本机目录（首次运行时）。
-// 落到 internalDir 而不是存档目录：这些是从 exe 里解出来的机器内部产物，
-// 不该出现在用户要拷来拷去的「存档」里。
+// materialize 将内嵌的 WebView2Loader.dll / 图标解出到 internalDir（首次运行时）。
+// 不去存档目录：这些是 exe 里解出的机器内部产物，不该出现在用户拷走的存档里。
 func materialize(name string, data []byte) (string, error) {
 	p := filepath.Join(internalDir(), name)
 	if st, err := os.Stat(p); err == nil && st.Size() == int64(len(data)) {
@@ -735,8 +734,7 @@ func runNativeWindow(url, title string) (err error) {
 	h.hwnd = hwnd
 
 	// 起环境（异步）→ 回调里建控制器；同时开始跑消息循环
-	// 浏览器用户目录走 internalDir：一个档子有几百个文件，放存档里会让存档没法看，
-	// 而且它跟本机绑定。留在 LOCALAPPDATA 也避开了「存档在 exe 同级时 WebView2 拒绝建档子」那种半可用状态。
+	// 浏览器用户目录走 internalDir：文件多且与本机绑定，放存档里不合适。
 	dataDir, _ := syscall.UTF16PtrFromString(filepath.Join(internalDir(), "webview"))
 	proc := loader.NewProc("CreateCoreWebView2EnvironmentWithOptions")
 	handler := newComHandler(h.onEnv)

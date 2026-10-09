@@ -1,7 +1,6 @@
 package main
 
-// roster_test.go —— 房主侧在场玩家名单：来源为 guestRegistry 的 claim→markConnected→markGone，
-// 覆盖未校验不入榜、迟到 markConnected、重连清空三处时序。
+// roster_test.go —— 房主侧在场玩家名单，覆盖未校验不入榜、迟到 markConnected、重连清空三处时序。
 
 import (
 	"encoding/json"

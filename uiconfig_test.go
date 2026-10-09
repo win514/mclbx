@@ -344,6 +344,11 @@ func TestResetOnlyTouchesItsOwnBoard(t *testing.T) {
 	if n, err := resetUIScope("主题外观"); err != nil || n != 0 {
 		t.Errorf("第二次重置同样是默认值，应当返回 0 项改动，实际 %d（err=%v）", n, err)
 	}
+	// 另一个板块的名字必须同样能通过校验：范围名与 uiFaces 不一致时，
+	// 界面上点「仅辅助工具」会得到"没有这个板块"，而那只在真机上才看得见。
+	if _, err := resetUIScope("辅助工具"); err != nil {
+		t.Errorf("辅助工具板块重置失败：%v", err)
+	}
 	if _, err := resetUIScope("并不存在的板块"); err == nil {
 		t.Error("重置一个不存在的板块竟然成功了")
 	}

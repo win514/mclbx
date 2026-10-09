@@ -1,7 +1,6 @@
 package main
 
 // errhint.go 在原始英文报错下补两行中文提示：一行原因，一行处理。
-//
 // 未识别的报错不补提示，避免给出无依据的结论。
 
 import "strings"
@@ -187,7 +186,6 @@ func codeEnvelope(s string, j int) bool {
 }
 
 // hitsCode 判断一行里是否出现独立且处于错误码语境的 Windows 错误码。
-//
 // 要求数字两侧均非字母数字，且被 codeEnvelope 认可；命中时不再要求 also。
 func hitsCode(s string, codes []string) bool {
 	for _, code := range codes {

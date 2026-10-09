@@ -151,9 +151,8 @@ func cmdStun(args []string) error {
 	return s.Close()
 }
 
-// setUDPBuffers 尝试扩大 UDP socket 的收发缓冲区，返回说明文本（空串表示未改动）。
-//
-// 仅作用于监听 socket；TURN 中继 socket 由 pion 内部创建，无法调整。设置失败只提示不报错。
+// setUDPBuffers 尝试扩大 UDP socket 收发缓冲，返回说明文本（空串表示未改动）。
+// 仅作用于监听 socket；TURN 中继 socket 由 pion 内部创建，无法调整。
 func setUDPBuffers(pc net.PacketConn, want int) string {
 	if want <= 0 {
 		return ""
@@ -172,7 +171,6 @@ func setUDPBuffers(pc net.PacketConn, want int) string {
 }
 
 // restAuthHandler 按 TURN REST 约定校验临时凭据。
-//
 // 用户名为 <过期时间戳>:<名字>，密码为 base64(HMAC-SHA1(共享密钥, 用户名))。
 func restAuthHandler(secret, realm string) turn.AuthHandler {
 	return func(ra *turn.RequestAttributes) (string, []byte, bool) {

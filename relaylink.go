@@ -1,7 +1,6 @@
 package main
 
-// relaylink.go —— 把各种中继部署形态统一解析成 relayPlan：支持 turn:/turns:/tcp:/网址/
-// 主机:端口，以及一条带全参数的 mclbx:// 链接；上层（ICE、TCP 兜底）只面对 relayPlan。
+// relaylink.go —— 把各种中继部署形态统一解析成 relayPlan：turn:/turns:/tcp:/网址/主机:端口/mclbx:// 链接。
 
 import (
 	"crypto/hmac"
@@ -47,8 +46,7 @@ type relayHop struct {
 
 func (h relayHop) addr() string { return net.JoinHostPort(h.Host, strconv.Itoa(h.Port)) }
 
-// escCred 转义账号/密码中的分隔符；冒号必须转，否则 turn:用户:密码@主机 会被第一个冒号劈开。
-// TURN REST 凭据（过期时间:用户名）本身带冒号。
+// escCred 转义账号/密码中的分隔符；TURN REST 凭据（过期时间:用户名）自带冒号，必须转。
 func escCred(s string) string {
 	s = strings.ReplaceAll(s, "%", "%25") // 先处理百分号，避免二次转义
 	s = strings.ReplaceAll(s, ":", "%3A")
@@ -210,8 +208,7 @@ func (p *relayPlan) describe() string {
 // turnRESTTTL 为本地生成的 REST 凭据有效期。
 var turnRESTTTL = time.Hour
 
-// restCredentials 按 draft-uberti-behave-turn-rest-00 计算临时凭据；username 须为将来时刻。
-// 算法：username = "<过期时间戳>:<用户名>"，password = base64(HMAC-SHA1(secret, username))。
+// restCredentials 按 draft-uberti-behave-turn-rest-00 计算临时凭据：username = "<时间戳>:<用户名>"，password = base64(HMAC-SHA1(secret, username))；username 须为将来时刻。
 func restCredentials(secret, user string, ttl time.Duration) (string, string) {
 	if strings.TrimSpace(user) == "" {
 		user = "mclbx"
@@ -275,8 +272,7 @@ func hostPort(s string, def int) (string, int, error) {
 	return host, p, nil
 }
 
-// parseMclbxLink 解析 mclbx://[账号:密码@]主机[:端口]?turn=&turns=&tcp=&sig=&room=&user=&pass=&secret= 链接。
-// 各部分可选；主机端口在未写 turn=/turns= 时作为 TURN 端口，sig= 为信令端口。
+// parseMclbxLink 解析 mclbx://[账号:密码@]主机[:端口]?turn=&turns=&tcp=&sig=&room=&user=&pass=&secret=（各部分可选，sig= 为信令端口）。
 func parseMclbxLink(raw string) (*relayPlan, error) {
 	const prefix = "mclbx://"
 	// 长度检查不可省（否则短串切片 panic）；前缀大小写不敏感。
@@ -344,8 +340,7 @@ func parseMclbxLink(raw string) (*relayPlan, error) {
 			User: user, Pass: pass, Secret: secret, RESTUser: restUser, Raw: raw,
 		})
 	}
-	// TURN 落点先于 TCP。主机端口规则：写了 turn=/turns= 则忽略之；否则带端口则用作 TURN 端口，
-	// 未带则补默认 TURN 端口。
+	// TURN 落点先于 TCP：写了 turn=/turns= 则忽略主机端口，否则主机端口用作 TURN 端口（未带补默认）。
 	authorityTurnPort := 0
 	switch {
 	case hasTurn || hasTurns:
@@ -471,8 +466,7 @@ func parseRelayEntry(raw string) (*relayPlan, error) {
 	}
 }
 
-// parseRelayLink 解析整串配置（逗号/空格/换行分隔）：正确行全部保留，错误行单独返回。
-// 无任何行解析成功时由调用方硬报错（见 activeRelayPlan）。
+// parseRelayLink 解析整串配置（逗号/空格/换行分隔）：正确行保留，错误行单独返回；无任何行成功时由调用方硬报错。
 func parseRelayLink(raw string) (*relayPlan, []error) {
 	fields := strings.FieldsFunc(raw, func(r rune) bool {
 		return r == ',' || r == ';' || r == ' ' || r == '\t' || r == '\n' || r == '\r'
@@ -592,8 +586,7 @@ func udpNetworkAndHost(addr string) (network, host string) {
 	return "udp4", "0.0.0.0"
 }
 
-// resolveTCPRelayAddr 决定 TCP 兜底通道连接的地址：优先 --relay，其次 --relay-server 链接，
-// 最后环境变量配置。
+// resolveTCPRelayAddr 决定 TCP 兜底通道的地址：--relay > --relay-server 链接 > 环境变量。
 func resolveTCPRelayAddr(relayServer, relayAddr string) (string, error) {
 	if s := strings.TrimSpace(relayAddr); s != "" {
 		return s, nil // 老写法优先，行为不变

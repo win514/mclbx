@@ -3,7 +3,6 @@
 package main
 
 // gdiplus.go 基于 gdiplus.dll 的绘图层：抗锯齿圆角、圆、直线与渐变，不可用时回退 GDI。
-//
 // Gdip 平铺 API 优先用整数版本（I 后缀），浮点参数仅用于画笔宽度与圆弧角度。
 
 import (
@@ -67,7 +66,6 @@ var (
 )
 
 // gpStart 初始化 GDI+；缺少 gdiplus.dll 时返回 false，界面回退纯 GDI。
-//
 // 进程级且只初始化一次，退出前不得关闭，否则 GDI+ 无法再次启动。
 func gpStart() bool {
 	if gpOK { // 已初始化或本机不支持，直接返回
@@ -171,7 +169,6 @@ func gdiBrush(c uint32) uintptr {
 }
 
 // gpGrad 建一个竖向（上→下）线性渐变画刷，用完须调 gpGradDone。
-//
 // 该调用有 6 个参数（rect、两色、模式、wrapmode、输出画刷），不可漏传 wrapmode。
 func gpGrad(r rectT, c1, c2 uint32) uintptr {
 	if r.Right <= r.Left || r.Bottom <= r.Top {

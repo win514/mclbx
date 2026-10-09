@@ -1,7 +1,6 @@
 package main
 
-// doctor.go —— 一键体检：收集各路线探测事实并给出明确建议。事实收集（collectFacts，
-// 依赖网络）与判断（judge，纯函数）分离，使判断逻辑可独立测试。
+// doctor.go —— 一键体检：收集各路线探测事实并给出建议；事实收集（collectFacts）与判断（judge，纯函数）分离以便测试。
 
 import (
 	"flag"
@@ -238,8 +237,7 @@ func natToken(shape string) string {
 	return "unknown"
 }
 
-// guiCapMarker 将体检事实压成一行机器标记（仅界面模式下返回），值不带空格以便按空格切分。
-// 界面据 v6、upnp/natpmp/pcp、port+portfree 三项置灰。
+// guiCapMarker 将体检事实压成一行机器标记（仅界面模式下返回），值不带空格；界面据 v6、upnp/natpmp/pcp、port+portfree 三项置灰。
 func guiCapMarker(f docFacts) string {
 	if !guiMode() {
 		return ""

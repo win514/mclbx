@@ -1,8 +1,6 @@
 package main
 
-// 数据目录是整个「存档」的地基：配置、日志、导入的图片、音乐都挂在它下面。
-// 这几条用例把选址规则钉住 —— 规则一旦被改坏，症状是「设置看起来丢了」或者
-// 「数据被系统清掉了」，用户几乎不可能自己查出原因。
+// 数据目录是「存档」的地基：配置、日志、图片、音乐都挂在它下面；这几条用例把选址规则钉住。
 
 import (
 	"os"
@@ -70,9 +68,7 @@ func TestDataDirSkipsTempExeDir(t *testing.T) {
 	}
 }
 
-// 浏览器用户目录与解出来的 DLL 不进存档：一个浏览器档子有几百个文件，
-// 塞进用户要拷走的目录里会让「存档」没法看；而且它跟这台机器绑定。
-// 这条也把 Codex 指出的那个风险钉死：存档搬到 exe 同级时，WebView2 那条路不受影响。
+// 浏览器用户目录与解出来的 DLL 不进存档（文件多且与本机绑定）。
 func TestInternalDirStaysOutOfArchive(t *testing.T) {
 	clearDirCaches()
 	local := t.TempDir()
@@ -106,8 +102,7 @@ func TestDataDirIsActuallyWritable(t *testing.T) {
 	_ = os.Remove(name)
 }
 
-// 存档位置换了之后，用户既有的设置必须跟着过来 —— 否则他看到的第一个现象是「设置全丢了」。
-// 而且只复制不移动：新位置以后用不了时，旧位置还得是完整的。
+// 存档位置换了后，用户既有设置必须跟着过来，且只复制不移动。
 func TestArchiveMigrationBringsLegacySettingsOver(t *testing.T) {
 	clearDirCaches()
 	legacyBase := t.TempDir()
@@ -136,10 +131,8 @@ func TestArchiveMigrationBringsLegacySettingsOver(t *testing.T) {
 	// 再把 exe 放到普通目录，让存档切到 exe 同级
 	exePath = func() (string, error) { return filepath.Join(exeDir, "mclbx.exe"), nil }
 	tempRoots = func() []string { return []string{filepath.Join(exeDir, "nope")} }
-	// 换了两个决定结果的条件，就得让缓存失效。
-	// 缓存只按 LOCALAPPDATA 做键（见 datadir.go 里那段说明），认不出 exePath / tempRoots 变了；
-	// 而上面那次 saveUI 已经解析过一次（保存设置时会顺带记一条变更记录，也要知道存档在哪儿），
-	// 不显式清掉的话这里会读到那个已经过时的结果。
+	// 换了 exePath / tempRoots 后须显式清缓存：缓存只按 LOCALAPPDATA 做键（见 datadir.go），
+	// 认不出这两个条件已变，而上面那次 saveUI 已经解析过一次。
 	clearDirCaches()
 
 	archive := filepath.Join(exeDir, archiveDirName)
@@ -160,8 +153,7 @@ func TestArchiveMigrationBringsLegacySettingsOver(t *testing.T) {
 	}
 }
 
-// 全都不通时必须返回空串，而不是悄悄把路径拼成相对当前目录 ——
-// filepath.Join("", "config.json") 会把配置写进用户的任意工作目录，等于设置凭空消失。
+// 全都不通时必须返回空串，而不是拼成相对当前目录的路径（那等于设置凭空消失）。
 func TestDataDirReturnsEmptyWhenNothingWorks(t *testing.T) {
 	clearDirCaches()
 	oldExe := exePath

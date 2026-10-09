@@ -1,8 +1,6 @@
 package main
 
 // room.go 房主一条命令同时开启公网入口与软件入口，共用同一游戏端口。
-//
-// mclbx join 走软件入口；带 --relay 时还可替未安装工具的玩家转发。
 
 import (
 	"context"
@@ -36,8 +34,7 @@ func normalizeRoomCode(s string) (string, error) {
 }
 
 // prepareIceAgent 创建 ICE agent 并收集候选（房主/客机/中转侧共用）。
-//
-// onFail 非空时在进入 Failed 时通知一次，装于创建 agent 之时。
+// onFail 非空时在进入 Failed 时通知一次。
 func prepareIceAgent(withSTUN bool, label string, gather time.Duration, onFail func()) (*ice.Agent, []string, string, string, error) {
 	a, err := newIceAgent(withSTUN, onFail)
 	if err != nil {
@@ -65,7 +62,6 @@ func prepareIceAgent(withSTUN bool, label string, gather time.Duration, onFail f
 }
 
 // dialable 把对外地址与端口拼成玩家填写形式（IPv6 加方括号）。
-//
 // 使用 gate.host（本机对外地址），而非 --signal 的监听地址。
 func dialable(host string, port int) string {
 	if strings.Contains(host, ":") {
@@ -183,7 +179,7 @@ func cmdRoom(args []string) error {
 			fmt.Println(line)
 		}
 		fmt.Printf("  说明：每位玩家获得独立通道，互不影响\n")
-		// IPv6 出口探测未通过时提前说明，避免玩家连不上且房主无感
+		// IPv6 出口探测未通过时提前说明
 		if gate.state.v6Tried && !gate.state.v6Reach {
 			fmt.Printf("================================================\n")
 			fmt.Printf(" 注意：本机 IPv6 出口探测无应答，上面这个地址可能连不上\n")
@@ -226,8 +222,7 @@ func cmdRoom(args []string) error {
 }
 
 // serveSoftwareGuests 轮询信令登记表接纳客机，互不影响。
-//
-// 先用 /rev 判断是否有变化，取不到 /rev 时退回逐个列键取信；接纳策略见 guestRegistry。
+// 先用 /rev 判断是否有变化，取不到 /rev 时退回逐个列键取信。
 func serveSoftwareGuests(base, room, to string) {
 	logf(".. [软件入场] 已就绪，等待玩家")
 
@@ -305,8 +300,7 @@ func serveSoftwareGuests(base, room, to string) {
 }
 
 // acceptOneGuestBlob 接纳一个客机的一代通道；返回即该代结束。
-//
-// 不做重试：客机断开后带更高代次重新登记，届时会被重新认领。
+// 不做重试：客机断开后带更高代次重新登记。
 func acceptOneGuestBlob(base, key string, blob candBlob, room, to string, id *identity, selfFP [32]byte, reg *guestRegistry) {
 	short := strings.TrimPrefix(key, "guest-")
 	if blob.Room != room {
@@ -427,7 +421,7 @@ func cmdJoin(args []string) error {
 	if *hostSignal == "" {
 		return fmt.Errorf("必须用 --host 指定房主侧信令信箱地址")
 	}
-	// 玩家侧房间码不能留空：随机生成会与房主不一致，导致双方均无法定位原因。
+	// 玩家侧房间码不能留空：随机生成会与房主不一致。
 	if strings.TrimSpace(*room) == "" {
 		return fmt.Errorf("没有房间码，无法加入\n" +
 			"  原因：本机没读到房间码；软件入口按房间码区分房间，空着必然连不上房主\n" +
@@ -492,8 +486,7 @@ func cmdJoin(args []string) error {
 }
 
 // serveRelayEntry 为未安装工具的玩家开启入口，数据经本机隧道转发到房主。
-//
-// 上游经 tunnelRef 动态取当前隧道，重连后无需重开，地址依然有效。
+// 上游经 tunnelRef 动态取当前隧道，重连后无需重开。
 func serveRelayEntry(ref *tunnelRef, room string, entryPort int, allow string) {
 	addr, err := relayListenAddr(entryPort)
 	if err != nil {

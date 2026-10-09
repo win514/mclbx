@@ -55,7 +55,6 @@ func benchEcho(b *testing.B) (addr string, port int) {
 }
 
 // BenchmarkEntryForward 测量公网入口的转发（expose.go 的 handleConn 里的两个 io.Copy）。
-//
 // SetBytes 取 2×：客户端写 1 MiB、服务端回 1 MiB，入口两个方向都搬。
 func BenchmarkEntryForward(b *testing.B) {
 	echoAddr, echoPort := benchEcho(b)

@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// webui.go 实现本地管理页：只绑 127.0.0.1，用标准库提供状态查询与玩家地址。
+// webui.go 提供本地管理页：仅绑定 127.0.0.1，暴露状态查询与玩家地址接口。
 
 type statusPayload struct {
 	Room     string   `json:"room"`
@@ -50,7 +50,6 @@ func (g *gateState) snapshot() statusPayload {
 }
 
 func serveWeb(addr string, g *gateState) error {
-	// 只允许绑本机，避免把管理页和房间码暴露到网络里。
 	if host, _, err := net.SplitHostPort(addr); err == nil {
 		if host != "127.0.0.1" && host != "localhost" && host != "::1" {
 			return fmt.Errorf("管理页只允许绑定 127.0.0.1（当前为 %s）", addr)

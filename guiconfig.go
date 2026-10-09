@@ -1,7 +1,6 @@
 package main
 
 // guiconfig.go 按「任务 + 字段」记住界面填写过的值，存于 %LOCALAPPDATA%\mclbx\config.json。
-//
 // 采用原子写（先写 .tmp 再改名）；内容为明文，删除该文件即等于忘掉。
 
 import (
@@ -61,23 +60,19 @@ var scaleValues = []string{"std", "big"}
 
 // glassValues 毛玻璃档位白名单，须与 CSS 的 :root[data-glass=…] 与界面上的四档一致。
 //
-// 它是一组**离散档位**而不是一个像素值：档位能保证任何取值都在实测过的范围内，
-// 用户拿不到一个「模糊 200px」把界面拖垮。数值本身见 CSS 里 --glass-blur 的定义。
+// 它是离散档位而非像素值，可保证取值都在实测范围内（数值见 CSS 里 --glass-blur 的定义）。
 var glassValues = []string{"off", "low", "mid", "high"}
 
 // radiiValues 界面圆角白名单，与 CSS 的 :root[data-radii=…] 三个块对应。
 //
-// 与 glass 同理：它调的是一组预定义的圆角令牌，而不是让用户填像素值 ——
-// 令牌之间能保证层次关系不乱，随手填的数字做不到。
+// 与 glass 同理：调的是一组预定义圆角令牌而非像素值，可保证层次关系不乱。
 var radiiValues = []string{"sharp", "std", "round"}
 
 // railValues 侧边栏样式白名单，与 CSS 的 :root[data-rail=…] 对应。
 var railValues = []string{"std", "compact"}
 
-// uiGlassDefault 毛玻璃的默认档位。
-//
-// 取 mid 而不是 high：high 是给愿意付代价的人备着的，默认值不该替所有人做这个决定。
-// 更要紧的是它被三件事兜着 —— 运算期间的自动让位、帧率过低时的降级询问、以及随时可关的总开关。
+// uiGlassDefault 毛玻璃默认档位。
+// 取 mid 而非 high：它被自动让位、帧率降级询问、总开关三层兜底。
 const uiGlassDefault = "mid"
 
 // 日志每层保留的行数上限与下限。
@@ -108,8 +103,7 @@ func normalizeUI(u guiUIState) guiUIState {
 	if u.Flat != "on" {
 		u.Flat = "off"
 	}
-	// 毛玻璃从 on/off 改成了四档。老配置里的 "on" 是「面板半透明、不做实时模糊」那一版 ——
-	// 当初会去勾它的人要的就是玻璃观感，所以按推荐档位 mid 迁移，而不是把功能悄悄关掉。
+	// 毛玻璃改为四档：旧配置的 "on"（面板半透明、无实时模糊）迁移到 mid。
 	if !containsStr(glassValues, u.Glass) {
 		if u.Glass == "on" {
 			u.Glass = "mid"
@@ -117,8 +111,7 @@ func normalizeUI(u guiUIState) guiUIState {
 			u.Glass = uiGlassDefault
 		}
 	}
-	// 视觉美化总开关与两个附加开关都是「默认开、只有明确写了 off 才关」。
-	// 总开关关掉时不改这里存的值 —— 用户再打开时要回到他原来选的那一档。
+	// 视觉美化总开关与两个附加开关默认开；总开关关掉时不改存着的档位。
 	if u.VFX != "off" {
 		u.VFX = "on"
 	}
@@ -131,16 +124,14 @@ func normalizeUI(u guiUIState) guiUIState {
 	if u.NoDegrade != "1" {
 		u.NoDegrade = ""
 	}
-	// 圆角与侧边栏样式：白名单之外一律回落到默认。
-	// 这两个取值都会直接命中 CSS 里对应的块，拼错一个字不会静默失效，而是回到默认档。
+	// 圆角与侧边栏样式：白名单之外一律回落到默认（取值直接命中 CSS 里对应的块）。
 	if !containsStr(radiiValues, u.Radii) {
 		u.Radii = "std"
 	}
 	if !containsStr(railValues, u.Rail) {
 		u.Rail = "std"
 	}
-	// 旧配置里存的是路径，升级后要换成导入进存档的副本（只复制，原文件不动）。
-	// 放在这一层是因为读写两条路都经过它，迁移一次就够了。
+	// 旧配置存的是路径，在此换成导入进存档的副本（读写两条路都经过这里，迁移一次即可）。
 	u.BgImage = adoptLegacyWallPath(cleanWallPath(u.BgImage))
 	if !containsStr([]string{"order", "shuffle"}, u.MusicMode) {
 		u.MusicMode = "order"
@@ -169,8 +160,7 @@ func normalizeUI(u guiUIState) guiUIState {
 	return u
 }
 
-// cleanWallPath 收拾用户填的背景图路径：去掉首尾空白，以及从资源管理器「复制文件地址」
-// 粘过来时自带的那对引号。
+// cleanWallPath 收拾背景图路径：去首尾空白，以及「复制文件地址」粘过来时自带的那对引号。
 func cleanWallPath(p string) string {
 	p = strings.TrimSpace(p)
 	p = strings.Trim(p, `"`)
@@ -196,19 +186,14 @@ func (u guiUIState) logKeep() int {
 }
 
 // htmlAttr 拼出 <html> 的主题属性，由服务端注入以避免首屏闪烁。
-//
-// 视觉美化那几项也在其中：它们决定首屏是不是"先实心、再闪成玻璃"。
-// 总开关与附加开关都注进去，而不是在 CSS 里用总开关去推 —— 少一层推导就少一处走偏。
+// 视觉美化那几项也注进去（决定首屏是否"先实心再闪成玻璃"），不在 CSS 里用总开关去推。
 func (u guiUIState) htmlAttr() string {
 	return fmt.Sprintf(` data-theme="%s" data-accent="%s" data-motion="%s" data-backdrop="%s" data-scale="%s" data-flat="%s" data-glass="%s" data-vfx="%s" data-glow="%s" data-fade="%s" data-radii="%s" data-rail="%s"`,
 		u.Theme, u.Accent, u.Motion, u.Backdrop, u.Scale, u.Flat, u.Glass, u.VFX, u.Glow, u.Fade, u.Radii, u.Rail)
 }
 
-// wallAttr 拼出背景图片那一段：一个 data-wall 标记加一个行内变量。
-// 没有可用图片时返回空串，页面上就不会出现这一对属性。
-//
-// 变量走行内样式而不是另开一个 <style>：它就是一份运行期取值，注入点的层叠优先级也最高，
-// 不需要为它准备一套「主题 × 图片」的规则。
+// wallAttr 拼出背景图片那一段：data-wall 标记加一个行内 --wall 变量；没有可用图片时返回空串。
+// 变量走行内样式，注入点层叠优先级最高，不需要一套「主题 × 图片」的规则。
 func wallAttr(w wallResult) string {
 	if !w.on() {
 		return ""
@@ -261,10 +246,8 @@ func loadUI() guiUIState {
 	return normalizeUI(loadConfigLocked().UI)
 }
 
-// saveUI 整份覆盖并落盘；界面提交完整一份，故清空默认值也能生效。
-//
-// 顺带记一条变更记录（见 uicfg_io.go）。记账放在锁外：它写的是另一个文件，
-// 没必要占着配置锁；而且它失败不影响这次保存的结果。
+// saveUI 整份覆盖并落盘（界面提交完整一份，故清空默认值也能生效）。
+// 顺带在锁外记一条变更记录（见 uicfg_io.go），它失败不影响本次保存。
 func saveUI(next guiUIState) (guiUIState, error) {
 	guiCfgMu.Lock()
 	c := loadConfigLocked()
@@ -311,9 +294,8 @@ var (
 	guiConfigFile = func() string {
 		d := dataDir()
 		if d == "" {
-			// 一个可写位置都没有时返回空串：读会被当成「没有配置」而退回默认值，写会失败。
-			// 不能让它走到 filepath.Join("", ...) —— 那会把配置写到当前工作目录，
-			// 用户根本找不到，等于设置凭空消失。
+			// 没有可写位置时返回空串：读退回默认值、写会失败。
+			// 不能让 filepath.Join("", ...) 生效 —— 那会把配置写到当前工作目录。
 			return ""
 		}
 		return filepath.Join(d, "config.json")
@@ -343,10 +325,8 @@ func loadConfigLocked() *guiConfig {
 	b, err := os.ReadFile(guiConfigFile())
 	if err == nil && strings.TrimSpace(string(b)) != "" {
 		if e := json.Unmarshal(b, c); e != nil {
-			// 文件在、但读不出来：整份丢弃、回到默认，并记下这次故障。
-			// **不能只忽略错误继续用** —— json.Unmarshal 出错时会把已经解析到的那部分留在 c 里，
-			// 于是用户会看到"一半是旧设置、一半是默认值"的混合状态，比整份回到默认更难解释。
-			// 记下来的原因会由界面明确告诉用户，而不是让他自己发现设置全变了。
+			// 文件在但读不出来：整份丢弃回到默认，并记下这次故障。
+			// 不能只忽略错误继续用 —— json.Unmarshal 出错会把已解析的部分留在 c 里，形成半旧半默认的混合状态。
 			*c = guiConfig{}
 			noteConfigFault(e)
 		}
@@ -358,8 +338,7 @@ func loadConfigLocked() *guiConfig {
 	return guiCfg
 }
 
-// 配置损坏只会在**当前这次运行**里被记一次；不写进文件，也不跨次运行保留。
-// 它要说明的是"刚才那次读取出了什么事"，而不是"这个文件永久坏了"。
+// 配置损坏只在当前这次运行里被记一次；不写进文件，也不跨次运行保留。
 var (
 	configFaultMu sync.Mutex
 	configFault   string
@@ -420,9 +399,7 @@ func rememberFieldValues(taskKey string, in map[string]string) {
 	writeTaskInputs(taskKey, in)
 }
 
-// writeTaskInputs 无条件写入某任务的输入。
-//
-// 「记住填写内容」开关不作用于设置项本身，否则关闭后自动体检也无法调整。
+// writeTaskInputs 无条件写入某任务的输入（「记住填写内容」开关不作用于设置项本身）。
 func writeTaskInputs(taskKey string, in map[string]string) {
 	if taskKey == "" || len(in) == 0 {
 		return
@@ -537,9 +514,7 @@ func autoProbeOn() bool {
 	return true
 }
 
-// setAutoProbe 设置「打开界面时自动体检」。
-//
-// 该值仍存于 probe 任务的勾选项中，与原生界面共用同一入口。
+// setAutoProbe 设置「打开界面时自动体检」；该值存于 probe 任务的勾选项中，两种界面共用。
 func setAutoProbe(on bool) {
 	in := map[string]string{}
 	if cur, ok := savedTaskInputs("probe"); ok {

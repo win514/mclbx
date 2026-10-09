@@ -1,28 +1,8 @@
 package main
 
-// wallpaper.go —— 背景图片：把用户选的一张本地图片缩到界面用得上的尺寸，缓存到数据目录，
-// 再由网页版界面经 /bg/<内容哈希>.jpg 取用。
-//
-// 三条约束决定了这里的做法：
-//   · 一张 4K 图解码后是 33 MB，而窗口再大也用不到这个分辨率 —— 先缩到长边 2560，
-//     解码位图降到约 15 MB，传输量从几 MB 降到几百 KB。
-//   · 缩放只在源文件真的变了的时候做一次（按 路径 + 修改时间 + 大小 取指纹），之后只命中缓存文件。
-//     一次 4K 缩放的代价在百毫秒量级，属于"换图那一下"的一次性开销，不在渲染路径上。
-//   · URL 里只有指纹，没有路径 —— 界面拿不到"按路径取任意文件"的能力，也就没有目录穿越面。
-//
-// 指纹是「路径 + 修改时间 + 大小」，不是文件内容。换一张图（哪怕尺寸一样）几乎必然改动
-// 修改时间或大小，因此 URL 跟着变、缓存头可以放心给 immutable。唯一漏网的情形是
-// "内容变了但大小与修改时间都没变"，正常使用碰不到。
-//
-// 解码只用标准库支持的格式（JPEG / PNG / GIF）。WebP 与 BMP 要额外引 golang.org/x/image，
-// 而本项目是单文件 exe，不值得为一个装饰性背景多带一个依赖。
-//
-// 手机拍的照片在文件里多半是"横着"存的，靠 EXIF 里的方向标签告诉看图程序转多少度。
-// 标准库不认这个标签，所以在下面自己读一次并按 1~8 做翻转或旋转 —— 不做的话，
-// 用户挑一张竖拍的照片，壁纸是躺倒的。
-//
-// 透明的 PNG 会被转成 JPEG，透明区域在 JPEG 里没有对应概念，因此这类图不推荐 —— 设置面板的
-// 提示里写明了首选不透明的图。
+// wallpaper.go —— 背景图片：把用户选的本地图片缩到长边 2560 后缓存到存档，网页版经 /bg/<内容哈希>.jpg 取用。
+// 指纹为「路径+修改时间+大小」（非内容），变了就换 URL，故可给 immutable 长缓存；URL 只含指纹不含路径，无目录穿越面。
+// 仅用标准库解码 JPEG/PNG/GIF；EXIF 方向标签标准库不认，下面自己按 1~8 纠偏。
 
 import (
 	"crypto/sha256"
@@ -46,8 +26,7 @@ import (
 )
 
 const (
-	// wallLongEdge 缩放后长边的上限。1440p 及以下完全够用；4K 屏上会略有放大，
-	// 作为装饰性背景可以接受，而解码内存从 33 MB 降到约 15 MB。
+	// wallLongEdge 缩放后长边的上限；解码内存从 33 MB 降到约 15 MB。
 	wallLongEdge = 2560
 	// wallSrcMaxPixels 源图像素数上限，防止一张畸形文件把内存吃光。
 	// 类型是 int64：386 上 int 只有 32 位，两个大边长相乘会溢出成负数，守卫就形同虚设。
@@ -67,9 +46,7 @@ type wallResult struct {
 func (r wallResult) on() bool { return r.URL != "" }
 
 // cached 判断这份结果指向的缓存文件是否还在。
-//
-// 缓存目录只保留最新那一份（换图时旧的会被清掉），所以记忆里的结果**必须每次核对**：
-// 直接返回旧 URL 会让界面拿到一个 404 —— 现象是整屏被压暗层盖住却没有图，而且要重启才恢复。
+// 缓存目录只保留最新一份，故记忆结果必须每次核对，否则会返回已失效的 URL。
 func (r wallResult) cached() bool {
 	if r.URL == "" {
 		return true // 失败结果没有文件可核对
@@ -92,8 +69,7 @@ var (
 		return filepath.Join(d, "ui-cache")
 	}
 
-	// wallGalleryDir 是存档里放导入图片的目录。图库的真相在磁盘上：
-	// 界面只读它、往里放，用户也可以自己用资源管理器往里丢图、改名、删除。
+	// wallGalleryDir 是存档里放导入图片的目录（界面只读它、往里放，用户也可自行增删）。
 	wallGalleryDir = func() string {
 		d, err := dataSub("wallpapers")
 		if err != nil {
@@ -140,22 +116,16 @@ func wallErrText(err error) string {
 }
 
 // ---- 图库：配置里存的是「导入后的文件名」，不是路径 ----
-//
-// 存名字而不是路径，是为了让「导入」这件事真的成立：图片被复制进存档的 wallpapers 目录，
-// 原文件之后改名、移走、删掉都不影响；整个存档文件夹拷到别的机器上，背景图照样在。
-// 代价是「直接引用电脑里任意一张图」那种用法没有了 —— 换来的是配置不会在某天悄悄失效。
+// 图片被复制进存档，原文件之后改名/移走/删掉都不影响，存档拷走也能用。
 
 // errWallMissing 表示配置里写着某个导入的图，但存档里已经没有这个文件了。
 var errWallMissing = errors.New("wallMissing")
 
-// wallImportMaxBytes 单张导入图片的上限。一张 4K 照片通常几 MB，给到 32MB 足够，
-// 再大基本是误操作；这个值同时用作请求体上限，挡在解析之前。
+// wallImportMaxBytes 单张导入图片上限，同时用作请求体上限（挡在解析之前）。
 const wallImportMaxBytes = 32 << 20
 
-// cleanWallName 收拾配置里的背景图名：去空白与引号，并且**只取文件名部分**。
-//
-// 去掉目录部分是必须的：这个名字会被拼进存档目录，带上分隔符就等于给了
-// 「按名字取任意文件」的能力。/bg/ 那条路已经用哈希白名单堵住了这类口子，这里同理。
+// cleanWallName 收拾背景图名：去空白与引号，并只取文件名部分。
+// 名字会被拼进存档目录，去掉目录部分才不给出「按名字取任意文件」的能力。
 func cleanWallName(name string) string {
 	n := cleanWallPath(name)
 	if n == "" {
@@ -185,11 +155,8 @@ func resolveWallImage(name string) (string, error) {
 	return p, nil
 }
 
-// wallFromConfig 是「背景图」这条链路唯一的入口：配置值 → 缓存结果。
-//
-// prepareWall 仍然只收「已经解析好的文件系统路径」，这样它对磁盘的假设不变，
-// 上面这层名字解析也不影响它。分层的价值在于：名字这一侧管的是「配置能不能信」，
-// 路径那一侧管的是「这张图能不能读」。
+// wallFromConfig 是「背景图」链路的唯一入口：配置值 → 缓存结果。
+// 名字解析（配置能不能信）与 prepareWall 的路径处理（图能不能读）分层。
 func wallFromConfig(name string) wallResult {
 	p, err := resolveWallImage(name)
 	if err != nil {
@@ -201,8 +168,7 @@ func wallFromConfig(name string) wallResult {
 	return prepareWall(p)
 }
 
-// sniffWallExt 只看文件头定类型。这一层是「真正的图片」的判断 ——
-// 只认扩展名的话，改了后缀的非图片会混进图库（PCL2 就为这类问题修过 bug）。
+// sniffWallExt 只看文件头定类型：只认扩展名的话，改了后缀的非图片会混进图库。
 func sniffWallExt(data []byte) string {
 	if len(data) >= 3 && data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF {
 		return ".jpg"
@@ -288,11 +254,8 @@ func readWallHead(p string) []byte {
 	return b[:n]
 }
 
-// adoptLegacyWallPath 把旧配置里那种「绝对路径」换成导入进来的副本。
-//
-// 改成存名字之后，旧配置里那条路径会被当成名字解析，结果必然是「找不到」——
-// 用户看到的就是背景图凭空没了。所以升级后第一次读到这种值时，把原图复制进图库再存名字。
-// 原文件不动（只复制），复制不成也不清掉旧值：宁可继续报「这张图用不了」，也不要擅自丢掉用户的配置。
+// adoptLegacyWallPath 把旧配置里的「绝对路径」换成导入进来的副本（只复制、不动原文件）。
+// 复制不成就保留旧值，不擅自丢弃用户配置。
 func adoptLegacyWallPath(name string) string {
 	if name == "" || cleanWallName(name) == name && !looksLikePath(name) {
 		return name
@@ -318,10 +281,8 @@ func looksLikePath(v string) bool {
 	return strings.ContainsAny(v, `/\`) || filepath.IsAbs(v)
 }
 
-// prepareWall 生成或命中背景图缓存。raw 为空表示不使用背景图。
-//
-// 这个函数会被页面渲染与设置读写各调用一次，所以常见路径必须是廉价的：
-// 一次 Stat、一次 map 查询、一次 Stat（缓存文件在不在）。解码与缩放只在指纹变化时发生。
+// prepareWall 生成或命中背景图缓存，raw 为空表示不使用背景图。
+// 常见路径必须廉价（一次 Stat、一次 map 查询、一次 Stat）；解码与缩放只在指纹变化时发生。
 func prepareWall(raw string) wallResult {
 	p := cleanWallPath(raw)
 	if p == "" {
@@ -397,9 +358,7 @@ func decodeWall(src string) (image.Image, error) {
 	return img, nil
 }
 
-// exifOrientation 从 JPEG 头部读出方向标签（EXIF tag 0x0112）。
-// 读不到、格式不符或取值超出 1~8 时一律返回 1（不做变换）。
-//
+// exifOrientation 从 JPEG 头部读出方向标签（EXIF tag 0x0112）；读不到或取值超出 1~8 一律返回 1。
 // 只顺着标记段往前扫，遇到 SOS（图像数据开始）就停 —— APP1 只可能在那之前。
 func exifOrientation(r io.Reader) int {
 	var soi [2]byte
@@ -481,9 +440,7 @@ func orientationFromTIFF(t []byte) int {
 	return 1
 }
 
-// applyOrientation 按 EXIF 的 1~8 把图摆正。5~8 会交换宽高。
-//
-// 映射关系（dst(x,y) 取 src 的哪个像素）取的是 EXIF 标准里的定义：
+// applyOrientation 按 EXIF 的 1~8 把图摆正（5~8 交换宽高）；映射取 EXIF 标准定义：
 //
 //	2 水平镜像   3 旋转 180   4 垂直镜像
 //	5 沿主对角线镜像   6 顺时针 90   7 沿副对角线镜像   8 逆时针 90
@@ -524,8 +481,7 @@ func applyOrientation(src *image.RGBA, o int) *image.RGBA {
 	return dst
 }
 
-// toRGBA 先整幅转一次 RGBA：后面的面积平均就能按字节读取，省掉每个像素一次颜色换算。
-// 整幅转换一趟比在内外两层循环里逐点 At() 便宜得多。
+// toRGBA 先整幅转一次 RGBA：后面的面积平均可按字节读取，比逐点 At() 便宜得多。
 func toRGBA(src image.Image) *image.RGBA {
 	if r, ok := src.(*image.RGBA); ok {
 		return r
@@ -548,8 +504,7 @@ func shrinkToLongEdge(src *image.RGBA, limit int) *image.RGBA {
 	return boxDown(src, max(1, w*limit/h), limit)
 }
 
-// boxDown 面积平均缩小。标准库没有缩放，这里手写一层就够 ——
-// 它只服务于背景图这一件事，一次性执行，不需要为通用性付代价。
+// boxDown 面积平均缩小；只服务背景图这一件事，标准库无缩放故手写一层即可。
 func boxDown(src *image.RGBA, w, h int) *image.RGBA {
 	sw, sh := src.Rect.Dx(), src.Rect.Dy()
 	dst := image.NewRGBA(image.Rect(0, 0, w, h))
@@ -626,8 +581,7 @@ func pruneWallCache(keep string) {
 // 这个白名单是这一段的安全边界 —— 名字来自 URL，所以它必须窄到没有第二种解释。
 var wallName = regexp.MustCompile(`^bg-[0-9a-f]{16}\.jpg$`)
 
-// serveWall 按指纹提供背景图。名字里已经含指纹，换图必然换名字，
-// 可以放心给一年期的长缓存。
+// serveWall 按指纹提供背景图；名字含指纹，换图必换名，可给一年期长缓存。
 func serveWall(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimPrefix(r.URL.Path, "/bg/")
 	if !wallName.MatchString(name) {

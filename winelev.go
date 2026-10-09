@@ -3,7 +3,6 @@
 package main
 
 // winelev.go Windows 提权与执行外部命令，仅在需要时按需提权。
-//
 // 需要管理员权限的只有修改防火墙：到该步骤再以 runas 重启自身。
 
 import (

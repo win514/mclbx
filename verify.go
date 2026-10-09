@@ -1,7 +1,6 @@
 package main
 
-// verify.go —— 校验已发放地址能否连通：按真实客户端步骤依次验证地址格式、域名/SRV、
-// 入口端口、Java 版握手，每步给出通过或卡点。仅从本机发起，不代表外部可达性。
+// verify.go —— 按真实客户端步骤依次校验地址格式、域名/SRV、入口端口、Java 版握手，每步给出通过或卡点；仅从本机发起，不代表外部可达性。
 
 import (
 	"flag"
@@ -19,8 +18,7 @@ type verifyStep struct {
 	note string
 }
 
-// verifyTarget 将地址拆为 host/port/room：支持 [IPv6]:port、裸 IPv6、域名、host:port 与
-// mclbx:// 链接；hasPort 表示用户显式写了端口，决定是否查 SRV。
+// verifyTarget 将地址拆为 host/port/room：支持 [IPv6]:port、裸 IPv6、域名、host:port 与 mclbx:// 链接；hasPort 决定是否查 SRV。
 func verifyTarget(raw string) (host string, port int, room string, hasPort bool, err error) {
 	s := strings.TrimSpace(raw)
 	if s == "" {
@@ -35,8 +33,7 @@ func verifyTarget(raw string) (host string, port int, room string, hasPort bool,
 			return "", 0, "", false, fmt.Errorf("该链接中无任何落点")
 		}
 		h := plan.Hops[0]
-		// 房间码须过同一套校验：链接中的 room= 已 URL 解码，可能含换行且会回显到终端；
-		// 空房间码不校验（normalizeRoomCode("") 会自行生成）。
+		// 房间码须过同一套校验：room= 已 URL 解码，可能含换行且会回显到终端；空房间码不校验。
 		rc := ""
 		if plan.Room != "" {
 			var rerr error
@@ -165,8 +162,7 @@ func cmdVerify(args []string) error {
 		fmt.Printf(" - 2/4 域名解析      : 输入为 IP 字面量，跳过\n")
 	}
 
-	// 第 3 步：连接入口端口。端口在 SRV 解析之后才确定，故在此判断；
-	// 基岩版走 UDP，对其做 TCP 连接必然失败，先明确提示。
+	// 第 3 步：连接入口端口（端口在 SRV 解析后确定）；基岩版走 UDP，对其实做 TCP 连接必然失败，先明确提示。
 	if note := bedrockPortNote(dialHost, port); note != "" {
 		fmt.Printf(" ✗ 3/4 连接入口端口  : %s\n", note)
 		return fmt.Errorf("目标端口是基岩版的默认端口，本工具仅支持 Java 版")

@@ -1,8 +1,6 @@
 package main
 
-// uisettings_test.go 测试设置面板、主题与默认值整合。
-//
-// 覆盖：主题变量完整性、配置坏值容错、字段默认值优先级。
+// uisettings_test.go 测试设置面板、主题与默认值整合：主题变量完整性、坏值容错、字段默认值优先级。
 
 import (
 	"os"

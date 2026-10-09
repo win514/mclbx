@@ -1,8 +1,7 @@
 package main
 
 // signal_listen_test.go 验证对外服务的监听口为双栈（IPv4 与 IPv6 均可连）。
-//
-// IPv4 专用监听会静默丢弃 IPv6 连接。用例全部在回环上完成。
+// IPv4 专用监听会静默丢弃 IPv6 连接；用例全部在回环上完成。
 
 import (
 	"net"
@@ -82,7 +81,6 @@ func TestListenSignalAcceptsBothFamilies(t *testing.T) {
 }
 
 // 验证平台行为：IPv4 专用监听收不到 IPv6 连接。
-//
 // 若某平台上 0.0.0.0 也能收 IPv6，则上一条用例不再必需。
 func TestIPv4OnlyListenRejectsIPv6(t *testing.T) {
 	ln, err := net.Listen("tcp4", "0.0.0.0:0")

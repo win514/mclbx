@@ -1,7 +1,6 @@
 package main
 
 // firewall.go 用 netsh 添加 Windows 入站放行规则，仅针对本程序与指定端口。
-//
 // Windows 防火墙默认拦截所有入站连接，且被拦时本程序不会报错。
 
 import (

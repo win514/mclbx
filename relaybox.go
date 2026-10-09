@@ -1,7 +1,6 @@
 package main
 
-// relaybox.go —— 本机中继：UDP 中继（直连失败时转发）、TCP 通道（对端屏蔽 UDP 时使用）、
-// 信令信箱（双方交换地址）。输出的 mclbx:// 链接内含房间码与密钥；无公网地址时可用 UPnP 放行 TCP 端口。
+// relaybox.go —— 本机中继：UDP 中继、TCP 通道与信令信箱；输出的 mclbx:// 链接内含房间码与密钥。
 
 import (
 	"crypto/rand"

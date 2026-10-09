@@ -341,8 +341,7 @@ func TestNoNonexistentVariablesInCSS(t *testing.T) {
 		}
 	}
 	// 任何一处 `:root{...}` 都算定义，不只第一处。
-	// 视觉美化那一段自带一个 :root 块（--vfx-fade 的时长），它必须留在那一段里 ——
-	// 那一段才是"可以整段删掉"的，把变量挪到基本块里反而会在删掉美化时留下孤儿。
+	// 视觉美化那一段自带一个 :root 块（--vfx-fade 的时长）：它必须留在那一段里，删掉美化时不该留孤儿。
 	for _, m := range regexp.MustCompile(`:root\{([^}]*)\}`).FindAllStringSubmatch(guiPageHTML, -1) {
 		for v := range cssVars(m[1]) {
 			declared[v] = true

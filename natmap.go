@@ -1,8 +1,6 @@
 package main
 
-// natmap.go —— 主动请求路由器开洞（UPnP IGD / NAT-PMP / PCP）。
-//
-// 全部失败则如实报错，不伪造成功。
+// natmap.go —— 主动请求路由器开洞（UPnP IGD / NAT-PMP / PCP）；全部失败则如实报错。
 
 import (
 	"bytes"

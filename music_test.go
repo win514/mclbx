@@ -1,7 +1,6 @@
 package main
 
-// 音乐这一块：曲库只算真正的音频，提供文件那条路不接受任何路径。
-// 播放本身交给界面的 <audio>，所以这里没有播放状态机可测 —— 那是界面那一侧的事。
+// 音乐：曲库只算真正的音频，提供文件那条路不接受任何路径；播放交给界面的 <audio>。
 
 import (
 	"encoding/json"
@@ -106,17 +105,13 @@ func TestServeMusicOnlyServesPlainAudioNames(t *testing.T) {
 }
 
 // 曲库报出来的每一首，都必须真的取得到。
-//
-// 这条不变量正是那次线上现象的正面版本：载荷把每首序列化成 {name, size}，而界面曾经把它
-// 当字符串数组用，于是每首都去请求 /music/[object Object]，现象是「列得出来但一首也放不了」。
-// 列表与提供文件这两条路必须对同一批文件达成一致，光测各自都过是发现不了的。
+// 载荷把每首序列化成 {name, size}，列表与提供文件两条路必须对同一批文件达成一致。
 func TestEveryListedTrackIsServable(t *testing.T) {
 	dir := withTempMusic(t)
 	writeTestMP3(t, filepath.Join(dir, "带标签.mp3"), 4096, true)
 	writeTestMP3(t, filepath.Join(dir, "无标签.mp3"), 4096, false)
 
-	// 第三首：前面塞一段垃圾（有些下载工具会这样做，甚至塞的是加密过的头部）。
-	// 宽松的解码器会跳过去照放，所以曲库也得认它 —— 「PCL2 能放这里不能」差的就是这一步。
+	// 第三首：前面塞一段垃圾（有些下载工具会这样做）；宽松解码器会跳过去照放，曲库也得认它。
 	junkPath := filepath.Join(dir, "前面有垃圾.mp3")
 	writeTestMP3(t, junkPath, 4096, false)
 	raw, err := os.ReadFile(junkPath)
@@ -160,8 +155,7 @@ func TestEveryListedTrackIsServable(t *testing.T) {
 	}
 }
 
-// 曲库列出的名单里，不该混进纯文本之类改了后缀的东西 —— 上面那条放宽了 MP3 的识别，
-// 这条守住它的另一头。
+// 曲库名单里不该混进纯文本之类改了后缀的东西 —— 上面那条放宽了 MP3 识别，这条守住另一头。
 func TestMusicSniffDoesNotSwallowText(t *testing.T) {
 	dir := withTempMusic(t)
 	if err := os.WriteFile(filepath.Join(dir, "其实是文本.mp3"), []byte("这是一段普通的文字内容，里面没有任何音频帧。"), 0o644); err != nil {
@@ -177,8 +171,7 @@ func TestMusicSniffDoesNotSwallowText(t *testing.T) {
 	}
 }
 
-// 偏好值必须被夹到合法范围：非法值退回默认，而不是原样存进去、
-// 然后在界面上表现成「选了没反应」。
+// 偏好值必须被夹到合法范围：非法值退回默认，而不是原样存进去后在界面上表现成「选了没反应」。
 func TestMusicPrefsAreNormalized(t *testing.T) {
 	withTempConfig(t)
 	cases := []struct{ mode, loop, vol, wantMode, wantLoop, wantVol string }{

@@ -8,7 +8,6 @@ import (
 )
 
 // mc.go 解析我的世界 Java 版协议，仅取第一个握手包。
-//
 // 玩家在「直接连接」中输入的字符串会原样进入握手包的服务器地址字段。
 
 // bReader 从缓冲区读取 varint（little-endian base-128）。
@@ -164,8 +163,7 @@ func writeFrame(w io.Writer, body []byte) error {
 	return err
 }
 
-// 基岩版（Bedrock）识别：该版本走 UDP、默认端口 19132，与本工具的 Java TCP 协议不符。
-//
+// 基岩版（Bedrock）识别：走 UDP、默认端口 19132，与本工具的 Java TCP 协议不符。
 // 该判断须放在可见用户所填端口处（如 ping / verify），不能放进 errhint 的文本匹配表。
 
 // bedrockDefaultPort 为基岩版默认端口（Java 版默认 25565）。

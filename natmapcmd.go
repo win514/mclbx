@@ -1,6 +1,6 @@
 package main
 
-// natmapcmd.go —— `mclbx natmap`：单独执行端口映射的命令，可指定协议、常驻续约。
+// natmapcmd.go 实现 `mclbx natmap` 命令：单独执行端口映射，可指定协议与常驻续约。
 
 import (
 	"flag"
@@ -98,7 +98,7 @@ func parseProtos(s string) ([]string, error) {
 	return nil, fmt.Errorf("--proto 只能是 tcp / udp / both，当前为 %q", s)
 }
 
-// mapPortsQuiet 给别的命令用：静默地尝试映射一组端口，成功就返回（失败返回 nil，由调用方决定怎么提示）
+// mapPortsQuiet 静默尝试映射一组端口，全部失败返回 nil。
 func mapPortsQuiet(protos []string, intPort, wantExt int) *natMapPlan {
 	plan := &natMapPlan{}
 	for _, p := range protos {
@@ -107,7 +107,7 @@ func mapPortsQuiet(protos []string, intPort, wantExt int) *natMapPlan {
 		if m != nil {
 			plan.Mappings = append(plan.Mappings, m)
 			if wantExt > 0 {
-				wantExt = m.ExtPort // 后续协议尽量占同一个端口号
+				wantExt = m.ExtPort // 后续协议尽量复用同一端口
 			}
 		}
 	}

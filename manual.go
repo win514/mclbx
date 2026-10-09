@@ -6,12 +6,12 @@ import (
 	"strings"
 )
 
-// 说明书与程序同在一个 exe 内，页面本体是仓库根目录的 manual.html。
+// 说明书页面内嵌于 exe（manual.html）。
 //
 //go:embed manual.html
 var manualHTML string
 
-// manualThemeAttr 把 /manual?theme=… 翻成页面上的属性；高对比与深色共用一套，其余按浅色。
+// manualThemeAttr 把 ?theme= 参数映射为页面属性（dark/contrast 共用深色）。
 func manualThemeAttr(theme string) string {
 	switch strings.ToLower(strings.TrimSpace(theme)) {
 	case "dark", "contrast":
@@ -20,7 +20,7 @@ func manualThemeAttr(theme string) string {
 	return ""
 }
 
-// serveManual 输出说明书页面；界面服务只监听本机地址，不再单独鉴权。
+// serveManual 输出说明书页面。
 func serveManual(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")

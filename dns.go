@@ -1,7 +1,6 @@
 package main
 
-// dns.go —— 把会合交给 DNS：房主将「短名字 -> 地址+端口」写成 AAAA + SRV 记录，
-// 客户端查 _minecraft._tcp.<名字> 的 SRV 即可连接。本文件含 DNS 编解码器与本地权威服务。
+// dns.go —— 房主把「短名字 -> 地址+端口」写成 AAAA + SRV 记录，客户端查 _minecraft._tcp.<名字> 的 SRV 即可连接；含 DNS 编解码器与本地权威服务。
 
 import (
 	"context"
@@ -245,8 +244,7 @@ func addrRecord(name string, ip net.IP, ttl uint32) dnsRecord {
 	return dnsRecord{Name: normalizeDNSName(name), Type: dnsTypeAAAA, TTL: ttl, IP: ip}
 }
 
-// recordsForRoom 由名字、地址与端口生成整组记录：<名字> 的 A/AAAA、_minecraft._tcp.<名字> 的
-// SRV、以及可选 TXT。SRV 目标须为域名（RFC 2782），故目标名自身也需一条地址记录。
+// recordsForRoom 由名字、地址与端口生成整组记录：<名字> 的 A/AAAA、_minecraft._tcp.<名字> 的 SRV 与可选 TXT；SRV 目标须为域名（RFC 2782），目标名自身也要一条地址记录。
 func recordsForRoom(name string, ip net.IP, port uint16, target string, ttl uint32, txt string) ([]dnsRecord, error) {
 	name = normalizeDNSName(name)
 	if name == "" {
@@ -487,8 +485,7 @@ func readFull(c net.Conn, b []byte) (int, error) {
 	return got, nil
 }
 
-// resolveMinecraftSRV 按真实客户端规则查询 _minecraft._tcp.<名字> 的 SRV；target 为空表示
-// 未查到，调用方按默认端口处理。resolver 非空时使用指定 DNS 服务器。
+// resolveMinecraftSRV 查询 _minecraft._tcp.<名字> 的 SRV；target 为空表示未查到，调用方按默认端口处理；resolver 非空时用指定服务器。
 func resolveMinecraftSRV(host, resolver string, timeout time.Duration) (string, int, string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()

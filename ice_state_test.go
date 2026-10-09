@@ -1,7 +1,6 @@
 package main
 
 // ice_state_test.go 约束 ICE 状态回调只有一个注册点，且仅在 Failed 时通知。
-//
 // 生产代码中该接口只应出现在 newIceAgent 一处，其余经 iceStateCallback 复用。
 
 import (

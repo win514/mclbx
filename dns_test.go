@@ -1,7 +1,6 @@
 package main
 
-// dns_test.go —— 报文编解码与「短名字 → 记录集」的单测：先按位对齐编解码，
-// 再以端到端解析器查询收尾。
+// dns_test.go —— 报文编解码与「短名字 → 记录集」的单测。
 
 import (
 	"encoding/binary"

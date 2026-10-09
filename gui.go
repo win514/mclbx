@@ -1,7 +1,6 @@
 package main
 
 // gui.go 本地网页版图形控制台：把子命令当子进程拉起并显示其输出。
-//
 // 只绑 127.0.0.1；POST 要求自定义头 X-MCLBX-GUI 以防跨站调用。
 
 import (
@@ -182,8 +181,7 @@ func settingsPayload(ui guiUIState) map[string]any {
 		// 变更记录由服务端持有：它是跨会话的，界面刷新不该丢
 		"changes":   loadChanges(),
 		"changeMax": uiChangeMax,
-		// 只读展示信息：全部来自真实文件与真实目录，界面上不给任何编辑入口。
-		// 设置面板的"饱满度"由它们支撑，而不是靠堆一批改不动的假开关。
+		// 只读展示信息：全部来自真实文件与真实目录，界面上不给编辑入口。
 		"storage":    uiStorageStats(),
 		"configFile": uiConfigFileState(),
 		// 配置文件损坏时给一句原因；空串表示正常。界面会明确告知，而不是让用户自己发现设置变了。
@@ -961,15 +959,9 @@ func guiAllowedHost(addr string) bool {
 	return host == "127.0.0.1" || host == "localhost" || host == "::1"
 }
 
-// guiNoStorePath —— 哪些路径的内容是随着 exe 一起变的。
-//
-// 只有这些：界面本体与 JSON 接口。它们不写缓存头时，浏览器会按启发式规则自己猜一个
-// 新鲜期（拿 Last-Modified 的 10% 当期限一类做法），于是换上新版 exe 之后打开的仍是
-// 上一份界面 —— 用户看到的是「更新了，毛病还在」。排查音乐放不出来时就撞上过这一条：
-// 服务端已经在发修好的页面，标签页里跑的却还是旧的函数。
-//
-// 音频与背景图明确**不**在此列：它们各有该有的缓存策略，
-// /music/ 的 no-cache 让拖动进度不被整段重下，/bg/ 的 immutable 靠名字里的内容哈希。
+// guiNoStorePath 返回内容随 exe 变化的路径：界面本体与 JSON 接口。
+// 不设缓存头时浏览器会按启发式规则缓存旧页面，换上新版 exe 后打开的仍是上一份界面。
+// 音频与背景图不在此列：/music/ 用 no-cache 以免拖动进度整段重下，/bg/ 靠名字里的内容哈希做 immutable。
 func guiNoStorePath(p string) bool {
 	return p == "/" || strings.HasPrefix(p, "/api/")
 }
@@ -1182,11 +1174,9 @@ func cmdGui(args []string) error {
 			setAutoProbe(*req.AutoProbe)
 		}
 		return json.NewEncoder(w).Encode(map[string]any{
-			// logKeep 与 GET /api/settings 保持同一种形态（十进制字符串）：
-			// 同一个字段两条路给两种类型，客户端迟早要分叉。
+			// logKeep 与 GET /api/settings 保持同一种形态（十进制字符串）。
 			"ok": true, "ui": settingsPayload(ui), "logKeep": strconv.Itoa(ui.logKeep()),
-			// 提交值不合法、被归一化改掉的字段。界面要就此给出提示 ——
-			// 安静地把 1e9 改成 2000，用户只会以为"保存没生效"。
+			// 提交值不合法、被归一化改掉的字段，界面就此给出提示。
 			"corrected": uiCorrectedFields(req.guiUIState, ui),
 		})
 	})
@@ -1200,9 +1190,7 @@ func cmdGui(args []string) error {
 	})
 
 	// ---- 配置管理：导出 / 导入 / 重置 / 变更记录 ----
-	// 四个都走同一个 post() 包装：它负责校验 X-MCLBX-GUI 头与 Origin、
-	// 统一错误形状。**不能绕过它** —— 少了那两道校验，本机其它页面上的脚本
-	// 就能直接 POST 过来把设置重置掉（实测过一次：新接口漏了这层，确实能打进来）。
+	// 四个都走 post() 包装（校验 X-MCLBX-GUI 头与 Origin、统一错误形状），不可绕过。
 	mux.HandleFunc("/api/settings/export", post(func(w http.ResponseWriter, r *http.Request) error {
 		path, err := exportUIConfig()
 		if err != nil {
@@ -1214,8 +1202,7 @@ func cmdGui(args []string) error {
 	}))
 
 	mux.HandleFunc("/api/settings/import", post(func(w http.ResponseWriter, r *http.Request) error {
-		// 界面用 <input type=file> 读文件内容再 POST 上来，与服务端按路径去读相比，
-		// 好处是「导入哪一份」完全由用户在系统文件对话框里决定。
+		// 界面用 <input type=file> 读内容再 POST 上来，「导入哪一份」由用户在系统对话框里决定。
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, uiImportMaxLen+4096))
 		if err != nil {
 			return fmt.Errorf("读取上传内容失败：%w", err)
@@ -1266,8 +1253,7 @@ func cmdGui(args []string) error {
 	}))
 
 	// 导入背景图：网页界面用 <input type=file> 取到文件再 POST 上来。
-	// 走上传而不是让服务端按路径去读，是因为「导入」的意义就在于把图复制进存档 ——
-	// 存完之后原文件改名、移走、删掉都不影响。
+	// 走上传而非服务端按路径读取，「导入」即把图复制进存档，之后原文件改名/移走/删掉都不影响。
 	mux.HandleFunc("/api/wall/import", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		fail := func(msg string) {
@@ -1328,8 +1314,7 @@ func cmdGui(args []string) error {
 	}))
 
 	srv := &http.Server{
-		// 缓存策略在这里统一决定，不散在各个 handler 里：
-		// 新增一个 /api/ 接口时不会漏掉，也不可能顺手把音频的 Range 缓存抹掉。
+		// 缓存策略在此统一决定：新增 /api/ 接口不会漏掉，也不会顺手抹掉音频的 Range 缓存。
 		Handler: guiCachePolicy(mux),
 		// 各阶段均设明确时限，避免单个卡住的连接阻塞其他请求
 		ReadHeaderTimeout: 5 * time.Second,
