@@ -129,7 +129,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);
   <h1>mclbx 联机工具</h1>
   <p class="lead">让 Minecraft Java 版的联机不依赖网络环境：玩家不需要安装任何东西，房主不需要进路由器后台。本说明覆盖连接方式的选择、体检结论的判读、常见故障的处理，以及全部 20 个操作的用途与参数。</p>
   <div class="meta">
-    <span><b>版本</b> mclbx 1.61</span>
+    <span><b>版本</b> mclbx 1.62</span>
     <span><b>平台</b> Windows 10 / 11（64 位）</span>
     <span><b>形态</b> 单个 exe，无需安装</span>
     <span><b>网络</b> 除域名入口外全程可离线部署</span>
@@ -316,7 +316,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);
 </table>
 
 <h2 id="s6">6 操作一览（20 项）</h2>
-<p>界面左侧「操作」栏里按分组列出全部操作。下表为逐项说明；标「长时」的操作会一直开着，要停就点上面的「停止」，关窗会一并停掉。</p>
+<p>界面左侧「操作」栏里按分组列出全部操作。下表为逐项说明；标「长时」的操作会持续运行，停止时点击上方「停止」按钮；关闭窗口时会一并停止。</p>
 <table class="boxed ops">
   <tr><th>操作</th><th>用途与说明</th><th>参数</th></tr>
   <tr><td class="grp" colspan="3">环境检测</td></tr>
@@ -334,17 +334,17 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);
   <tr><td>入站规则</td><td>配置 Windows 防火墙入站规则<span class="d">规则仅对指定端口放行，且限定为本程序，不修改防火墙总开关。执行需要管理员权限，会弹出一次授权确认。勾选下方选项可撤销已添加的规则。</span></td><td><span class="f">入站端口</span><span class="f">协议 — tcp、udp 或 both</span><span class="f">删除已添加的规则（勾选）</span></td></tr>
   <tr><td>中继转发（房主） <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>UDP 不可用时经中继转发<span class="d">两端均主动连接同一台中继，因此不受入站限制影响，可穿过阻断 UDP 的网络。流量经中继转发，为保证连通性采用明文传输。房间码两端需一致。</span></td><td><span class="f">中继地址 — 公网中继地址；也可只填中继链接</span><span class="f">房间码 — 链接中已包含时可留空</span><span class="f">转发目标 — 本机游戏端口</span><span class="f">中继服务器 — 可留空；直连失败时使用</span></td></tr>
   <tr><td>中继转发（玩家） <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>接收中继流量并映射为本地端口<span class="d">与「中继转发（房主）」配对使用。通道建立后，中继上的连接会出现在本机指定地址上，游戏内连接该地址即可进入。房间码需与房主一致。</span></td><td><span class="f">中继地址 — 公网中继地址；也可只填中继链接</span><span class="f">房间码 — 链接中已包含时可留空</span><span class="f">本机监听地址 — 游戏内连接该地址</span><span class="f">中继服务器 — 可留空；直连失败时使用</span></td></tr>
-  <tr><td>地址校验</td><td>按客户端流程校验入口地址<span class="d">校验顺序为地址解析、域名与 SRV 记录、入口端口连通性、游戏握手；失败步骤单独给出原因。玩家一侧是否可连入需从外部网络验证，本机无法确认。</span></td><td><span class="f">待校验地址 — 地址、host:port 或 mclbx:// 链接</span></td></tr>
+  <tr><td>地址校验</td><td>按玩家的连接过程校验入口地址<span class="d">校验依次检查地址解析、域名与 SRV 记录、入口端口连通性、与游戏的连接；失败的步骤会单独给出原因。玩家一侧是否可连入需从外部网络验证，本机无法确认。</span></td><td><span class="f">待校验地址 — 地址、host:port 或 mclbx:// 链接</span></td></tr>
   <tr><td class="grp" colspan="3">实用工具</td></tr>
   <tr><td>服务器查询</td><td>查询目标服务器的状态<span class="d">发送一次状态查询并显示返回结果，包括版本号与在线人数。可用于确认目标是否为正常运行的我的世界 Java 版服务端。</span></td><td><span class="f">目标地址</span><span class="f">端口</span></td></tr>
-  <tr><td>导出诊断包</td><td>汇总版本、环境体检与最近一次日志<span class="d">生成一个文本文件：程序版本、系统与网卡、环境体检的全部结论，以及最近一次操作的日志。遇到自己解决不了的问题时，把该文件发给协助者即可，不必反复截图。文件里含本机网络地址，发出之前请先自己看一眼。文件默认写到桌面。</span></td><td><span class="f">游戏端口 — 体检用，与游戏内设置一致</span></td></tr>
-  <tr><td>端口探测</td><td>两端同时探测对端端口池，验证能否打穿<span class="d">仅用于诊断：两端都处在对称型 NAT、内置直连与中继都走不通时，用它确认两端之间是否存在可打穿的路径。两端的口令与端口范围必须一致。注意它只给结论 —— 扫出来的地址无法直接用于联机，因为内置直连会自己选端口，来源端口一变、对端 NAT 的映射就跟着变；确认可打穿之后，当前版本的可用手段仍然是中继。</span></td><td><span class="f">对端公网 IP — 对端检测报告中的出口 IP</span><span class="f">对端端口范围 — 两端需一致</span><span class="f">口令 — 两端需一致</span></td></tr>
+  <tr><td>导出诊断包</td><td>汇总版本、环境体检与最近一次日志<span class="d">生成一个文本文件：程序版本、系统与网卡、环境体检的全部结论，以及最近一次操作的日志。遇到自己解决不了的问题时，把该文件发给协助者即可，无需反复截图。文件里含本机网络地址，发出之前请先自己看一眼。文件默认写到桌面。</span></td><td><span class="f">游戏端口 — 体检用，与游戏内设置一致</span></td></tr>
+  <tr><td>端口探测</td><td>两端同时探测对端端口池，验证能否打穿<span class="d">仅用于诊断：两端都处于对称型 NAT、直连与中继均不可用时，用它确认两端之间是否存在可打通的路径。两端的口令与端口范围必须一致。它只给出结论 —— 扫描得到的地址无法直接用于联机；确认可打通之后，当前版本可用的手段仍然是中继。</span></td><td><span class="f">对端公网 IP — 对端检测报告中的出口 IP</span><span class="f">对端端口范围 — 两端需一致</span><span class="f">口令 — 两端需一致</span></td></tr>
   <tr><td class="grp" colspan="3">中继服务</td></tr>
-  <tr><td>本机中继 <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>以本机作为中继并生成链接<span class="d">启动后生成一条包含地址与凭据的链接，发送给参与者即可使用，无需另行分发账号密码。默认尝试通过路由器自动映射端口。<b>链接里的地址就是本机对外地址，收到链接的人可以直接连到这台机器 —— 本机中继不隐藏你的地址。</b>要让地址不出现在链接里，请把中继放到另一台机器上运行。</span></td><td><span class="f">对外地址 — 留空时自动检测</span><span class="f">不修改路由器端口映射（勾选） — 默认会尝试自动映射</span></td></tr>
+  <tr><td>本机中继 <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>以本机作为中继并生成链接<span class="d">启动后生成一条包含地址与访问信息的链接，发送给参与者即可使用，无需另行分发账号密码。默认尝试通过路由器自动映射端口。<b>链接里的地址就是本机对外地址，收到链接的人可以直接连到这台机器 —— 本机中继不隐藏你的地址。</b>要让地址不出现在链接里，请把中继放到另一台机器上运行。</span></td><td><span class="f">对外地址 — 留空时自动检测</span><span class="f">不修改路由器端口映射（勾选） — 默认会尝试自动映射</span></td></tr>
   <tr><td>中继校验</td><td>校验中继链接的可用性<span class="d">完整执行一次连接流程：解析链接、探测映射、申请分配与数据往返；失败时指出具体环节。</span></td><td><span class="f">中继链接</span><span class="f">账号 — 链接中未包含时填写</span><span class="f">密码 — 链接中未包含时填写</span></td></tr>
   <tr><td>公网中继 <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>在具备公网地址的机器上运行中继<span class="d">需运行在具备公网地址的服务器上，启动完成后输出供其他人填写的链接。云主机需显式指定公网地址，网卡地址通常为内网地址。</span></td><td><span class="f">监听端口 — UDP 端口</span><span class="f">公网地址 — 云主机需填写；网卡地址通常为内网地址</span><span class="f">密钥 — 设置后无需分发固定密码</span><span class="f">中继端口范围 — 建议填写，便于仅放行该范围</span></td></tr>
   <tr><td>STUN 服务 <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>提供公网地址探测，不转发数据<span class="d">用于两端探测各自的公网映射，本身不中转流量，带宽开销极低。需运行在具备公网地址的机器上。</span></td><td><span class="f">监听端口</span><span class="f">同时提供 UDP 中转（勾选） — 同时承担中继转发</span></td></tr>
-  <tr><td>信令信箱 <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>为双方交换连接信息<span class="d">房主无法被直接连接时，双方通过该服务交换当前可用的地址，再按新地址重试。最多保留 1024 条；条目 3 分钟未更新即被回收，等待中的一方会定期重新登记。</span></td><td><span class="f">监听地址</span></td></tr>
+  <tr><td>信令信箱 <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>为双方交换连接信息<span class="d">房主无法被直接连接时，双方通过该服务交换当前可用的地址，再按新地址重试。记录条数与保留时间均有限，过期条目会被自动清理；等待中的一方会定期重新登记。</span></td><td><span class="f">监听地址</span></td></tr>
 </table>
 <p class="hint">共 20 项、6 个分组。字段提示与操作说明均由程序定义，改版时以界面显示为准。</p>
 
