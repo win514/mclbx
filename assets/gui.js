@@ -1010,7 +1010,7 @@ function glassHintText(u){
   var off = v === 'off' || parseInt(v, 10) === 0;
   var head = off ? '关：面板实心、不做模糊。' : '开：面板半透明并做模糊，且是最透明那一档。';
   var tail = off ? '' : '任务执行期间自动让位，跑完立刻恢复。';
-  var wall = (!off && u.bgImage) ? '已设背景图，面板会补一点不透明度。' : '';
+  var wall = (!off && u.bgImage) ? '已设背景图，面板会补一点底色。' : '';
   return head + tail + wall;
 }
 /* 图库选择器。
@@ -1048,7 +1048,7 @@ function musicHintText(u){
   if(!(u.musicList || []).length){
     return '把音乐文件（MP3 / WAV / FLAC / M4A / OGG）放进存档目录的 music 文件夹，再点「刷新」。只把真正的音频算进曲库：改了后缀的其它文件不会出现在这里。';
   }
-  return '曲库就是存档里的 music 文件夹，你可以自己往里放、改名、删除，点「刷新」后生效。播放时不另占 CPU —— 音频由界面内核直接解码；关掉窗口就停。某个文件放不了会被标出来，不会静默跳过。';
+  return '曲库就是存档里的 music 文件夹，你可以自己往里放、改名、删除，点「刷新」后生效。播放时不另占 CPU，关掉窗口就停。某个文件放不了会被标出来，不会静默跳过。';
 }
 /* ==================== 设置页 ====================
    三个一级分类：主题外观 / 辅助工具 / 关于与状态；维护动作集中在最后一块。
@@ -1178,14 +1178,14 @@ function uiThemeHTML(u){
     uiItem('glass', '毛玻璃', uiSeg('glass', u.glass, [['off', '关'], ['on', '开']]),
       glassHintText(u),
       '模糊按层次分配：主容器一档、浮层更强；面板内部卡片只半透明。' +
-      '设了背景图时两者并存，文字对比度仍达标。高对比主题不参与。') +
+      '设了背景图时两者并存，字照样读得清。高对比主题不参与。') +
     uiItem('fade', '面板淡入', uiSw('fade', u.fade !== 'off', '浮层出现时淡入'),
       '只动透明度，不动位置。',
       '「动画效果：精简」或系统「减少动态效果」下自动关闭。') +
     uiItem('', '帧率实测',
       '<button type="button" class="btn sm" data-act="vfxMeasure">在当前设置测一秒</button>' +
       '<span class="mi-out" id="vfxStats">尚未测过</span>',
-      '开关切换后点一次；不落盘、不改设置。') +
+      '开关切换后点一次；不改设置。') +
     uiItem('scale', '界面字号', uiSeg('scale', u.scale, [['std','标准'],['big','大']]),
       '只放大字号，版式不动。') +
     uiItem('motion', '动画效果', uiSeg('motion', u.motion, [['full','完整'],['lite','精简']]),
@@ -1218,7 +1218,7 @@ function uiAuxHTML(u){
       '状态栏音符按钮：左键播放/暂停，右键下一首。',
       '默认不自动播放。') +
     uiItem('remember', '记住上次填过的值', uiSw('remember', u.remember !== '0', '记住上次填过的值'),
-      '按任务与字段记住填写值。',
+      '按操作与填写项记住上次的值。',
       '关掉只停止新记；已记的用「清除」。') +
     uiItem('', '清除记住的填写内容',
       '<button type="button" class="btn sm" data-act="forgetInputs">清除</button>',
@@ -1307,7 +1307,7 @@ function uiMaintHTML(){
     '<button type="button" class="btn sm" data-act="copyVersion">复制版本信息</button>' +
     '<button type="button" class="btn sm" data-act="diag">导出诊断包</button>' +
     '</div>' +
-    '<div class="mnote">改动即时生效也即时落盘，所以没有「保存」这一步；' +
+    '<div class="mnote">改动即时生效也会立刻保存，所以没有「保存」这一步；' +
     '状态栏上那句「已保存 时:分:秒」就是最近一次写盘的时间。' +
     '导出的配置文件里含中转凭据，发给别人之前先自己看一眼。' +
     '「导出诊断包」会把日志、环境信息与设置打成一个文件，排查问题时比截图准。</div>' +
