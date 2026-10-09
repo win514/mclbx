@@ -504,6 +504,8 @@ function classify(t){
   var m = /^\s*([✓!✗])\s/.exec(t);
   if(m){ return m[1] === '✓' ? 'ok' : (m[1] === '!' ? 'warn' : 'bad'); }
   if(/^\.\.\s/.test(t)){ return 'dim'; }
+  // 纯分隔线（==== / ---- / ~~~~）只是段落标记，单列一档压暗，不与结论抢同一级亮度
+  if(/^[-=~─—]{4,}$/.test(t.trim())){ return 'sep'; }
   if(/^结论|^建议|^说明|^处理|^原因/.test(t)){ return 'info'; }
   if(/错误|失败|不可用|拒绝|超时|异常/.test(t)){ return 'bad'; }
   if(/成功|已建立|已就绪|已连接|完成/.test(t)){ return 'ok'; }

@@ -122,6 +122,8 @@ var sharedVars = map[string]bool{
 	"--wall":     true,
 	"--sig-soft": true, "--sig-edge": true, "--sig-ring": true,
 	"--sig-focus": true, "--sig-live": true,
+	// 动效令牌也不是"主题私有"：时长与缓动是全局手感，换成浅色背景不该变成另一种节奏。
+	"--d1": true, "--d2": true, "--d3": true, "--ease": true,
 	// 毛玻璃那一族也不是"主题私有"：颜色由每个主题的 --glass-rgb 决定，
 	// 不透明度与模糊由档位块给（档位块与主题正交），三档合成值 --glass-1/2/3 在基础块里算一次。
 	// 唯一会覆盖它们的是高对比主题（档位块用 :not([data-theme="contrast"]) 把它排除在外），

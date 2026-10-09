@@ -40,6 +40,26 @@
   /* ---- 尺寸与字体 ---- */
   --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px;
   --r1:6px; --r2:9px; --r3:13px; --pill:999px;
+  /* ---- 层次：三档外阴影 + 一条顶边高光 ----
+     深色界面里"看起来有层次"其实只靠三样东西：外阴影、顶边那一条内高光、边框明度差。
+     原来只有第三样，于是所有面都停在同一层，整页像一堆并排的方框。三档对三层：
+       sh1 卡片（操作行、次级卡）／sh2 浮起的面板与主按钮／sh3 真正的浮层（弹窗、提示条）。
+     --edge-hi 压在顶边内侧：它让平面看起来"受光"，是深色里最省钱的立体感来源。
+     扁平档把三档都归零 —— 扁平化的定义就是"去掉外阴影"，这里必须跟着一起归零，
+     否则那个档位只会去掉一半。 */
+  --sh1:0 1px 2px rgba(0,0,0,.30),0 2px 6px -3px rgba(0,0,0,.26);
+  --sh2:0 2px 6px -2px rgba(0,0,0,.36),0 10px 24px -16px rgba(0,0,0,.48);
+  --sh3:0 6px 16px -6px rgba(0,0,0,.44),0 22px 48px -28px rgba(0,0,0,.58);
+  --edge-hi:rgba(255,255,255,.055);
+  /* ---- 动效 ----
+     三档时长 + 一条缓动曲线，界面里不该出现第二种手感。
+       d1 按压等即时反馈／d2 悬停与状态切换／d3 出现与消失。
+     只许动 transform / opacity / color / background / border-color —— 动别的等于每帧重绘。 */
+  --d1:110ms; --d2:170ms; --d3:260ms;
+  --ease:cubic-bezier(.22,.61,.36,1);
+  /* 输出面（日志这类"内容往下滚"的区域）用一条内凹阴影：它读起来是嵌进去的槽，
+     而不是又一块浮在面板上的卡片。扁平档同样归零。 */
+  --well:inset 0 1px 3px rgba(0,0,0,.30);
   /* 字号：**名字就是它当前的像素值**（--fs-12-5 = 12.5px）。取这个名字是为了"看上去是几号字"和
      变量名一一对应，加减档位时不会记错。规矩只有一条：**所有字号只能写 var(--fs-*)，不许再写裸 px**
      —— 界面的"大字号"开关靠的就是这一点（见 TestEveryFontSizeGoesThroughToken）。 */
@@ -118,6 +138,13 @@
   --aurora-a:rgba(14,159,110,.05); --aurora-b:rgba(42,111,214,.06);
   --glass-rgb:255,255,255;
   --wall-scrim:rgba(242,245,249,.80);
+  /* 浅底上的层次靠阴影的"扩散"而不是"黑度"：同样的 alpha 压在浅色上会显脏，
+     所以三档都更淡、更散，顶边高光改成压白。 */
+  --sh1:0 1px 2px rgba(9,17,26,.06),0 2px 6px -3px rgba(9,17,26,.10);
+  --sh2:0 2px 6px -2px rgba(9,17,26,.09),0 12px 26px -18px rgba(9,17,26,.20);
+  --sh3:0 6px 16px -6px rgba(9,17,26,.12),0 24px 52px -30px rgba(9,17,26,.26);
+  --edge-hi:rgba(255,255,255,.92);
+  --well:inset 0 1px 3px rgba(9,17,26,.05);
   --ink:#0D1620; --ink2:#4A5A6C; --muted:#5A6675; --muted2:#636B75;
   --ok-ink:#0B7A4F; --bad-ink:#C42744; --warn-ink:#8A5300; --info-ink:#1F5FA8;
   --addr-ink:#0B3B2A; --violet-ink:#4A2E86; --bar-ink:#FFFFFF; --cheek:#FFFFFF;
@@ -165,6 +192,13 @@
   --glass-rgb:8,13,19;
   --g1a:.97; --g2a:.92; --g3a:.99;
   --wall-scrim:rgba(0,3,8,.58);
+  /* 高对比这一档的层次压到最低：外阴影与受光边都属于"氛围"，而这一档只服务"看清"。
+     数值比深色主题更收敛，也不引入任何新颜色。 */
+  --sh1:0 1px 2px rgba(0,0,0,.50);
+  --sh2:0 2px 8px -2px rgba(0,0,0,.60);
+  --sh3:0 8px 20px -8px rgba(0,0,0,.70);
+  --edge-hi:rgba(255,255,255,.04);
+  --well:inset 0 1px 3px rgba(0,0,0,.50);
   --ink:#FFFFFF; --ink2:#DAE6F2; --muted:#A9BCD0; --muted2:#93A7BC;
   --ok-ink:#7CF5C8; --bad-ink:#FFB8C4; --warn-ink:#FFD79A; --info-ink:#B6D4FF;
   --addr-ink:#E6FFF6; --violet-ink:#EDE7FF; --bar-ink:#03110B; --cheek:#03110B;
@@ -188,6 +222,10 @@
 /* 面板淡入也是一处"动"。它走的是时长变量而不是 transition，所以光有关掉 transition 那条还不够 ——
    把时长归零即等于关掉（下面 @media 里必须逐条相同，用例会比对两份）。 */
 :root[data-motion="lite"]{--vfx-fade:0s}
+/* 内容入场（.op / .ln）走的是 animation 而不是 transition，所以上面那条"关掉 transition"
+   管不到它，得单独关一次。下面 @media 里必须有一条逐字相同的（用例会比对两份）。 */
+:root[data-motion="lite"] .op,
+:root[data-motion="lite"] .ln{animation:none}
 /* 背景光效关掉：极光与网格是纯装饰，关掉不影响任何信息。
    它只管这两层 —— 自选背景图片是另一件事（由 data-wall 决定），关掉光效不该把图一起关掉。 */
 :root[data-backdrop="off"] .aurora,
@@ -225,7 +263,8 @@
 :root[data-rail="compact"] .op .ds{display:none}
 :root[data-rail="compact"] .op .nm{margin-bottom:0}
 
-:root[data-flat="on"]{--r1:0px;--r2:0px;--r3:0px;--pill:0px}
+:root[data-flat="on"]{--r1:0px;--r2:0px;--r3:0px;--pill:0px;
+  --sh1:none;--sh2:none;--sh3:none;--edge-hi:transparent;--well:none}
 :root[data-flat="on"] .glyph{background:var(--sig);box-shadow:none}
 :root[data-flat="on"] .panel,
 :root[data-flat="on"] .hero,
@@ -342,10 +381,10 @@
    给阴影挂过渡等于每次过渡都逐帧重新光栅化，那正是扁平化那一段里记下的坑。
    它原来是一个独立开关（「科幻轮廓微光」），现在恒开：实测它对帧率没有可测影响。 */
 :root .panel:not(.logpanel){
-  box-shadow:0 0 0 1px var(--sig-ring),0 0 16px -10px var(--sig-glow)}
+  box-shadow:var(--sh1),inset 0 1px 0 var(--edge-hi),0 0 0 1px var(--sig-ring),0 0 16px -10px var(--sig-glow)}
 :root .mbox,
 :root .toast{
-  box-shadow:0 0 0 1px var(--sig-ring),0 0 22px -12px var(--sig-glow)}
+  box-shadow:var(--sh3),inset 0 1px 0 var(--edge-hi),0 0 0 1px var(--sig-ring),0 0 22px -12px var(--sig-glow)}
 /* 轮廓微光同时把四角描边点亮一档：细描边是这套界面的科幻感来源，光晕只是它的补充。 */
 :root .panel:not(.logpanel)::before,
 :root .panel:not(.logpanel)::after{opacity:.55}
@@ -356,6 +395,16 @@
 :root{--vfx-fade:.16s}
 @keyframes vfx-fade{from{opacity:0}to{opacity:1}}
 :root[data-fade="on"] .mbox{animation:vfx-fade var(--vfx-fade) ease-out both}
+
+/* ---- 内容入场：只给"不与玻璃同层"的东西 ----
+   上面那条淡入的注释里写着红线：玻璃面一旦位移或参与整体淡入，背后那块纹理就得每帧重新
+   采样。所以入场只发给这两类元素 —— 操作列表的行与日志的行，它们本来就不在模糊白名单里
+   （见 VFX 那一段对 .tasks / .op / .log 的排除），动起来不碰任何模糊面。
+   一次性、只动 opacity 与 2px 位移，时长写成字面量（用例要能一眼看出它总共有多少毫秒）；
+   不开 fill-mode，因为结束帧就等于元素的自然状态 —— 开了反而会盖住 .op:active 的按压位移。
+   关闭方式是下面两处覆盖块里的 animation:none，不是把时长归零。 */
+@keyframes vfx-in{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+.op,.ln{animation:vfx-in .18s var(--ease)}
 
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
@@ -401,7 +450,7 @@ input{font:inherit;color:inherit}
 .nav{display:flex;align-items:center;gap:2px;padding:3px;border:1px solid var(--line);
   border-radius:var(--pill);background:var(--surf)}
 .navi{padding:5px 13px;border-radius:var(--pill);font-size:var(--fs-12-5);color:var(--muted);
-  transition:color .16s,background .16s}
+  transition:color var(--d2) var(--ease),background var(--d2) var(--ease)}
 .navi:hover{color:var(--ink2);background:var(--surf2)}
 .navi.on{color:var(--on-sig);background:var(--sig);font-weight:600}
 
@@ -423,13 +472,27 @@ input{font:inherit;color:inherit}
 @keyframes beat{0%{transform:scale(1);opacity:.9}70%{transform:scale(3);opacity:0}100%{transform:scale(3);opacity:0}}
 .stat span{font-size:var(--fs-12-5);color:var(--ink2);white-space:nowrap}
 
+/* 按钮：一套四级体系（默认 / 主 / 幽灵 / 危险），高度、圆角、时长、焦点态全部一致。
+   按压用 transform 往下 1px —— 合成器负责，不触发重排；阴影不进 transition 列表，
+   过渡它等于每帧重新光栅化（那正是扁平化那一段记下的坑）。 */
 .btn{padding:7px 14px;border:1px solid var(--line);border-radius:var(--r1);
-  color:var(--ink2);font-size:var(--fs-12-5);background:var(--surf2);transition:color .16s,background .16s,border-color .16s}
+  color:var(--ink2);font-size:var(--fs-12-5);background:var(--surf2);
+  transition:color var(--d2) var(--ease),background var(--d2) var(--ease),
+    border-color var(--d2) var(--ease),transform var(--d1) var(--ease)}
 .btn:hover:not(:disabled){color:var(--ink);border-color:var(--line2);background:var(--surf3)}
+.btn:active:not(:disabled){transform:translateY(1px)}
 .btn:disabled{opacity:.38;cursor:not-allowed}
 .btn.sm{padding:5px 10px;font-size:var(--fs-11-5)}
 .btn.danger{color:var(--rose-ink);border-color:var(--rose-edge);background:var(--rose-soft)}
 .btn.danger:hover:not(:disabled){background:var(--rose-soft2)}
+/* 幽灵按钮：没有底色，只在自己那一行里当次要动作，不与主按钮争视线 */
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.btn.ghost:hover:not(:disabled){background:var(--surf2);border-color:var(--line);color:var(--ink2)}
+
+/* 键盘焦点：一律用 outline，绝不用 box-shadow 画的环 —— 阴影环在「扁平」档会被抹掉，
+   而焦点看不见等于键盘不能用（那五处有专门用例盯着，见 TestFlatKeepsFocusVisible）。
+   :focus-visible 只在键盘操作时出现，鼠标点击不会留下一圈边框。 */
+:focus-visible{outline:2px solid var(--sig-focus);outline-offset:2px}
 
 /* 顶部提示条：界面只有一扇窗，凡是"本来会弹个黑框告诉你"的事都写在这里 */
 .notice{display:none;align-items:center;gap:10px;padding:9px 20px;font-size:var(--fs-12-5);color:var(--amber-ink);
@@ -455,14 +518,14 @@ input{font:inherit;color:inherit}
 /* 面板自己的小标题。它替代了原来"每块内容各写一种标题样式"的做法：
    现在整页只有 .ph 这一种面板标题，字号、字距、左侧短横线都一致。 */
 .ph{display:flex;align-items:center;gap:var(--s2);margin:0 0 var(--s2)}
-.ph h2{font:var(--fs-11)/1 var(--mono);letter-spacing:.14em;color:var(--muted);font-weight:400}
+.ph h2{font:600 var(--fs-12)/1.1 var(--disp);letter-spacing:.08em;color:var(--ink2)}
 .ph h2::before{content:"";display:inline-block;width:10px;height:1px;background:var(--muted2);
   vertical-align:middle;margin-right:7px}
 .ph .linkbtn{margin-left:auto}
 
 .search{position:relative;flex:0 0 auto}
 .search input{width:100%;padding:8px 11px 8px 30px;border:1px solid var(--line);border-radius:var(--r1);
-  background:var(--search);outline:none;font-size:var(--fs-12-5);transition:border-color .16s,box-shadow .16s}
+  background:var(--search);outline:none;font-size:var(--fs-12-5);transition:border-color var(--d2) var(--ease),box-shadow var(--d2) var(--ease)}
 .search input:focus{border-color:var(--sig-focus);box-shadow:0 0 0 3px var(--sig-soft)}
 .search input::placeholder{color:var(--muted2)}
 .search .ic{position:absolute;left:10px;top:50%;width:11px;height:11px;margin-top:-6px;
@@ -476,10 +539,11 @@ input{font:inherit;color:inherit}
 .cap{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);
   border:1px solid var(--line);border-radius:var(--r2);overflow:hidden}
 .capcell{display:flex;align-items:center;gap:7px;padding:7px 10px;background:var(--surf);
-  text-align:left;transition:background .16s}
+  text-align:left;transition:background var(--d2) var(--ease)}
 .capcell:hover{background:var(--surf2)}
 .capcell .cl{font:var(--fs-10-5)/1 var(--mono);color:var(--muted2);letter-spacing:.06em}
-.capcell .cv{font-size:var(--fs-12);color:var(--ink2);margin-left:auto;white-space:nowrap}
+.capcell .cv{font-size:var(--fs-12);color:var(--ink2);margin-left:auto;white-space:nowrap;
+  font-variant-numeric:tabular-nums}
 .capcell.ok .cv{color:var(--sig)}
 .capcell.no .cv{color:var(--rose)}
 .capcell.unk .cv{color:var(--muted2)}
@@ -510,7 +574,10 @@ input{font:inherit;color:inherit}
 
 .op{display:block;width:100%;text-align:left;padding:9px 12px 9px 13px;margin-bottom:6px;
   border:1px solid var(--line);border-radius:var(--r2);background:var(--surf);position:relative;
-  transition:border-color .16s,background .16s}
+  box-shadow:var(--sh1);
+  transition:border-color var(--d2) var(--ease),background var(--d2) var(--ease),
+    transform var(--d1) var(--ease)}
+.op:active{transform:translateY(1px)}
 .op:hover{border-color:var(--line2);background:var(--surf2)}
 .op .nm{display:flex;align-items:center;gap:7px;font-size:var(--fs-13);font-weight:600;margin-bottom:2px}
 .op .nm .lg{margin-left:auto;font:var(--fs-10)/1 var(--mono);color:var(--muted);border:1px solid var(--line2);
@@ -534,9 +601,9 @@ input{font:inherit;color:inherit}
    浮层用 .mbox、设置用 .mset），圆角与边框各写一遍、命名也读不出同一件事；
    现在统一到 .panel 这一套，只有浮层例外 —— 它要压在一切之上，圆角与阴影都更重一档。 */
 .panel{position:relative;border:1px solid var(--line);border-radius:var(--r3);
-  background:linear-gradient(180deg,var(--surf),var(--bg2))}
+  background:linear-gradient(180deg,var(--surf),var(--bg2));box-shadow:var(--sh1)}
 .panel::before,.panel::after{content:"";position:absolute;width:10px;height:10px;pointer-events:none;
-  opacity:0;transition:opacity .18s}
+  opacity:0;transition:opacity var(--d2) var(--ease)}
 .panel::before{top:-1px;left:-1px;border-top:1px solid var(--sig);border-left:1px solid var(--sig);border-radius:var(--r3) 0 0 0}
 .panel::after{bottom:-1px;right:-1px;border-bottom:1px solid var(--sig);border-right:1px solid var(--sig);border-radius:0 0 var(--r3) 0}
 .panel:hover::before,.panel:hover::after{opacity:.9}
@@ -578,14 +645,14 @@ input{font:inherit;color:inherit}
 .fld label .qi{width:12px;height:12px;border-radius:50%;border:1px solid var(--line2);
   font:var(--fs-9)/10px var(--mono);text-align:center;color:var(--muted2);cursor:help;flex:0 0 auto}
 .fld input[type=text]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r1);
-  background:var(--field);outline:none;font:var(--fs-13)/1.4 var(--mono);transition:border-color .16s,box-shadow .16s}
+  background:var(--field);outline:none;font:var(--fs-13)/1.4 var(--mono);transition:border-color var(--d2) var(--ease),box-shadow var(--d2) var(--ease)}
 .fld input[type=text]::placeholder{font-family:var(--ui);color:var(--muted2)}
 .fld input[type=text]:focus{border-color:var(--sig-focus);box-shadow:0 0 0 3px var(--sig-soft)}
 .ck{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid var(--line);
-  border-radius:var(--r1);background:var(--field);cursor:pointer;transition:border-color .16s,background .16s}
+  border-radius:var(--r1);background:var(--field);cursor:pointer;transition:border-color var(--d2) var(--ease),background var(--d2) var(--ease)}
 .ck:hover{border-color:var(--line2);background:var(--surf2)}
 .ck .bx{position:relative;width:17px;height:17px;flex:0 0 auto;border:1.5px solid var(--line2);
-  border-radius:4px;background:var(--field);display:block;transition:background .16s,border-color .16s}
+  border-radius:4px;background:var(--field);display:block;transition:background var(--d2) var(--ease),border-color var(--d2) var(--ease)}
 .ck input{position:absolute;opacity:0;pointer-events:none}
 .ck .tx{display:block;font-size:var(--fs-12-5);color:var(--ink2)}
 .ck input:checked+.bx{background:var(--sig);border-color:var(--sig)}
@@ -595,17 +662,19 @@ input{font:inherit;color:inherit}
 .runbar{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) var(--s5) var(--s4);
   border-top:1px solid var(--line)}
 .run{padding:11px 26px;border-radius:var(--r1);font:600 var(--fs-13-5)/1 var(--ui);color:var(--cheek);
-  background:var(--sig);box-shadow:0 10px 24px -14px var(--sig-glow);transition:filter .16s}
+  background:var(--sig);box-shadow:0 10px 24px -14px var(--sig-glow);
+  transition:filter var(--d2) var(--ease),transform var(--d1) var(--ease)}
 .run:hover:not(:disabled){filter:brightness(1.07)}
+.run:active:not(:disabled){transform:translateY(1px)}
 .run:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
 .runhint{font-size:var(--fs-11-5);color:var(--muted2);margin-left:auto;text-align:right;line-height:1.45}
 
 /* 入口地址卡：本工具唯一要交付给用户的东西，所以出现在最上面、字号最大 */
 .hero{padding:var(--s4) var(--s5) var(--s5);overflow:hidden;border-color:var(--sig-edge);
-  background:linear-gradient(160deg,var(--sig-soft),var(--surf) 46%)}
+  background:linear-gradient(160deg,var(--sig-soft),var(--surf) 46%);box-shadow:var(--sh2)}
 .hero .k{color:var(--sig)} .hero .k::before{background:var(--sig)}
 .plate{position:relative;margin:2px 0 var(--s3);padding:15px 16px;border-radius:var(--r2);
-  border:1px solid var(--sig-edge);background:var(--plate);overflow:hidden}
+  border:1px solid var(--sig-edge);background:var(--plate);overflow:hidden;box-shadow:var(--sh2)}
 .plate .shine{position:absolute;inset:0;pointer-events:none;
   background:linear-gradient(100deg,transparent 32%,var(--sheen) 50%,transparent 68%);
   transform:translateX(-120%)}
@@ -623,14 +692,20 @@ input{font:inherit;color:inherit}
    颜色与圆角沿用既有配色（信号绿 var(--sig) / 四级文字 / 圆角 8-16），不引第二套样式。 */
 .quick{padding:16px 16px 18px}
 .qhead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-.qhead .qt{font-size:var(--fs-17);font-weight:600;color:var(--ink)}
+.qhead .qt{font:600 var(--fs-18)/1.25 var(--disp);color:var(--ink)}
 .qhead .qs{font-size:var(--fs-12-5);color:var(--muted)}
 .qbtns{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .qbtn{flex-direction:column;align-items:flex-start;gap:3px;height:auto;min-height:58px;
-  padding:12px 14px;text-align:left;line-height:1.35;border-radius:12px;cursor:pointer}
+  padding:12px 14px;text-align:left;line-height:1.35;border-radius:12px;cursor:pointer;
+  box-shadow:var(--sh1);
+  transition:border-color var(--d2) var(--ease),background var(--d2) var(--ease),
+    transform var(--d1) var(--ease)}
 .qbtn .qi{font-size:var(--fs-15);font-weight:600}
 .qbtn .qd{font-size:var(--fs-12-5);font-weight:400;color:var(--muted)}
-.qbtn:hover{border-color:var(--sig)}
+/* 悬停抬 1px：这两个按钮是界面上最主要的两条路，动作反馈该比普通按钮明显一点。
+   只动 transform，不给阴影挂过渡 —— 阴影过渡等于每帧重新光栅化。 */
+.qbtn:hover{border-color:var(--sig);background:var(--surf2);transform:translateY(-1px)}
+.qbtn:active{transform:translateY(0)}
 .qbtn.on{border-color:var(--sig);box-shadow:0 0 0 3px var(--sig-ring)}
 .btn.primary{border-color:var(--sig);background:var(--sig);color:var(--bar-ink);font-weight:600}
 .qform{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:16px;
@@ -669,20 +744,25 @@ input{font:inherit;color:inherit}
 .banner .btn.amber{color:var(--amber-on);background:var(--amber);border-color:transparent}
 .banner .btn.amber:hover:not(:disabled){background:var(--amber);color:var(--amber-on);filter:brightness(1.06)}
 
-/* 日志：两层各一个容器，切换靠显示/隐藏，不重建节点 */
+/* 日志：两层各一个容器，切换靠显示/隐藏，不重建节点。
+   这里做成一块"槽"（well）—— 边框 + 更深的底 + 内凹阴影，让它读起来是"嵌在面板里的输出面"，
+   而不是又一块与面板同层的卡片。行号与正文用等宽 + 等宽数字，纵向才对得齐。 */
 .logpanel{flex:1;min-height:140px;display:flex;flex-direction:column;padding:var(--s3) var(--s4) var(--s4)}
 .loghead{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-bottom:var(--s2)}
 .loghead .k{margin:0}
 .segs{display:flex;border:1px solid var(--line);border-radius:var(--r1);overflow:hidden}
-.seg{padding:4px 10px;font:var(--fs-11-5)/1.5 var(--mono);color:var(--muted);transition:color .16s,background .16s}
+.seg{padding:4px 10px;font:var(--fs-11-5)/1.5 var(--mono);color:var(--muted);transition:color var(--d2) var(--ease),background var(--d2) var(--ease)}
 .seg+.seg{border-left:1px solid var(--line)}
 .seg:hover{color:var(--ink2);background:var(--surf2)}
 .seg.on{color:var(--surf);background:var(--ink2)}
 .loghead .r{margin-left:auto;display:flex;align-items:center;gap:var(--s2)}
 .linecnt{font:var(--fs-11)/1 var(--mono);color:var(--muted2)}
 .log{flex:1;min-height:0;overflow:auto;padding:var(--s3) 0;
-  background:var(--panel);border:1px solid var(--line);border-radius:var(--r2)}
-.ln{display:flex;gap:10px;font:var(--fs-12-5)/1.66 var(--mono);padding:0 12px;white-space:pre-wrap;word-break:break-word}
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r2);box-shadow:var(--well)}
+/* 一行一条输出。左侧 2px 的竖条只给"有性质"的行（成功/失败/警告），
+   它让长日志能靠左边缘扫出结论落在哪几行 —— 正文颜色本来就分了，竖条是为了扫得快。 */
+.ln{display:flex;gap:10px;font:var(--fs-12-5)/1.66 var(--mono);padding:1px 12px;
+  border-left:2px solid transparent;white-space:pre-wrap;word-break:break-word}
 /* 行号：用最低那一级灰阶，但**不再叠 opacity** —— 原来 .6 的透明度把它压到对比度 1.4，
    等于看不见。层次交给字号与位置，不交给"让人读不到"。 */
 .ln .no{flex:0 0 auto;width:34px;text-align:right;color:var(--muted2);-webkit-user-select:none;user-select:none}
@@ -692,6 +772,13 @@ input{font:inherit;color:inherit}
 .ln.bad .tx{color:var(--bad-ink)}
 .ln.warn .tx{color:var(--warn-ink)}
 .ln.info .tx{color:var(--info-ink)}
+.ln.ok{border-left-color:var(--sig-edge)}
+.ln.bad{border-left-color:var(--rose-edge)}
+.ln.warn{border-left-color:var(--amber-edge)}
+/* 分隔线（输出里的 ==== / ---- / ~~~~）：它只是段落标记，压到最暗一档，不抢视线。
+   .dim 是原始输出层整体调暗的那一档，两者都只改颜色，不改字号行高。 */
+.ln.sep .tx,.ln.sep .no{color:var(--muted2)}
+.ln.sep{opacity:.65}
 .lgempty{padding:30px 16px;text-align:center;color:var(--muted2);font:var(--fs-12)/1.7 var(--mono)}
 
 /* ---- 详情浮层：界面上唯一的浮层 ----
@@ -797,7 +884,7 @@ input{font:inherit;color:inherit}
 /* ---- 设置控件（统一命名 m 前缀） ----
    分段器 / 开关 / 输入框 / 色点，四种就够：面板上不该出现第五种控件形态。 */
 .mseg{display:flex;border:1px solid var(--line);border-radius:var(--r1);overflow:hidden}
-.mseg button{padding:5px 12px;font-size:var(--fs-12);color:var(--muted);transition:color .16s,background .16s}
+.mseg button{padding:5px 12px;font-size:var(--fs-12);color:var(--muted);transition:color var(--d2) var(--ease),background var(--d2) var(--ease)}
 .mseg button+button{border-left:1px solid var(--line)}
 .mseg button:hover{color:var(--ink2);background:var(--surf2)}
 .mseg button.on{color:var(--on-sig);background:var(--sig)}
@@ -856,6 +943,7 @@ input{font:inherit;color:inherit}
 @media (prefers-reduced-motion:reduce){
   .dot.run::after{animation:none;opacity:.45}
   *{transition:none !important}
+  .op,.ln{animation:none}
   :root{--vfx-fade:0s}
 }
 /* 窗口被拖窄时，让位的顺序是按"信息是否还有别处"排的：
