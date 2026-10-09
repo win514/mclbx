@@ -13,16 +13,18 @@ import (
 	"testing"
 )
 
-// 界面本体与所有 JSON 接口一律不许缓存。
+// 界面本体、所有 JSON 接口，以及界面的样式与脚本，一律不许缓存。
 func TestGuiCachePolicyCoversPageAndAPIs(t *testing.T) {
-	for _, p := range []string{"/", "/api/state", "/api/tasks", "/api/settings", "/api/wall/import", "/api/start", "/api/quit"} {
+	for _, p := range []string{"/", "/api/state", "/api/tasks", "/api/settings", "/api/wall/import", "/api/start", "/api/quit",
+		guiCSSPath, guiJSPath} {
 		if !guiNoStorePath(p) {
 			t.Errorf("%s 是随 exe 一起变的，必须不让缓存", p)
 		}
 	}
 }
 
-// 音频、背景图、静态资源各按自己的策略缓存，不能被这个中间件顺手抹掉。
+// 音频、背景图、其它静态资源各按自己的策略缓存，不能被这个中间件顺手抹掉。
+// 注意 /assets/ 下只有界面样式与脚本走 no-store，favicon 不在其列。
 func TestGuiCachePolicyLeavesMediaAlone(t *testing.T) {
 	for _, p := range []string{"/music/歌.mp3", "/bg/bg-0123456789abcdef.jpg", "/assets/favicon.png", "/manual", "/apiary"} {
 		if guiNoStorePath(p) {
@@ -39,6 +41,8 @@ func TestGuiCachePolicyHeaderPerPath(t *testing.T) {
 	}{
 		{"/", true},
 		{"/api/state", true},
+		{guiCSSPath, true},
+		{guiJSPath, true},
 		{"/music/歌.mp3", false},
 		{"/bg/bg-0123456789abcdef.jpg", false},
 	}

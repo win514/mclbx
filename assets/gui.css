@@ -1,0 +1,870 @@
+/* ==========================================================================
+   字体只用系统自带的：Bahnschrift 是 Win10 1709+ 自带的 DIN 风标题字，
+   Cascadia Mono 是终端字，正文回落雅黑。一律不外链，离线机器上完全一致。
+   ========================================================================== */
+:root{
+  /* ---- 底色与面 ----
+     四个面由浅到深：bg（页底）→ surf（卡片）→ surf2（卡片里的控件底）→ surf3（悬停）。
+     chrome 是顶栏与底栏，panel 是"压在页底上的半透明层"（日志、遮罩），
+     field 是所有输入框与只读文本框的底。 */
+  --bg:#070B11; --bg2:#0A1017;
+  --surf:#0D151E; --surf2:#101B25; --surf3:#14212D;
+  --chrome:#090E14; --panel:rgba(3,6,10,.72); --field:rgba(5,9,14,.72);
+  --search:rgba(7,11,17,.75); --plate:rgba(4,9,8,.85); --pre-bg:rgba(62,224,161,.06);
+  --line:#1A2836; --line2:#233A4D; --hair:rgba(255,255,255,.08); --hair2:rgba(255,255,255,.14);
+  --grid-ink:rgba(255,255,255,.032); --sheen:rgba(255,255,255,.12);
+  --scroll:#1E3040; --scroll-hi:#2A4356;
+  --aurora-a:rgba(62,224,161,.045); --aurora-b:rgba(99,169,255,.10);
+  /* ---- 字 ----
+     四级灰阶 + 一组"彩色字"：后者只用在状态与日志上，作用是让人一眼看出这句话是什么性质。
+     **四级都必须读得清**（对比度见 uisettings_test.go 的那张表）：原来的四级 muted2 只有
+     2.08（它是行号与底栏），等于把"读不清"当成了"层次"。层次靠字号与位置去做，不靠让人看不见。 */
+  --ink:#E9F2FB; --ink2:#9DB1C6; --muted:#8190A1; --muted2:#7C8B98;
+  --ok-ink:#7CF0C4; --bad-ink:#FFB0BE; --warn-ink:#FFD79A; --info-ink:#A8CDFF;
+  --addr-ink:#DDFFF2; --violet-ink:#E4DDFF; --bar-ink:#06120C; --cheek:#062A1E;
+  --on-sig:#07231A; --sel:rgba(62,224,161,.28);
+  /* ---- 强调色 ----
+     这一个色族由 data-accent 换（见下）。深浅两套主题共用同一组半透明值，
+     只有"实心色"和"压在实心色上的字"需要按主题分别给 —— 浅底上必须更深才够对比。 */
+  --sig:#3EE0A1; --sig-deep:#1FA87A; --sig-soft:rgba(62,224,161,.13);
+  --sig-edge:rgba(62,224,161,.34); --sig-ring:rgba(62,224,161,.14);
+  --sig-focus:rgba(62,224,161,.55); --sig-live:rgba(62,224,161,.7); --sig-glow:rgba(62,224,161,.9);
+  /* ---- 语义色：固定，不随强调色走 ---- */
+  --amber:#FFB454; --amber-soft:rgba(255,180,84,.12); --amber-edge:rgba(255,180,84,.34);
+  --amber-ink:#FFDFAE; --amber-on:#3A2A0E;
+  --rose:#FF6E85; --rose-soft:rgba(255,110,133,.12); --rose-soft2:rgba(255,110,133,.15);
+  --rose-edge:#4A2230; --rose-ink:#FFC9D2;
+  --blue:#63A9FF; --violet:#B08CFF; --violet-soft:rgba(176,140,255,.07); --violet-edge:rgba(176,140,255,.28);
+  --toast-ok-bg:rgba(9,26,20,.96); --toast-ok-ink:#D9FFF1; --toast-ok-edge:rgba(62,224,161,.5);
+  --toast-bad-bg:rgba(32,11,17,.96); --toast-bad-ink:#FFD3DA; --toast-bad-edge:rgba(255,110,133,.5);
+  /* ---- 尺寸与字体 ---- */
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px;
+  --r1:6px; --r2:9px; --r3:13px; --pill:999px;
+  /* 字号：**名字就是它当前的像素值**（--fs-12-5 = 12.5px）。取这个名字是为了"看上去是几号字"和
+     变量名一一对应，加减档位时不会记错。规矩只有一条：**所有字号只能写 var(--fs-*)，不许再写裸 px**
+     —— 界面的"大字号"开关靠的就是这一点（见 TestEveryFontSizeGoesThroughToken）。 */
+  --fs-10:10px; --fs-10-5:10.5px; --fs-11:11px; --fs-11-5:11.5px; --fs-12:12px; --fs-12-5:12.5px;
+  --fs-13:13px; --fs-13-5:13.5px; --fs-14:14px; --fs-15:15px; --fs-16:16px; --fs-17:17px; --fs-18:18px;
+  --fs-9:9px; --fs-26:26px;
+  /* 顶栏与状态栏的高度跟着字号走：字号一放大，固定高度的这两条会把字切掉。
+     状态栏比原来高 10px —— 停止/退出挪进来之后它要放得下按钮，不再只是一行小字。 */
+  --row-top:56px; --row-bot:40px;
+  /* 背景图片的地址由服务端按当前设置注入到 <html> 的行内样式里。这里必须给一个默认值：
+     样式表里一旦写了 var(--wall)，定义它的地方就得在样式表里（有用例逐个变量核对）。 */
+  --wall:none;
+  /* ---- 毛玻璃（三档） ----
+     写死成 rgba() + calc() 而不是用 color-mix() 现算：color-mix() 需要 Chromium 111+，
+     而这个界面跑在系统自带的 WebView2 上，内核版本不由本程序决定。不支持的引擎会在解析期
+     丢掉整条声明 —— 毛玻璃那几条只是"没效果"，但暗化层消失会让照片上的字失去衬托。
+     三档对应界面上三层：--glass-1 主容器（最实）／--glass-2 次级卡片（更透，靠 1px 边框成形）
+     ／--glass-3 浮层（最实 + 最强模糊）。层次靠不透明度差 + 边框 + 阴影，不靠每层都加模糊。
+     不透明度 = 档位给的 --g1a/--g2a/--g3a（见下面的档位表）+ 设了背景图时的补偿
+     --w1/--w2/--w3（默认 0）。颜色只由每个主题的 --glass-rgb 决定，三层共用同一个色族。 */
+  --glass-rgb:13,21,30;
+  --w1:0; --w2:0; --w3:0;
+  --g1a:.94; --g2a:.84; --g3a:.97; --glass-blur:3px; --blur-3:6px;
+  --glass-1:rgba(var(--glass-rgb),calc(var(--g1a) + var(--w1)));
+  --glass-2:rgba(var(--glass-rgb),calc(var(--g2a) + var(--w2)));
+  --glass-3:rgba(var(--glass-rgb),calc(var(--g3a) + var(--w3)));
+  --wall-scrim:rgba(7,11,17,.80);
+  --disp:"Bahnschrift","Segoe UI Variable Display","Microsoft YaHei UI",sans-serif;
+  --ui:"Microsoft YaHei UI","Segoe UI Variable Text","Segoe UI",sans-serif;
+  --mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+}
+
+/* ==========================================================================
+   主题 = 纯属性选择器 + 变量覆盖，运行时没有分支、动画与额外资源。
+   加一个主题只动两处：这里的一组选择器块，以及 guiconfig.go 的 normalizeUI 取值表。
+   服务端注入（renderGuiPage）是唯一的闸门，它只认归一化后的取值。
+
+   变量分三类：
+     · 主题私有：每个主题块必须自己声明全部，漏一个的症状是"某一块还是上一个主题的颜色"；
+     · 强调色私有：--sig / --sig-deep / --sel / --pre-bg / --aurora-a；
+       只有强调色块与浅色主题才准动它（浅底需要重新调实心色）；
+     · 共用：尺寸与字体，以及强调色那一族的半透明值。
+   --pre-bg 与 --aurora-a 是"强调色顺带决定页面氛围"的耦合；若要加背景类主题，
+   必须先把这两个从强调色块里拿出来交给主题，否则会得到"主题 × 强调色"的全组合。
+   ========================================================================== */
+
+/* 强调色：只换这一个色族，不区分深浅主题（半透明的那些在两种底色上都成立）。 */
+:root[data-accent="blue"]{
+  --sig:#63A9FF; --sig-deep:#2F7BD8; --sig-soft:rgba(99,169,255,.13);
+  --sig-edge:rgba(99,169,255,.34); --sig-ring:rgba(99,169,255,.14);
+  --sig-focus:rgba(99,169,255,.55); --sig-live:rgba(99,169,255,.7); --sig-glow:rgba(99,169,255,.45);
+  --sel:rgba(99,169,255,.28); --pre-bg:rgba(99,169,255,.06); --aurora-a:rgba(99,169,255,.05);
+}
+:root[data-accent="violet"]{
+  --sig:#B08CFF; --sig-deep:#7C55D8; --sig-soft:rgba(176,140,255,.13);
+  --sig-edge:rgba(176,140,255,.34); --sig-ring:rgba(176,140,255,.14);
+  --sig-focus:rgba(176,140,255,.55); --sig-live:rgba(176,140,255,.7); --sig-glow:rgba(176,140,255,.45);
+  --sel:rgba(176,140,255,.28); --pre-bg:rgba(176,140,255,.06); --aurora-a:rgba(176,140,255,.05);
+}
+/* 这里**没有**琥珀色。琥珀在这套界面里已经是一个专用含义（"要注意"：未放行入站、
+   名单超限、警告行），把它同时做成"正常路径"的颜色，两者就分不出来了。
+   宁可少一个口味，也不要一个"看着一样、意思相反"的组合。 */
+
+/* 浅色主题：同一套变量、同一个版式，只换底色与字色。
+   有意不做成"另一个界面" —— 版式、间距、层级都不动，这样两种主题下的操作习惯是同一套。
+   注意它必须在强调色那一组之后：两边特异性相同（都是 :root + 一个属性选择器），
+   靠源序决定谁赢；真正需要"浅色 × 某个强调色"的值时，用下面的复合选择器单独给。 */
+:root[data-theme="light"]{
+  --bg:#F2F5F9; --bg2:#E9EEF5;
+  --surf:#FFFFFF; --surf2:#F6F9FC; --surf3:#EDF2F8;
+  --chrome:#FFFFFF; --panel:rgba(9,17,26,.045); --field:rgba(9,17,26,.045);
+  --search:rgba(9,17,26,.05); --plate:rgba(255,255,255,.72); --pre-bg:rgba(14,159,110,.08);
+  --line:#DCE4EC; --line2:#BFCEDC; --hair:rgba(9,17,26,.10); --hair2:rgba(9,17,26,.16);
+  --grid-ink:rgba(9,17,26,.05); --sheen:rgba(255,255,255,.55);
+  --scroll:#C6D2DE; --scroll-hi:#AEBECB;
+  --aurora-a:rgba(14,159,110,.05); --aurora-b:rgba(42,111,214,.06);
+  --glass-rgb:255,255,255;
+  --wall-scrim:rgba(242,245,249,.80);
+  --ink:#0D1620; --ink2:#4A5A6C; --muted:#5A6675; --muted2:#636B75;
+  --ok-ink:#0B7A4F; --bad-ink:#C42744; --warn-ink:#8A5300; --info-ink:#1F5FA8;
+  --addr-ink:#0B3B2A; --violet-ink:#4A2E86; --bar-ink:#FFFFFF; --cheek:#FFFFFF;
+  --on-sig:#FFFFFF; --sel:rgba(14,159,110,.20);
+  /* 实心色必须压到白字读得清为止：#0E9F6E 上压白字只有 3.39，而"浅色 + 默认强调色"
+     恰恰是最常被用到的一格（顶栏进度链点亮的段、设置面板里被选中的那一格）。
+     压深到 #0B7A54 之后白字 5.35，同时它自己做文字/描边在浅底上也有 4.89。 */
+  --sig:#0B7A54; --sig-deep:#076242; --sig-glow:rgba(14,159,110,.35);
+  --amber:#B26A00; --amber-soft:rgba(178,106,0,.10); --amber-edge:rgba(178,106,0,.30);
+  --amber-ink:#7A4700; --amber-on:#FFFFFF;
+  --rose:#D0364F; --rose-soft:rgba(208,54,79,.09); --rose-soft2:rgba(208,54,79,.14);
+  --rose-edge:#E7B6C0; --rose-ink:#9E2038;
+  --blue:#2A6FD6; --violet:#7A4FD0; --violet-soft:rgba(122,79,208,.07); --violet-edge:rgba(122,79,208,.28);
+  --toast-ok-bg:rgba(233,250,241,.98); --toast-ok-ink:#0B5C3B; --toast-ok-edge:rgba(14,159,110,.45);
+  --toast-bad-bg:rgba(255,238,241,.98); --toast-bad-ink:#93203A; --toast-bad-edge:rgba(208,54,79,.45);
+}
+:root[data-theme="light"][data-accent="blue"]{
+  --sig:#2A6FD6; --sig-deep:#1F55A8; --sig-glow:rgba(42,111,214,.32);
+  --sel:rgba(42,111,214,.20); --pre-bg:rgba(42,111,214,.08); --aurora-a:rgba(42,111,214,.06);
+}
+:root[data-theme="light"][data-accent="violet"]{
+  --sig:#7A4FD0; --sig-deep:#5B37A2; --sig-glow:rgba(122,79,208,.32);
+  --sel:rgba(122,79,208,.20); --pre-bg:rgba(122,79,208,.08); --aurora-a:rgba(122,79,208,.06);
+}
+
+/* 高对比：给"看不清"而不是"不喜欢"的处境用 —— 低端 TN 屏、白天靠窗的反光、投屏给旁边的人看。
+   它**不是**第 4 种口味，而是深色那一套把对比度推到顶：正文 20:1、次级 16:1、最低一级也有 8:1。
+   两点刻意的取舍：
+     · 不动强调色族（那一族本来就是为深底调的，所以这一个主题只有这一块，不需要
+       『主题 × 强调色』的复合规则 —— 那是加法里最贵的一种）；
+     · 页面氛围（极光 + 网格）让位给对比度：装饰与"看清"在这类处境里是直接冲突的。
+   命名与取值口径见项目内部开发记录的对应轮次。 */
+:root[data-theme="contrast"]{
+  --bg:#000308; --bg2:#04070C;
+  --surf:#080D13; --surf2:#0C1219; --surf3:#111922;
+  --chrome:#000308; --panel:rgba(0,0,0,.88); --field:rgba(255,255,255,.06);
+  --search:rgba(0,0,0,.88); --plate:rgba(0,0,0,.92);
+  --line:#2C3E52; --line2:#4A6A8A; --hair:rgba(255,255,255,.20); --hair2:rgba(255,255,255,.34);
+  --grid-ink:rgba(255,255,255,0); --sheen:rgba(255,255,255,.10);
+  --scroll:#3A5470; --scroll-hi:#4E7092;
+  --aurora-a:rgba(0,0,0,0); --aurora-b:rgba(0,0,0,0);
+  /* 高对比这一档不参与毛玻璃：它的存在理由是"看不清"，半透明与模糊都与"看清"直接冲突。
+     颜色与三档不透明度都在这里钉死，且档位表用 :not([data-theme="contrast"]) 把它排除在外 ——
+     于是无论用户把档位拉到多少，这一档三面始终接近实心。 */
+  --glass-rgb:8,13,19;
+  --g1a:.97; --g2a:.92; --g3a:.99;
+  --wall-scrim:rgba(0,3,8,.58);
+  --ink:#FFFFFF; --ink2:#DAE6F2; --muted:#A9BCD0; --muted2:#93A7BC;
+  --ok-ink:#7CF5C8; --bad-ink:#FFB8C4; --warn-ink:#FFD79A; --info-ink:#B6D4FF;
+  --addr-ink:#E6FFF6; --violet-ink:#EDE7FF; --bar-ink:#03110B; --cheek:#03110B;
+  --on-sig:#03110B;
+  --amber:#FFC470; --amber-soft:rgba(255,196,112,.16); --amber-edge:rgba(255,196,112,.5);
+  --amber-ink:#FFE0B0; --amber-on:#2A1A00;
+  --rose:#FF8AA0; --rose-soft:rgba(255,138,160,.16); --rose-soft2:rgba(255,138,160,.26);
+  --rose-edge:#7A3348; --rose-ink:#FFD3DA;
+  --blue:#8CC4FF; --violet:#C4A8FF; --violet-soft:rgba(196,168,255,.12); --violet-edge:rgba(196,168,255,.45);
+  --toast-ok-bg:rgba(0,20,14,.97); --toast-ok-ink:#DFFFF0; --toast-ok-edge:rgba(62,224,161,.7);
+  --toast-bad-bg:rgba(30,0,8,.97); --toast-bad-ink:#FFDCE2; --toast-bad-edge:rgba(255,138,160,.7);
+}
+
+/* 动效「精简」：效果上等同于系统的 prefers-reduced-motion，但**这里是手抄的第二份**
+   （系统那一份见本文件末尾的 @media 块）。两处必须逐条相同 —— 只改一处就会走偏，
+   而"走偏"之后没有任何症状，所以有一条用例把两个集合逐条比对（TestLiteMotionMatchesSystemPreference）。
+   注意执行中的状态点仍然留着（它是"正在干活"的唯一反馈），只是不呼吸。
+   另：这一档**不许**碰背景光效（那是 data-backdrop 的事），用例会拦住。 */
+:root[data-motion="lite"] *{transition:none !important}
+:root[data-motion="lite"] .dot.run::after{animation:none;opacity:.45}
+/* 面板淡入也是一处"动"。它走的是时长变量而不是 transition，所以光有关掉 transition 那条还不够 ——
+   把时长归零即等于关掉（下面 @media 里必须逐条相同，用例会比对两份）。 */
+:root[data-motion="lite"]{--vfx-fade:0s}
+/* 背景光效关掉：极光与网格是纯装饰，关掉不影响任何信息。
+   它只管这两层 —— 自选背景图片是另一件事（由 data-wall 决定），关掉光效不该把图一起关掉。 */
+:root[data-backdrop="off"] .aurora,
+:root[data-backdrop="off"] .grid{display:none}
+
+/* ---- 大字号（独立开关，不属于主题） ----
+   字号动的是版式，主题动的是配色，两者是两个维度：塞进主题会得到"主题 × 字号"的组合。
+   它只覆盖字号 token 与顶栏/状态栏高度，不给任何控件单独写样式。
+   加档位时必须覆盖 :root 里声明的每一个 --fs-*，少一个就会出现"大部分变大、某一块没变"。 */
+:root[data-scale="big"]{
+  --fs-10:11px; --fs-10-5:11.5px; --fs-11:12px; --fs-11-5:12.5px; --fs-12:13px; --fs-12-5:13.5px;
+  --fs-13:14px; --fs-13-5:14.5px; --fs-14:15px; --fs-15:16px; --fs-16:17.5px; --fs-17:18.5px; --fs-18:19.5px;
+  --fs-9:10px; --fs-26:29px;
+  --row-top:62px; --row-bot:46px;
+}
+/* ---- 背景图片（独立于背景光效） ----
+   一层静态贴图 + 一层压暗。静态是硬要求：平移、缓慢缩放或视差都是整屏逐帧重新光栅化。
+   压暗层不是装饰 —— 它让任意一张照片上的文字仍然读得清，颜色取自当前主题底色。 */
+.wall{position:absolute;inset:0;background-image:var(--wall);
+  background-size:cover;background-position:center;background-repeat:no-repeat}
+.scrim{position:absolute;inset:0;display:none}
+:root[data-wall="on"] .scrim{display:block;background:var(--wall-scrim)}
+
+/* ---- 扁平化（独立开关，不属于主题） ----
+   它动的是材质与层次（圆角、阴影、渐变、光晕），全是减法。两条边界：
+     · 焦点态必须留下：外阴影聚焦环换成 outline，焦点看不见等于键盘不能用；
+     · 不许出现 .bg / .aurora / .grid —— 背景光效归 data-backdrop 管。 */
+/* 圆角大小：三个离散档，改的是同一组圆角令牌。放在「扁平」之前 —— 扁平把圆角一律归零。 */
+:root[data-radii="sharp"]{--r1:3px;--r2:4px;--r3:6px}
+:root[data-radii="round"]{--r1:10px;--r2:14px;--r3:20px}
+
+/* 侧边栏样式「紧凑」：去掉操作行里的说明行、收紧行距，一屏能多看几项。
+   只动侧栏的排版，操作的名称、顺序与行为一概不变。 */
+:root[data-rail="compact"] .op{padding:6px 10px 6px 11px;margin-bottom:3px}
+:root[data-rail="compact"] .op .ds{display:none}
+:root[data-rail="compact"] .op .nm{margin-bottom:0}
+
+:root[data-flat="on"]{--r1:0px;--r2:0px;--r3:0px;--pill:0px}
+:root[data-flat="on"] .glyph{background:var(--sig);box-shadow:none}
+:root[data-flat="on"] .panel,
+:root[data-flat="on"] .hero,
+:root[data-flat="on"] .plate{background:var(--surf)}
+:root[data-flat="on"] .plate .shine{display:none}
+:root[data-flat="on"] .run{box-shadow:none}
+:root[data-flat="on"] .mdot.on{box-shadow:none;outline:2px solid var(--sig-edge);outline-offset:2px}
+:root[data-flat="on"] .qbtn.on{box-shadow:none;outline:2px solid var(--sig-ring);outline-offset:0}
+:root[data-flat="on"] .search input:focus,
+:root[data-flat="on"] .fld input[type=text]:focus,
+:root[data-flat="on"] .mtxt:focus{box-shadow:none;outline:2px solid var(--sig-focus);outline-offset:1px}
+:root[data-flat="on"] ::-webkit-scrollbar-thumb,
+:root[data-flat="on"] .chip,
+:root[data-flat="on"] .linkbtn,
+:root[data-flat="on"] .navi,
+:root[data-flat="on"] .op .nm .lg,
+:root[data-flat="on"] .op .lim,
+:root[data-flat="on"] .op.on::before,
+:root[data-flat="on"] .opgrp .tag,
+:root[data-flat="on"] .ck .bx,
+:root[data-flat="on"] .qbtn,
+:root[data-flat="on"] .qform input,
+:root[data-flat="on"] .qform textarea,
+:root[data-flat="on"] .qpre,
+:root[data-flat="on"] .invtext,
+:root[data-flat="on"] .mtxt,
+:root[data-flat="on"] .glyph{border-radius:0}
+
+/* ============ 视觉美化（VFX）：可整段删除的装饰层 ============
+   本段与脚本里的 VFX 模块不参与业务判断，删掉后界面回到实心扁平外观。
+
+   这一层恒开，不再有总开关（实测它对帧率没有可测影响，"关掉"省不下什么、
+   却要一套三处接线的开关）。属性（首屏由服务端注入，避免"先实心、再闪成玻璃"）：
+     data-glass     0-10               毛玻璃档位：0 = 关闭（实心、不模糊），1-10 越大越透明
+     data-fade      on/off              浮层淡入
+     data-vfx-busy  on/off              运算期间让位（脚本在任务执行时挂上）
+
+   边界 —— 成本随「玻璃面积 × 变化频率」增长，以下几条就是压住这两个乘数的手段：
+     · 只给局部面板加模糊；整屏层（.modal / .bg / .aurora / .grid）、
+       随滚动与搜索重排的列表（.tasks / .op / 侧栏面板）、持续追加的日志（.logpanel / .log）不加；
+     · 运算期间 backdrop-filter 全部退回 none，跑完恢复；
+     · 不写 will-change（那会为每块玻璃常驻一个合成层）；
+     · .mbox 用 contain:layout paint（独立浮层）；.panel 等只用 layout ——
+       paint 会把 .panel 四角的 -1px 描边裁掉。
+
+   层次：--glass-1 主容器（带模糊）／--glass-2 面板内的次级卡片（只半透明）／--glass-3 浮层（模糊更强）。
+   设了背景图时**不再整段让位**：那样等于"用户一设背景图就把毛玻璃关掉"，两个本该并存的功能被做成互斥。
+   照片的明暗由压暗层（--wall-scrim）与背景图补偿（--w1/--w2/--w3）收进一个有界区间，
+   文字对比度就还守得住 —— 逐档的数值由 TestGlassOverPageKeepsTextReadable 核对，不靠眼睛。 */
+/* ---- 层次一：主容器的面 ---- */
+:root:not([data-glass="0"]) .panel,
+:root:not([data-glass="0"]) .topbar,
+:root:not([data-glass="0"]) .statusbar{background-image:none;background-color:var(--glass-1)}
+/* ---- 层次二：面板内部的次级卡片与控件底。更透，靠边框与阴影撑出形 ---- */
+:root:not([data-glass="0"]) .op,
+:root:not([data-glass="0"]) .capcell,
+:root:not([data-glass="0"]) .log{background-color:var(--glass-2)}
+/* 顶边比其余三边亮一档。顶栏只有下边框（它贴的是视口上沿），那一档得落在下边框上 ——
+   给它写 border-top-color 是一条永远不生效的死规则。 */
+:root:not([data-glass="0"]) .panel,
+:root:not([data-glass="0"]) .op,
+:root:not([data-glass="0"]) .log,
+:root:not([data-glass="0"]) .statusbar{border-top-color:var(--line2)}
+:root:not([data-glass="0"]) .topbar{border-bottom-color:var(--line2)}
+/* 面板自己的悬停/选中态原本是实心色，玻璃下要跟着一起变透明，否则鼠标一划过就"啪"地变实了 */
+:root:not([data-glass="0"]) .op:hover,
+:root:not([data-glass="0"]) .op.on{background-color:var(--glass-1)}
+/* 被判定"环境不支持"的条目本来就是置灰的，鼠标划过不该亮起玻璃悬停色。
+   上面那条 :hover 的特异性比 .op.off:hover 高，所以这里必须显式压回去。 */
+:root:not([data-glass="0"]) .op.off:hover{background-color:var(--surf)}
+
+/* 档位表：0 = 关闭（规则里靠 :not([data-glass="0"]) 排除），1-10 越大越透明、模糊同步增强。
+   三条约束把这一列数钉住：
+     · 三档不透明度逐档递减，模糊逐档递增；
+     · 上限压在面板 16px / 浮层 20px —— 再往上收益很小，代价却按「玻璃面积 × 变化频率」涨；
+     · 每一档都必须让文字守得住 4.5（含设了背景图的极端情形），由
+       TestGlassOverPageKeepsTextReadable 逐档核对，不是靠眼睛。
+   高对比主题整个排除在外：它的三档面本来就接近实心，随档位变透明等于把"看清"这件事交出去。
+   把排除写进选择器而不是靠源码顺序，是为了让"哪一档作用于哪些主题"一眼看得出来。 */
+:root[data-glass="1"]:not([data-theme="contrast"]){--g1a:.94;--g2a:.84;--g3a:.97;--glass-blur:3px;--blur-3:6px}
+:root[data-glass="2"]:not([data-theme="contrast"]){--g1a:.92;--g2a:.81;--g3a:.965;--glass-blur:4px;--blur-3:7px}
+:root[data-glass="3"]:not([data-theme="contrast"]){--g1a:.90;--g2a:.78;--g3a:.96;--glass-blur:5px;--blur-3:9px}
+:root[data-glass="4"]:not([data-theme="contrast"]){--g1a:.88;--g2a:.75;--g3a:.955;--glass-blur:6px;--blur-3:10px}
+:root[data-glass="5"]:not([data-theme="contrast"]){--g1a:.85;--g2a:.72;--g3a:.95;--glass-blur:7px;--blur-3:12px}
+:root[data-glass="6"]:not([data-theme="contrast"]){--g1a:.82;--g2a:.69;--g3a:.945;--glass-blur:9px;--blur-3:14px}
+:root[data-glass="7"]:not([data-theme="contrast"]){--g1a:.79;--g2a:.66;--g3a:.94;--glass-blur:10px;--blur-3:16px}
+:root[data-glass="8"]:not([data-theme="contrast"]){--g1a:.75;--g2a:.62;--g3a:.935;--glass-blur:12px;--blur-3:17px}
+:root[data-glass="9"]:not([data-theme="contrast"]){--g1a:.71;--g2a:.57;--g3a:.93;--glass-blur:14px;--blur-3:19px}
+:root[data-glass="10"]:not([data-theme="contrast"]){--g1a:.66;--g2a:.52;--g3a:.92;--glass-blur:16px;--blur-3:20px}
+/* 设了背景图：照片的明暗不由我们决定，除压暗层之外再补一点不透明度。
+   和上面一样不能越 1（"靠 clamp 兜底"不是这一套的口径，越界要在取值上避免）。 */
+:root[data-wall="on"]:not([data-theme="contrast"]){--w1:.05;--w2:.16;--w3:.03}
+
+/* 真毛玻璃只在这几处 —— 一是薄条或静止内容的主容器，二是浮层。
+   :not([data-vfx-busy="on"]) 就是运算期间的让位；高对比主题排除在外 ——
+   它的三档面本来就接近实心，给它挂模糊只会白花 GPU。 */
+:root:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .topbar,
+:root:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .statusbar,
+:root:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .stage>.panel:not(.logpanel){
+  contain:layout;
+  backdrop-filter:blur(var(--glass-blur)) saturate(1.08)}
+/* 设置页外壳：一页占满，内部滚动。模糊加在外壳上而不是那些分类卡上 ——
+   外壳不动，背后那层静止背景的模糊结果就能一直复用；卡片跟着滚，加在卡上就要每帧重算。 */
+:root:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .setpage{
+  contain:layout;
+  backdrop-filter:blur(var(--glass-blur)) saturate(1.08)}
+/* 浮层：最实的一档 + 最强的一档模糊，并比主容器多含一层绘制隔离。 */
+:root:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .mbox{
+  contain:layout paint;
+  backdrop-filter:blur(var(--blur-3)) saturate(1.12)}
+:root:not([data-glass="0"]) .mbox{background-color:var(--glass-3)}
+
+/* 科幻轮廓微光：静态的一次性光晕，**不挂 transition** ——
+   给阴影挂过渡等于每次过渡都逐帧重新光栅化，那正是扁平化那一段里记下的坑。
+   它原来是一个独立开关（「科幻轮廓微光」），现在恒开：实测它对帧率没有可测影响。 */
+:root .panel:not(.logpanel){
+  box-shadow:0 0 0 1px var(--sig-ring),0 0 16px -10px var(--sig-glow)}
+:root .mbox,
+:root .toast{
+  box-shadow:0 0 0 1px var(--sig-ring),0 0 22px -12px var(--sig-glow)}
+/* 轮廓微光同时把四角描边点亮一档：细描边是这套界面的科幻感来源，光晕只是它的补充。 */
+:root .panel:not(.logpanel)::before,
+:root .panel:not(.logpanel)::after{opacity:.55}
+
+/* 面板淡入。只动 opacity，**不动 transform** ——
+   玻璃面板一旦位移，背后那块纹理就得每帧重新采样，等于自己把红线请回来。
+   时长走变量，精简动效与系统的"减少动态效果"把变量归零即等于关掉（两处必须逐条相同）。 */
+:root{--vfx-fade:.16s}
+@keyframes vfx-fade{from{opacity:0}to{opacity:1}}
+:root[data-fade="on"] .mbox{animation:vfx-fade var(--vfx-fade) ease-out both}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font:var(--fs-13-5)/1.6 var(--ui);overflow:hidden;
+  -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input{font:inherit;color:inherit}
+::selection{background:var(--sel)}
+[hidden]{display:none !important}
+
+/* 背景：静态。这一层占满视口，所以它绝对不能带 filter / backdrop-filter / 动画。 */
+.bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.aurora{position:absolute;inset:0;background:
+    linear-gradient(180deg,var(--aurora-a),transparent 42%),
+    radial-gradient(52% 40% at 88% -6%,var(--aurora-b),transparent 68%)}
+.grid{position:absolute;inset:0;opacity:.5;
+  background-image:linear-gradient(var(--grid-ink) 1px,transparent 1px),
+                   linear-gradient(90deg,var(--grid-ink) 1px,transparent 1px);
+  background-size:48px 48px;
+  mask-image:radial-gradient(130% 100% at 50% 0,#000 24%,transparent 92%)}
+
+/* ===== 外壳：顶栏 / 页面 / 状态栏 三段纵向 =====
+   三段高度都由 token 决定（--row-top / --row-bot），字号一放大它们跟着长，
+   否则字会被切掉。三条横向带夹着中间那一页，是这套界面唯一的结构。 */
+.shell{position:relative;z-index:1;display:grid;grid-template-rows:var(--row-top) 1fr var(--row-bot);height:100%}
+
+/* ---------------------------------------------------------------- 顶栏 ----
+   四段各司其职：身份（这是哪个工具）、页面导航（我在哪、能去哪）、
+   连接进展（现在走到哪一步）、当前状态（此刻在干什么）。 */
+.topbar{display:flex;align-items:center;gap:var(--s3);padding:0 18px;
+  border-bottom:1px solid var(--line);background:var(--chrome)}
+.glyph{position:relative;width:22px;height:22px;flex:0 0 auto;border-radius:6px;
+  background:linear-gradient(150deg,var(--sig),var(--sig-deep));box-shadow:0 0 0 1px var(--sig-edge)}
+.glyph::after{content:"";position:absolute;left:6px;top:6px;width:10px;height:10px;border-radius:2px;background:var(--bg)}
+.glyph::before{content:"";position:absolute;left:9px;top:9px;width:4px;height:4px;border-radius:1px;background:var(--sig)}
+.brand{display:flex;align-items:baseline;gap:9px;min-width:0}
+.brand b{font:600 var(--fs-16)/1 var(--disp);letter-spacing:.03em}
+.brand .sub{font-size:var(--fs-12-5);color:var(--ink2)}
+.spacer{flex:1}
+
+/* 页面导航：三段式，当前页高亮。它替代了原先散在右上角的两个按钮 ——
+   "我在哪、能去哪"现在只有一处答案，说明书也顺势从整屏覆盖层降成了一页。 */
+.nav{display:flex;align-items:center;gap:2px;padding:3px;border:1px solid var(--line);
+  border-radius:var(--pill);background:var(--surf)}
+.navi{padding:5px 13px;border-radius:var(--pill);font-size:var(--fs-12-5);color:var(--muted);
+  transition:color .16s,background .16s}
+.navi:hover{color:var(--ink2);background:var(--surf2)}
+.navi.on{color:var(--on-sig);background:var(--sig);font-weight:600}
+
+.linkbar{display:flex;align-items:center;padding:4px 4px 4px 10px;
+  border:1px solid var(--line);border-radius:var(--pill);background:var(--surf)}
+.linkbar .n{font:var(--fs-11-5)/1 var(--mono);color:var(--muted);padding:4px 9px;border-radius:var(--pill)}
+.linkbar .n.on{color:var(--on-sig);background:var(--sig)}
+.linkbar .s{width:14px;height:1px;background:var(--line2);flex:0 0 auto}
+.linkbar .s.on{background:var(--sig)}
+
+.stat{display:flex;align-items:center;gap:9px;padding:6px 13px 6px 11px;
+  border:1px solid var(--line);border-radius:var(--pill);background:var(--surf)}
+.dot{position:relative;width:8px;height:8px;border-radius:50%;background:var(--muted2);flex:0 0 auto}
+.dot.run{background:var(--sig)}
+.dot.bad{background:var(--rose)}
+/* 执行中的呼吸圈：只动 transform + opacity；只在有任务时存在，空闲时页面上没有无限动画。 */
+.dot.run::after{content:"";position:absolute;inset:-1px;border-radius:50%;
+  border:1.5px solid var(--sig-live);animation:beat 1.7s ease-out infinite}
+@keyframes beat{0%{transform:scale(1);opacity:.9}70%{transform:scale(3);opacity:0}100%{transform:scale(3);opacity:0}}
+.stat span{font-size:var(--fs-12-5);color:var(--ink2);white-space:nowrap}
+
+.btn{padding:7px 14px;border:1px solid var(--line);border-radius:var(--r1);
+  color:var(--ink2);font-size:var(--fs-12-5);background:var(--surf2);transition:color .16s,background .16s,border-color .16s}
+.btn:hover:not(:disabled){color:var(--ink);border-color:var(--line2);background:var(--surf3)}
+.btn:disabled{opacity:.38;cursor:not-allowed}
+.btn.sm{padding:5px 10px;font-size:var(--fs-11-5)}
+.btn.danger{color:var(--rose-ink);border-color:var(--rose-edge);background:var(--rose-soft)}
+.btn.danger:hover:not(:disabled){background:var(--rose-soft2)}
+
+/* 顶部提示条：界面只有一扇窗，凡是"本来会弹个黑框告诉你"的事都写在这里 */
+.notice{display:none;align-items:center;gap:10px;padding:9px 20px;font-size:var(--fs-12-5);color:var(--amber-ink);
+  background:var(--amber-soft);border-bottom:1px solid var(--amber-edge)}
+.notice i{width:6px;height:6px;border-radius:50%;background:var(--amber);flex:0 0 auto}
+
+/* ---------------------------------------------------------------- 页面 ----
+   一页 = 侧栏 + 主区。工作台用这个两列；设置与说明书是整页内容，另有自己的排法。
+   窗口变窄时侧栏让位到上面（见文件末尾的媒体查询），主区永远保持可读宽度。 */
+.page{display:grid;grid-template-columns:330px minmax(0,1fr);gap:var(--s4);
+  min-height:0;padding:var(--s4) 18px}
+.side{display:flex;flex-direction:column;min-height:0;gap:var(--s2)}
+.stage{display:flex;flex-direction:column;gap:var(--s3);min-width:0;min-height:0}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--scroll);border-radius:9px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:var(--scroll-hi);background-clip:content-box}
+::-webkit-scrollbar-track{background:transparent}
+
+/* 侧栏的两块：环境结论 + 操作。都是"面板"，但用 panel-flat ——
+   它们的面由 --glass-2 这一级给（见 VFX 那一段），因为它们的内容会随搜索与滚动重算。 */
+.side>.panel{flex:0 0 auto;padding:var(--s3)}
+.side>.panel.grow{flex:1;min-height:0;display:flex;flex-direction:column}
+/* 面板自己的小标题。它替代了原来"每块内容各写一种标题样式"的做法：
+   现在整页只有 .ph 这一种面板标题，字号、字距、左侧短横线都一致。 */
+.ph{display:flex;align-items:center;gap:var(--s2);margin:0 0 var(--s2)}
+.ph h2{font:var(--fs-11)/1 var(--mono);letter-spacing:.14em;color:var(--muted);font-weight:400}
+.ph h2::before{content:"";display:inline-block;width:10px;height:1px;background:var(--muted2);
+  vertical-align:middle;margin-right:7px}
+.ph .linkbtn{margin-left:auto}
+
+.search{position:relative;flex:0 0 auto}
+.search input{width:100%;padding:8px 11px 8px 30px;border:1px solid var(--line);border-radius:var(--r1);
+  background:var(--search);outline:none;font-size:var(--fs-12-5);transition:border-color .16s,box-shadow .16s}
+.search input:focus{border-color:var(--sig-focus);box-shadow:0 0 0 3px var(--sig-soft)}
+.search input::placeholder{color:var(--muted2)}
+.search .ic{position:absolute;left:10px;top:50%;width:11px;height:11px;margin-top:-6px;
+  border:1.5px solid var(--muted);border-radius:50%}
+.search .ic::after{content:"";position:absolute;right:-4px;bottom:-3px;width:5px;height:1.5px;
+  background:var(--muted);transform:rotate(45deg);border-radius:1px}
+.sidecount{font:var(--fs-11)/1.5 var(--mono);color:var(--muted2);white-space:nowrap;
+  padding:var(--s2) 2px var(--s2)}
+
+/* 环境能力条：体检结论的精简投影。不可用的能力标红，对应的操作会被置灰。 */
+.cap{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:var(--r2);overflow:hidden}
+.capcell{display:flex;align-items:center;gap:7px;padding:7px 10px;background:var(--surf);
+  text-align:left;transition:background .16s}
+.capcell:hover{background:var(--surf2)}
+.capcell .cl{font:var(--fs-10-5)/1 var(--mono);color:var(--muted2);letter-spacing:.06em}
+.capcell .cv{font-size:var(--fs-12);color:var(--ink2);margin-left:auto;white-space:nowrap}
+.capcell.ok .cv{color:var(--sig)}
+.capcell.no .cv{color:var(--rose)}
+.capcell.unk .cv{color:var(--muted2)}
+/* 未检测时并成一格：横跨两列，值那一侧用信号绿，明确它是"可点的动作"而不是结论 */
+.capcell.wide{grid-column:1 / -1;cursor:pointer}
+.capcell.wide .cv{color:var(--sig)}
+/* 未选操作时主区那一句话。轻量到不抢视线，只负责把"其他操作在哪"说清楚。 */
+.idle{font-size:var(--fs-12-5);color:var(--muted2);line-height:1.7}
+.idle b{color:var(--ink2);font-weight:600}
+
+/* ---- 操作列表：常驻，按用途分组 ----
+   行名 .op 是"operation"，不再叫 .t（那个名字读不出是什么）。
+   悬停只换边框与底色、**不做位移**：位移会让这一行所在的玻璃面每帧重新取样，
+   而它带来的观感收益只有 2px 那么多。
+   注意这里用的是**实心**的 --surf/--surf2：半透明与玻璃只在 VFX 那一段里覆写
+   （那一段的选择器都带着"设了背景图就让位"的排除）。基础样式一旦自己用玻璃色，
+   美化层就删不干净，设了背景图时也没有东西把它压回实心。 */
+.tasks{flex:1;min-height:0;overflow:auto;padding-right:5px}
+.opgrp{display:flex;align-items:center;gap:8px;margin:var(--s4) 0 var(--s2);
+  padding:5px 0 5px 2px}
+.opgrp:first-child{margin-top:2px}
+.opgrp .tag{width:5px;height:5px;border-radius:1.5px;flex:0 0 auto;background:var(--muted2)}
+.opgrp .gl{font:var(--fs-11)/1 var(--mono);letter-spacing:.14em;color:var(--muted)}
+.opgrp .rule{flex:1;height:1px;background:var(--line)}
+.opgrp.g1 .tag{background:var(--sig)} .opgrp.g2 .tag{background:var(--blue)}
+.opgrp.g3 .tag{background:var(--violet)} .opgrp.g4 .tag{background:var(--amber)}
+.opgrp.g5 .tag{background:var(--muted)} .opgrp.g6 .tag{background:var(--rose)}
+
+.op{display:block;width:100%;text-align:left;padding:9px 12px 9px 13px;margin-bottom:6px;
+  border:1px solid var(--line);border-radius:var(--r2);background:var(--surf);position:relative;
+  transition:border-color .16s,background .16s}
+.op:hover{border-color:var(--line2);background:var(--surf2)}
+.op .nm{display:flex;align-items:center;gap:7px;font-size:var(--fs-13);font-weight:600;margin-bottom:2px}
+.op .nm .lg{margin-left:auto;font:var(--fs-10)/1 var(--mono);color:var(--muted);border:1px solid var(--line2);
+  border-radius:3px;padding:2px 4px;white-space:nowrap}
+.op .ds{font-size:var(--fs-11-5);line-height:1.5;color:var(--muted);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.op.on{border-color:var(--sig-edge);background:var(--surf2)}
+.op.on::before{content:"";position:absolute;left:-1px;top:9px;bottom:9px;width:2px;border-radius:2px;background:var(--sig)}
+.op.on .ds{color:var(--ink2)}
+/* 环境不支持的操作：置灰，鼠标提示只给一句原因（见 .op.off 的 title） */
+.op.off{opacity:.42;cursor:not-allowed}
+.op.off:hover{border-color:var(--line);background:var(--surf)}
+/* 环境存疑但不禁用：琥珀色标记，同样把原因放在 title 里 */
+.op .lim{font:var(--fs-10)/1 var(--mono);color:var(--amber);border:1px solid var(--amber-edge);
+  border-radius:3px;padding:2px 4px;background:var(--amber-soft);white-space:nowrap}
+.op.hide{display:none}
+.opempty{padding:26px 10px;text-align:center;color:var(--muted2);font-size:var(--fs-12-5)}
+
+/* ---- 面板：一级容器 ----
+   面板 = 界面上所有"一块内容"的统一容器。以前这里有三套写法（内容用 .card、
+   浮层用 .mbox、设置用 .mset），圆角与边框各写一遍、命名也读不出同一件事；
+   现在统一到 .panel 这一套，只有浮层例外 —— 它要压在一切之上，圆角与阴影都更重一档。 */
+.panel{position:relative;border:1px solid var(--line);border-radius:var(--r3);
+  background:linear-gradient(180deg,var(--surf),var(--bg2))}
+.panel::before,.panel::after{content:"";position:absolute;width:10px;height:10px;pointer-events:none;
+  opacity:0;transition:opacity .18s}
+.panel::before{top:-1px;left:-1px;border-top:1px solid var(--sig);border-left:1px solid var(--sig);border-radius:var(--r3) 0 0 0}
+.panel::after{bottom:-1px;right:-1px;border-bottom:1px solid var(--sig);border-right:1px solid var(--sig);border-radius:0 0 var(--r3) 0}
+.panel:hover::before,.panel:hover::after{opacity:.9}
+/* panel-flat：面板里还嵌着面板时用。去掉渐变，只留一层更透的底，靠边框分层。 */
+.panel-flat{background:var(--surf)}
+
+.k{display:flex;align-items:center;gap:8px;font:var(--fs-11)/1 var(--mono);letter-spacing:.14em;
+  color:var(--muted);margin-bottom:var(--s3)}
+.k::before{content:"";width:12px;height:1px;background:var(--muted2)}
+.hint{font-size:var(--fs-12-5);color:var(--ink2)}
+
+/* 操作头 + 表单 */
+.formpanel{padding:0;display:flex;flex-direction:column;flex:0 1 auto;max-height:min(56vh,600px)}
+.workhead{padding:var(--s4) var(--s5) var(--s4)}
+.whTop{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap}
+.whTop h2{font:600 var(--fs-17)/1.3 var(--disp);letter-spacing:.01em}
+.chip{font:var(--fs-10-5)/1 var(--mono);padding:3px 7px;border-radius:4px;border:1px solid var(--line2);color:var(--ink2)}
+/* 在场玩家：房主唯一能看到"谁进来了"的地方。安全码用等宽字体放大一点，
+   因为它是要和玩家对着念、逐位核对的一串字符。 */
+.guests{margin-top:var(--s5);padding-top:var(--s4);border-top:1px solid var(--line)}
+.guests .ghead{font:var(--fs-11)/1 var(--mono);letter-spacing:.14em;color:var(--muted);margin-bottom:10px}
+.guests ul{list-style:none;margin:0;padding:0}
+.guests li{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s4);
+  padding:7px 0;border-bottom:1px solid var(--line)}
+.guests li:last-child{border-bottom:0}
+.guests li .gc{font:var(--fs-13)/1 var(--mono);color:var(--ink);letter-spacing:.08em}
+.guests li .gm{font:var(--fs-12)/1 var(--mono);color:var(--muted2)}
+.chip.run-long{color:var(--amber);border-color:var(--amber-edge);background:var(--amber-soft)}
+.chip.grp{color:var(--muted)}
+.whDesc{font-size:var(--fs-12-5);color:var(--ink2);margin-top:7px;max-width:76ch}
+.whtool{margin-left:auto;display:flex;gap:var(--s2)}
+.linkbtn{font:var(--fs-11-5)/1 var(--mono);color:var(--muted);padding:4px 6px;border-radius:4px}
+.linkbtn:hover{color:var(--sig);background:var(--surf2)}
+.cmd{display:block;margin-top:var(--s3);padding:9px 11px;border:1px dashed var(--line2);border-radius:var(--r1);
+  background:var(--field);font:var(--fs-12)/1.5 var(--mono);color:var(--ink2);white-space:pre-wrap;word-break:break-all}
+.fields{display:flex;flex-direction:column;gap:var(--s4);flex:1;min-height:0;overflow:auto;padding:0 var(--s5)}
+.fld label{display:flex;align-items:baseline;gap:7px;font-size:var(--fs-12-5);color:var(--ink2);margin-bottom:6px}
+.fld label .r{font:var(--fs-10)/1 var(--mono);color:var(--rose)}
+.fld label .qi{width:12px;height:12px;border-radius:50%;border:1px solid var(--line2);
+  font:var(--fs-9)/10px var(--mono);text-align:center;color:var(--muted2);cursor:help;flex:0 0 auto}
+.fld input[type=text]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r1);
+  background:var(--field);outline:none;font:var(--fs-13)/1.4 var(--mono);transition:border-color .16s,box-shadow .16s}
+.fld input[type=text]::placeholder{font-family:var(--ui);color:var(--muted2)}
+.fld input[type=text]:focus{border-color:var(--sig-focus);box-shadow:0 0 0 3px var(--sig-soft)}
+.ck{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid var(--line);
+  border-radius:var(--r1);background:var(--field);cursor:pointer;transition:border-color .16s,background .16s}
+.ck:hover{border-color:var(--line2);background:var(--surf2)}
+.ck .bx{position:relative;width:17px;height:17px;flex:0 0 auto;border:1.5px solid var(--line2);
+  border-radius:4px;background:var(--field);display:block;transition:background .16s,border-color .16s}
+.ck input{position:absolute;opacity:0;pointer-events:none}
+.ck .tx{display:block;font-size:var(--fs-12-5);color:var(--ink2)}
+.ck input:checked+.bx{background:var(--sig);border-color:var(--sig)}
+.ck input:checked+.bx::after{content:"";position:absolute;left:4.5px;top:1.5px;width:5px;height:9px;
+  border-right:2px solid var(--cheek);border-bottom:2px solid var(--cheek);transform:rotate(42deg)}
+.ck input:checked~.tx{color:var(--ink)}
+.runbar{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) var(--s5) var(--s4);
+  border-top:1px solid var(--line)}
+.run{padding:11px 26px;border-radius:var(--r1);font:600 var(--fs-13-5)/1 var(--ui);color:var(--cheek);
+  background:var(--sig);box-shadow:0 10px 24px -14px var(--sig-glow);transition:filter .16s}
+.run:hover:not(:disabled){filter:brightness(1.07)}
+.run:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+.runhint{font-size:var(--fs-11-5);color:var(--muted2);margin-left:auto;text-align:right;line-height:1.45}
+
+/* 入口地址卡：本工具唯一要交付给用户的东西，所以出现在最上面、字号最大 */
+.hero{padding:var(--s4) var(--s5) var(--s5);overflow:hidden;border-color:var(--sig-edge);
+  background:linear-gradient(160deg,var(--sig-soft),var(--surf) 46%)}
+.hero .k{color:var(--sig)} .hero .k::before{background:var(--sig)}
+.plate{position:relative;margin:2px 0 var(--s3);padding:15px 16px;border-radius:var(--r2);
+  border:1px solid var(--sig-edge);background:var(--plate);overflow:hidden}
+.plate .shine{position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(100deg,transparent 32%,var(--sheen) 50%,transparent 68%);
+  transform:translateX(-120%)}
+.addr{font:600 var(--fs-26)/1.32 var(--mono);letter-spacing:.005em;word-break:break-all;color:var(--addr-ink);
+  -webkit-user-select:all;user-select:all}
+.rack{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s3)}
+
+/* 说明书页：它本身就是一份独立文档（iframe 内自带排版与主题），这里只负责给它一块地方。
+   以前它是整屏覆盖层，还自带一条标题栏与关闭按钮 —— 标题栏由顶栏导航承担之后，
+   那一整层（定位、层级、关闭语义）连同它的按钮一起删掉了。 */
+#pageManual{display:block;padding:0}
+#manualFrame{width:100%;height:100%;border:0;background:#fff;display:block}
+
+/* 一步开局：默认入口。房主只要一个房间码，玩家只要一次粘贴。
+   颜色与圆角沿用既有配色（信号绿 var(--sig) / 四级文字 / 圆角 8-16），不引第二套样式。 */
+.quick{padding:16px 16px 18px}
+.qhead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.qhead .qt{font-size:var(--fs-17);font-weight:600;color:var(--ink)}
+.qhead .qs{font-size:var(--fs-12-5);color:var(--muted)}
+.qbtns{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.qbtn{flex-direction:column;align-items:flex-start;gap:3px;height:auto;min-height:58px;
+  padding:12px 14px;text-align:left;line-height:1.35;border-radius:12px;cursor:pointer}
+.qbtn .qi{font-size:var(--fs-15);font-weight:600}
+.qbtn .qd{font-size:var(--fs-12-5);font-weight:400;color:var(--muted)}
+.qbtn:hover{border-color:var(--sig)}
+.qbtn.on{border-color:var(--sig);box-shadow:0 0 0 3px var(--sig-ring)}
+.btn.primary{border-color:var(--sig);background:var(--sig);color:var(--bar-ink);font-weight:600}
+.qform{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:16px;
+  padding-top:14px;border-top:1px solid var(--hair)}
+.qform label{font-size:var(--fs-12-5);color:var(--ink2)}
+.qform input,.qform textarea{padding:0 10px;height:34px;border-radius:8px;
+  border:1px solid var(--hair2);background:var(--field);color:var(--ink);
+  font:inherit;font-size:var(--fs-13)}
+.qform input{width:190px}
+.qform input.tiny{width:86px;text-align:center}
+.qpre{flex:1 1 100%;font-size:var(--fs-12-5);color:var(--ink2);background:var(--pre-bg);
+  border-left:2px solid var(--sig);border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:2px}
+.qpre b{color:var(--ink);font-weight:600}
+.qform textarea{flex:1 1 320px;height:auto;min-height:58px;padding:7px 10px;resize:vertical;
+  font-size:var(--fs-12-5);line-height:1.6}
+.qnote{flex:1 1 100%;font-size:var(--fs-12);color:var(--muted)}
+@media (max-width:820px){ .qbtns{grid-template-columns:1fr} }
+
+/* 邀请卡片：房主唯一需要转发的一段话 */
+.invite{margin-top:16px;border-top:1px solid var(--hair);padding-top:12px}
+.invhead{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.invhead span{flex:1;font-size:var(--fs-12-5);color:var(--ink2)}
+.invtext{font-family:Consolas,"Cascadia Mono",monospace;font-size:var(--fs-12-5);line-height:1.7;
+  white-space:pre-wrap;word-break:break-all;background:var(--field);
+  border:1px solid var(--hair);border-radius:8px;padding:10px 12px;
+  color:var(--ink2);max-height:280px;overflow:auto}
+
+/* 提示条：一句结论 + 一个动作。目前只用于"入站未放行"这一件事。
+   Windows 防火墙默认拦掉所有入站，这是"我这边正常、玩家就是连不上"的头号原因，
+   所以提示放在最上面；但要不要放行由用户点，界面不自动改系统。 */
+.banner{display:flex;align-items:center;gap:var(--s3);padding:11px 14px;
+  border:1px solid var(--amber-edge);border-radius:var(--r2);background:var(--amber-soft);
+  color:var(--amber-ink);font-size:var(--fs-12-5)}
+.banner .bi{width:6px;height:6px;border-radius:50%;background:var(--amber);flex:0 0 auto}
+.banner .bt{flex:1;min-width:0}
+.banner .btn.amber{color:var(--amber-on);background:var(--amber);border-color:transparent}
+.banner .btn.amber:hover:not(:disabled){background:var(--amber);color:var(--amber-on);filter:brightness(1.06)}
+
+/* 日志：两层各一个容器，切换靠显示/隐藏，不重建节点 */
+.logpanel{flex:1;min-height:140px;display:flex;flex-direction:column;padding:var(--s3) var(--s4) var(--s4)}
+.loghead{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-bottom:var(--s2)}
+.loghead .k{margin:0}
+.segs{display:flex;border:1px solid var(--line);border-radius:var(--r1);overflow:hidden}
+.seg{padding:4px 10px;font:var(--fs-11-5)/1.5 var(--mono);color:var(--muted);transition:color .16s,background .16s}
+.seg+.seg{border-left:1px solid var(--line)}
+.seg:hover{color:var(--ink2);background:var(--surf2)}
+.seg.on{color:var(--surf);background:var(--ink2)}
+.loghead .r{margin-left:auto;display:flex;align-items:center;gap:var(--s2)}
+.linecnt{font:var(--fs-11)/1 var(--mono);color:var(--muted2)}
+.log{flex:1;min-height:0;overflow:auto;padding:var(--s3) 0;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r2)}
+.ln{display:flex;gap:10px;font:var(--fs-12-5)/1.66 var(--mono);padding:0 12px;white-space:pre-wrap;word-break:break-word}
+/* 行号：用最低那一级灰阶，但**不再叠 opacity** —— 原来 .6 的透明度把它压到对比度 1.4，
+   等于看不见。层次交给字号与位置，不交给"让人读不到"。 */
+.ln .no{flex:0 0 auto;width:34px;text-align:right;color:var(--muted2);-webkit-user-select:none;user-select:none}
+.ln .tx{flex:1;min-width:0}
+.ln.dim .tx{color:var(--muted)}
+.ln.ok .tx{color:var(--ok-ink)}
+.ln.bad .tx{color:var(--bad-ink)}
+.ln.warn .tx{color:var(--warn-ink)}
+.ln.info .tx{color:var(--info-ink)}
+.lgempty{padding:30px 16px;text-align:center;color:var(--muted2);font:var(--fs-12)/1.7 var(--mono)}
+
+/* ---- 详情浮层：界面上唯一的浮层 ----
+   操作里那些原理性内容（握手过程、为什么这样做）放在这里，不铺在主界面。
+   设置与说明书都不再走这里 —— 它们是页，不是"点开看完就关掉"的东西。 */
+.modal{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;
+  background:var(--panel)}
+.mbox{width:min(760px,92vw);max-height:76vh;display:flex;flex-direction:column;
+  border:1px solid var(--line2);border-radius:var(--r3);background:var(--bg2)}
+.mhead{display:flex;align-items:center;gap:var(--s3);padding:var(--s4) var(--s5);
+  border-bottom:1px solid var(--line)}
+.mhead .mt{font:600 var(--fs-15)/1.3 var(--disp)}
+.mbody{padding:var(--s4) var(--s5);overflow:auto;font-size:var(--fs-13);line-height:1.75;color:var(--ink2);
+  white-space:pre-wrap}
+
+/* ==================== 设置页 ====================
+   三个一级分类，顺序固定，各自只装一类信息：
+     主题外观   —— 配色、背景、特效、排版。全是"看一眼就知道改了什么"的外观项。
+     辅助工具   —— 背景音乐、填表与日志。软件自带的附加能力，关掉任何一项联机照常。
+     关于与状态 —— 只读信息集中在这里（版本、环境、目录、占用），另加维护动作。
+   每个设置项的结构统一为：标题 + 状态标签 / 说明 / 控件 / 悬停可见的更细提示。
+   面板上只放真的会生效的设置 —— 做不到的东西不进来（有用例逐项兜着）。
+   为什么状态信息只在"关于与状态"里出现一次：它以前在顶栏、底栏、设置里各有一份，
+   三处不一致时没人知道该信哪一个。 */
+/* 设置页外壳：占满一页、自己不滚，滚动交给里面的 .mset。
+   玻璃加在这一层而不是那些分类卡上 —— 外壳不动，背后静止背景的模糊结果就能一直复用。 */
+.setpage{display:block;padding:0;overflow:hidden}
+.mset{height:100%;overflow:auto;padding:var(--s5) 22px var(--s5);
+  display:flex;flex-direction:column;gap:var(--s4);white-space:normal}
+/* 页首一句话：这一页怎么用。它替掉了原先面板底部那段"没有未保存状态"的说明 ——
+   那句话是给"找不到保存按钮的人"看的，放在最前面才有用。 */
+.mintro{font-size:var(--fs-12-5);color:var(--ink2);line-height:1.7;max-width:78ch}
+.mintro b{color:var(--ink)}
+
+/* 一级分类卡 */
+.mcat{border:1px solid var(--line);border-radius:var(--r3);background:var(--surf);
+  padding:var(--s4) var(--s5) var(--s3)}
+.mcathead{display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s3)}
+.mcathead .ic{flex:0 0 auto;display:flex;color:var(--sig)}
+.mcathead .tt{font:600 var(--fs-15)/1.2 var(--disp)}
+.mcathead .sub{flex:1;min-width:0;font-size:var(--fs-11-5);color:var(--muted);line-height:1.5}
+
+/* 设置项：一行一项。左边标题+说明，右边控件 —— 控件位置固定，扫一列就知道改哪个。 */
+.mitem{display:grid;grid-template-columns:minmax(0,1fr) max-content;gap:var(--s2) var(--s5);
+  align-items:center;padding:11px 0;border-top:1px solid var(--hair)}
+.mitem:first-child{border-top:0}
+.mi-h{display:flex;align-items:center;gap:var(--s2);margin-bottom:3px}
+.mi-t{font-size:var(--fs-13);font-weight:600;color:var(--ink)}
+/* 状态标签：只说"这一项现在是什么状态"，不重复控件里的信息。 */
+.mi-tag{font:var(--fs-10)/1 var(--mono);padding:2px 6px;border-radius:3px;white-space:nowrap;
+  border:1px solid var(--line2);color:var(--muted)}
+.mi-tag.chg{border-color:var(--sig-edge);color:var(--sig);background:var(--sig-soft)}
+.mi-d{font-size:var(--fs-11-5);color:var(--muted);line-height:1.6;max-width:64ch}
+.mi-c{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;justify-content:flex-end}
+/* 控件旁边的一小句结果（例如帧率实测的数字）。等宽字体，因为它量的是数字。 */
+.mi-out{font:var(--fs-11-5)/1 var(--mono);color:var(--muted2)}
+/* 分类内部的小标题：用在只读信息与变更记录之间，只做分隔，不再承载分组语义。 */
+.msub{display:flex;align-items:baseline;gap:var(--s3);margin:var(--s4) 0 var(--s2);
+  padding-top:var(--s3);border-top:1px solid var(--hair)}
+.msub:first-child{margin-top:0;padding-top:0;border-top:0}
+.msub .tt{font:var(--fs-11)/1.5 var(--mono);letter-spacing:.12em;color:var(--muted);white-space:nowrap}
+.msub .sp{flex:1}
+/* 窄窗口下控件换到下一行铺开：硬挤在同一行会把说明压成一条缝 */
+@media (max-width:760px){
+  .mitem{grid-template-columns:1fr}
+  .mi-c{justify-content:flex-start}
+}
+
+/* 辅助板块的定位声明：把"这是附加项"写在脸上，而不是让用户去猜 */
+.mbenefit{display:flex;gap:var(--s2);margin:0 0 var(--s3);padding:var(--s2) var(--s3);
+  border:1px solid var(--line);border-radius:var(--r1);background:var(--surf2);
+  font-size:var(--fs-11-5);line-height:1.6;color:var(--ink2)}
+.mbenefit .ic{flex:0 0 auto;display:flex;color:var(--muted)}
+
+/* 关于与状态：整块只读，不给任何输入控件留位置（有用例守住这一条） */
+.mabout{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px var(--s5);margin:0;
+  font-size:var(--fs-12)}
+.mabout dt{color:var(--muted)}
+.mabout dd{margin:0;color:var(--ink2);overflow-wrap:anywhere}
+.mabout dd.mono{font-family:var(--mono);font-size:var(--fs-11-5)}
+.mstats{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s2);margin-top:var(--s3)}
+.mstat{padding:var(--s2) var(--s3);border:1px solid var(--hair);border-radius:var(--r1);
+  background:var(--surf2)}
+.mstat .k{font-size:var(--fs-11);color:var(--muted)}
+.mstat .v{font:600 var(--fs-13)/1.3 var(--mono);color:var(--ink);margin-top:2px}
+.mstat .n{font-size:var(--fs-11);color:var(--muted2)}
+.mnotice{display:flex;gap:var(--s2);margin-top:var(--s3);padding:var(--s2) var(--s3);
+  border:1px solid var(--amber-edge);border-radius:var(--r1);background:var(--amber-soft);
+  font-size:var(--fs-11-5);line-height:1.6;color:var(--ink2)}
+.mnotice .ic{flex:0 0 auto;display:flex;color:var(--amber)}
+
+/* 变更记录：就放在"关于与状态"里，不再是一扇独立的门 ——
+   它是状态的一部分（这份配置被谁改过），不是第二个设置页。 */
+.mchg{display:flex;flex-direction:column;margin:var(--s2) 0}
+.mchgr{display:flex;align-items:baseline;gap:8px;padding:5px 0;
+  border-bottom:1px solid var(--hair);font-size:var(--fs-11-5);color:var(--ink2)}
+.mchgr .t{flex:0 0 118px;font-family:var(--mono);color:var(--muted)}
+.mchgr .m{flex:0 0 92px;color:var(--muted)}
+.mchgr .i{flex:1;min-width:0}
+.mchgr .v{flex:0 0 auto;font-family:var(--mono);color:var(--muted)}
+.mchgempty{padding:var(--s3) 2px;color:var(--muted2);font-size:var(--fs-11-5)}
+
+/* ---- 设置控件（统一命名 m 前缀） ----
+   分段器 / 开关 / 输入框 / 色点，四种就够：面板上不该出现第五种控件形态。 */
+.mseg{display:flex;border:1px solid var(--line);border-radius:var(--r1);overflow:hidden}
+.mseg button{padding:5px 12px;font-size:var(--fs-12);color:var(--muted);transition:color .16s,background .16s}
+.mseg button+button{border-left:1px solid var(--line)}
+.mseg button:hover{color:var(--ink2);background:var(--surf2)}
+.mseg button.on{color:var(--on-sig);background:var(--sig)}
+.msw{display:flex;align-items:center;gap:8px;font-size:var(--fs-12-5);color:var(--ink2);cursor:pointer}
+.msw input{width:15px;height:15px;accent-color:var(--sig);cursor:pointer}
+.mtxt{width:100%;max-width:330px;padding:0 10px;height:32px;border-radius:8px;
+  border:1px solid var(--hair2);background:var(--field);color:var(--ink);font-size:var(--fs-12-5)}
+.mtxt:focus{outline:none;border-color:var(--sig-focus);box-shadow:0 0 0 3px var(--sig-soft)}
+.mtxt.small{max-width:120px}
+/* 档位滑杆（毛玻璃 0-10）。拖动时只更新右侧那个数字，松手才落盘 —— 见 uiBind 里那段。
+   它是控件、不是"面"，所以不进玻璃那一段，也不挂 backdrop-filter。 */
+.mrange{display:flex;align-items:center;gap:var(--s3)}
+.mrange input[type=range]{-webkit-appearance:none;appearance:none;width:190px;height:4px;
+  border-radius:2px;background:var(--line2);cursor:pointer}
+.mrange input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+  width:16px;height:16px;border-radius:50%;background:var(--sig);border:1px solid var(--sig-deep)}
+.mrange input[type=range]:focus{outline:2px solid var(--sig-focus);outline-offset:3px}
+.mrange .rv{min-width:2ch;text-align:right;font:var(--fs-11-5)/1 var(--mono);color:var(--ink2)}
+.mdot{width:22px;height:22px;border-radius:50%;border:1px solid var(--line2);cursor:pointer;padding:0}
+.mdot.on{box-shadow:0 0 0 2px var(--surf),0 0 0 4px var(--sig-edge)}
+
+/* ---- 维护操作：一律集中在这里 ----
+   恢复默认、导出、导入、变更记录、打开数据目录、导出诊断包 —— 全是"动作"而不是设置，
+   所以它们不在上面三个分类里，也不会散落在各分类的标题旁边。
+   恢复默认仍然保留两个范围（当前分类 / 全部），但入口只有一个，点开后再选范围。 */
+.mmaint{border:1px solid var(--line);border-radius:var(--r3);background:var(--surf);
+  padding:var(--s4) var(--s5)}
+.mmaint .acts{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s3)}
+.mmaint .mnote{flex:1 1 100%;margin-top:var(--s2);font-size:var(--fs-11-5);color:var(--muted);line-height:1.6}
+/* 就地确认条：重置是"会连改好几项"的操作，先问一句再动手，不弹系统对话框。 */
+.mconfirm{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s3);
+  padding:var(--s2) var(--s3);border:1px solid var(--amber-edge);border-radius:var(--r1);
+  background:var(--amber-soft);font-size:var(--fs-11-5);color:var(--ink2)}
+.mconfirm .sp{flex:1}
+.mconfirm .q{font-size:var(--fs-11-5);color:var(--ink2)}
+
+/* 状态栏：当前任务 + 保存状态 + 常驻小工具 + 快捷键 + 生命周期动作。
+   它以前只放一句任务名和一个版本号（那个版本号还和顶栏重复），中间一大片空白；
+   版本号撤掉、停止/退出挪进来之后，这一条才真的在用。 */
+.statusbar{display:flex;align-items:center;gap:var(--s3);padding:0 18px;border-top:1px solid var(--line);
+  background:var(--chrome);font:var(--fs-11)/1 var(--mono);color:var(--muted2);white-space:nowrap;overflow:hidden}
+.statusbar>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.statusbar .sb-task{color:var(--muted)}
+.statusbar .sb-save{color:var(--sig)}
+.statusbar .sb-save.bad{color:var(--rose-ink)}
+.statusbar .gap{flex:1;overflow:visible}
+.statusbar .sb-life{flex:0 0 auto;display:flex;align-items:center;gap:var(--s2)}
+/* 状态栏的背景音乐入口：只显示当前曲名，**不做任何动画** —— 常驻区域对动画最不宽容，
+   而且它每 700ms 会跟着状态刷新一次，动画会让这条底线变得很难守。 */
+#bgmName{display:inline-block;max-width:22vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
+
+.toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);z-index:50;
+  padding:9px 17px;border-radius:var(--pill);border:1px solid var(--sig-edge);
+  background:var(--toast-ok-bg);color:var(--toast-ok-ink);font-size:var(--fs-12-5);max-width:70vw}
+.toast.bad{border-color:var(--toast-bad-edge);background:var(--toast-bad-bg);color:var(--toast-bad-ink)}
+@media (prefers-reduced-motion:reduce){
+  .dot.run::after{animation:none;opacity:.45}
+  *{transition:none !important}
+  :root{--vfx-fade:0s}
+}
+/* 窗口被拖窄时，让位的顺序是按"信息是否还有别处"排的：
+   进度链最先走（同样的信息在状态胶囊里也有一份），然后是导航的文字内边距，
+   最后侧栏从"左边一列"改成"上面一块"。身份与状态栏的动作永远留着。 */
+@media (max-width:1040px){.linkbar{display:none}}
+@media (max-width:900px){.nav .navi{padding:5px 9px}}
+@media (max-width:960px){
+  .page{grid-template-columns:1fr;grid-auto-rows:min-content}
+  .side{max-height:46vh}
+  .side>.panel.grow{min-height:200px}
+}

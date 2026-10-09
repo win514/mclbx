@@ -129,12 +129,14 @@ func listenArg(v string) string {
 	return s
 }
 
-// renderGuiPage 将界面设置注入 HTML，主题等属性须由服务端注入以避免首屏闪烁。
+// renderGuiPage 将界面设置注入 HTML 骨架，主题等属性须由服务端注入以避免首屏闪烁。
+// 样式与脚本不在这个字符串里：它们是 assets/gui.css 与 assets/gui.js，
+// 由浏览器按骨架里的引用各自去取 —— 服务端只负责发骨架与状态（见 guiassets.go）。
 func renderGuiPage() string {
 	ui := loadUI()
 	// 背景图与主题属性一起注入：两者都要在首屏之前定下来，否则会先闪一下默认外观
 	attrs := ui.htmlAttr() + wallAttr(wallFromConfig(ui.BgImage))
-	p := strings.Replace(guiPageHTML, "@@UIATTRS@@", attrs, 1)
+	p := strings.Replace(guiShellHTML, "@@UIATTRS@@", attrs, 1)
 	return strings.Replace(p, "@@UIJSON@@", ui.uiStartupJSON(), 1)
 }
 
@@ -955,11 +957,13 @@ func guiAllowedHost(addr string) bool {
 	return host == "127.0.0.1" || host == "localhost" || host == "::1"
 }
 
-// guiNoStorePath 返回内容随 exe 变化的路径：界面本体与 JSON 接口。
-// 不设缓存头时浏览器会按启发式规则缓存旧页面，换上新版 exe 后打开的仍是上一份界面。
+// guiNoStorePath 返回内容随 exe 变化的路径：界面本体、JSON 接口，以及界面的样式与脚本。
+// 不设缓存头时浏览器会按启发式规则缓存旧文件，换上新版 exe 后打开的仍是上一份界面 ——
+// 拆成外链之后这件事更要紧：页面已经是新的、样式或脚本却还是旧的，问题看起来会更离奇。
+// 这两个文件是从内存里读的、走的是本机回环，不做缓存省不下什么。
 // 音频与背景图不在此列：/music/ 用 no-cache 以免拖动进度整段重下，/bg/ 靠名字里的内容哈希做 immutable。
 func guiNoStorePath(p string) bool {
-	return p == "/" || strings.HasPrefix(p, "/api/")
+	return p == "/" || strings.HasPrefix(p, "/api/") || p == guiCSSPath || p == guiJSPath
 }
 
 func guiCachePolicy(next http.Handler) http.Handler {
@@ -969,6 +973,30 @@ func guiCachePolicy(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// guiAssetHandler 把内嵌的 assets/ 挂到 /assets/ 下：页面图标、界面样式、界面脚本都从这里出去。
+// 返回 false 表示内嵌目录取不到（构建时没把 assets 打进来），调用方不挂这条路由。
+//
+// 样式与脚本的 Content-Type 写死，不交给扩展名推断：Windows 上 mime.TypeByExtension 会去读注册表，
+// 而 .js 的类型各机器不一样（本机实测拿到 application/javascript，别处常见 text/plain）。
+// 一旦落到 text/plain，浏览器会以"类型不对"为由拒绝执行脚本（样式同理），界面整块失效，
+// 而错误只出现在浏览器的控制台里 —— 程序这一侧看不出任何异常，所以这里不留这个变数。
+func guiAssetHandler() (http.Handler, bool) {
+	sub, err := iofs.Sub(guiAssetFS, "assets")
+	if err != nil {
+		return nil, false
+	}
+	files := http.StripPrefix("/assets/", http.FileServer(http.FS(sub)))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case guiCSSPath:
+			w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		case guiJSPath:
+			w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		}
+		files.ServeHTTP(w, r)
+	}), true
 }
 
 func cmdGui(args []string) error {
@@ -1070,10 +1098,9 @@ func cmdGui(args []string) error {
 		_, _ = w.Write([]byte(renderGuiPage()))
 	})
 
-	// 静态资源从内嵌文件系统提供
-	if sub, err := iofs.Sub(guiAssetFS, "assets"); err == nil {
-		fileServer := http.FileServer(http.FS(sub))
-		mux.Handle("/assets/", http.StripPrefix("/assets/", fileServer))
+	// 静态资源从内嵌文件系统提供（图标、界面样式、界面脚本）
+	if h, ok := guiAssetHandler(); ok {
+		mux.Handle("/assets/", h)
 	}
 
 	// 背景图片：只按内容哈希取缓存好的那一份，不接受任何路径参数
