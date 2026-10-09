@@ -15,9 +15,9 @@
 #
 # 用法：
 #   .\build-release.ps1
-#   .\build-release.ps1 -Version 'mclbx 1.54'
+#   .\build-release.ps1 -Version 'mclbx 1.55'
 param(
-  [string]$Version = 'mclbx 1.54'
+  [string]$Version = 'mclbx 1.55'
 )
 
 $ErrorActionPreference = 'Stop'

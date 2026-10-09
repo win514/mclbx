@@ -344,19 +344,21 @@
        TestGlassOverPageKeepsTextReadable 逐档核对，不是靠眼睛。
    高对比主题整个排除在外：它的三档面本来就接近实心，随档位变透明等于把"看清"这件事交出去。
    把排除写进选择器而不是靠源码顺序，是为了让"哪一档作用于哪些主题"一眼看得出来。 */
-:root[data-glass="1"]:not([data-theme="contrast"]){--g1a:.94;--g2a:.84;--g3a:.97;--glass-blur:3px;--blur-3:6px}
-:root[data-glass="2"]:not([data-theme="contrast"]){--g1a:.92;--g2a:.81;--g3a:.965;--glass-blur:4px;--blur-3:7px}
-:root[data-glass="3"]:not([data-theme="contrast"]){--g1a:.90;--g2a:.78;--g3a:.96;--glass-blur:5px;--blur-3:9px}
-:root[data-glass="4"]:not([data-theme="contrast"]){--g1a:.88;--g2a:.75;--g3a:.955;--glass-blur:6px;--blur-3:10px}
-:root[data-glass="5"]:not([data-theme="contrast"]){--g1a:.85;--g2a:.72;--g3a:.95;--glass-blur:7px;--blur-3:12px}
-:root[data-glass="6"]:not([data-theme="contrast"]){--g1a:.82;--g2a:.69;--g3a:.945;--glass-blur:9px;--blur-3:14px}
-:root[data-glass="7"]:not([data-theme="contrast"]){--g1a:.79;--g2a:.66;--g3a:.94;--glass-blur:10px;--blur-3:16px}
-:root[data-glass="8"]:not([data-theme="contrast"]){--g1a:.75;--g2a:.62;--g3a:.935;--glass-blur:12px;--blur-3:17px}
-:root[data-glass="9"]:not([data-theme="contrast"]){--g1a:.71;--g2a:.57;--g3a:.93;--glass-blur:14px;--blur-3:19px}
-:root[data-glass="10"]:not([data-theme="contrast"]){--g1a:.66;--g2a:.52;--g3a:.92;--glass-blur:16px;--blur-3:20px}
+:root[data-glass="1"]:not([data-theme="contrast"]){--g1a:.85;--g2a:.72;--g3a:.95;--glass-blur:3px;--blur-3:6px}
+:root[data-glass="2"]:not([data-theme="contrast"]){--g1a:.83;--g2a:.69;--g3a:.945;--glass-blur:4px;--blur-3:7px}
+:root[data-glass="3"]:not([data-theme="contrast"]){--g1a:.81;--g2a:.66;--g3a:.94;--glass-blur:5px;--blur-3:9px}
+:root[data-glass="4"]:not([data-theme="contrast"]){--g1a:.79;--g2a:.63;--g3a:.935;--glass-blur:6px;--blur-3:10px}
+:root[data-glass="5"]:not([data-theme="contrast"]){--g1a:.76;--g2a:.60;--g3a:.93;--glass-blur:7px;--blur-3:12px}
+:root[data-glass="6"]:not([data-theme="contrast"]){--g1a:.73;--g2a:.57;--g3a:.925;--glass-blur:9px;--blur-3:14px}
+:root[data-glass="7"]:not([data-theme="contrast"]){--g1a:.70;--g2a:.54;--g3a:.92;--glass-blur:10px;--blur-3:16px}
+:root[data-glass="8"]:not([data-theme="contrast"]){--g1a:.66;--g2a:.50;--g3a:.915;--glass-blur:12px;--blur-3:17px}
+:root[data-glass="9"]:not([data-theme="contrast"]){--g1a:.62;--g2a:.45;--g3a:.91;--glass-blur:14px;--blur-3:19px}
+:root[data-glass="10"]:not([data-theme="contrast"]){--g1a:.57;--g2a:.40;--g3a:.90;--glass-blur:16px;--blur-3:20px}
 /* 设了背景图：照片的明暗不由我们决定，除压暗层之外再补一点不透明度。
-   和上面一样不能越 1（"靠 clamp 兜底"不是这一套的口径，越界要在取值上避免）。 */
-:root[data-wall="on"]:not([data-theme="contrast"]){--w1:.05;--w2:.16;--w3:.03}
+   补偿量与档位无关，所以被"最不透明的那一档"（档位 1）卡住上限：
+   每一档的 不透明度 + 补偿 恰好还是原来那组取值 —— 背景图下的观感不动，
+   让出来的差额全归普通模式，玻璃整体更透。和上面一样不能越 1。 */
+:root[data-wall="on"]:not([data-theme="contrast"]){--w1:.14;--w2:.28;--w3:.05}
 
 /* 真毛玻璃只在这几处 —— 一是薄条或静止内容的主容器，二是浮层。
    :not([data-vfx-busy="on"]) 就是运算期间的让位；高对比主题排除在外 ——
