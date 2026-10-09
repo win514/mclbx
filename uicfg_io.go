@@ -104,6 +104,9 @@ var uiFieldLabels = map[string]uiFieldInfo{
 	"scale":    {"主题外观", "界面字号"},
 	"motion":   {"主题外观", "动画效果"},
 	"rail":     {"主题外观", "侧边栏样式"},
+	// 高级选项与上面同属主题外观：它们改的也是观感，只是代价由用户自己承担。
+	"transparency": {"主题外观", "面板透明度"},
+	"wallBright":   {"主题外观", "背景图明暗"},
 	// 辅助工具
 	"musicMode": {"辅助工具", "播放顺序"},
 	"musicLoop": {"辅助工具", "循环"},

@@ -83,10 +83,12 @@
   --glass-rgb:13,21,30;
   --w1:0; --w2:0; --w3:0;
   --g1a:.94; --g2a:.84; --g3a:.97; --glass-blur:3px; --blur-3:6px;
-  --glass-1:rgba(var(--glass-rgb),calc(var(--g1a) + var(--w1)));
-  --glass-2:rgba(var(--glass-rgb),calc(var(--g2a) + var(--w2)));
-  --glass-3:rgba(var(--glass-rgb),calc(var(--g3a) + var(--w3)));
-  --wall-scrim:rgba(7,11,17,.80);
+  /* 三层都乘一个"高级选项"倍率：未设置时回落到 1，于是出厂观感逐值不变。
+     min(1,…) 把"更实"那一侧的上限写在取值里，而不是靠浏览器对越界 alpha 的兜底。 */
+  --glass-1:rgba(var(--glass-rgb),min(1,calc((var(--g1a) + var(--w1)) * var(--adv-glass,1))));
+  --glass-2:rgba(var(--glass-rgb),min(1,calc((var(--g2a) + var(--w2)) * var(--adv-glass,1))));
+  --glass-3:rgba(var(--glass-rgb),min(1,calc((var(--g3a) + var(--w3)) * var(--adv-glass,1))));
+  --wall-scrim-rgb:7,11,17;--wall-scrim-a:.80;
   --disp:"Bahnschrift","Segoe UI Variable Display","Microsoft YaHei UI",sans-serif;
   --ui:"Microsoft YaHei UI","Segoe UI Variable Text","Segoe UI",sans-serif;
   --mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
@@ -137,7 +139,7 @@
   --scroll:#C6D2DE; --scroll-hi:#AEBECB;
   --aurora-a:rgba(14,159,110,.05); --aurora-b:rgba(42,111,214,.06);
   --glass-rgb:255,255,255;
-  --wall-scrim:rgba(242,245,249,.80);
+  --wall-scrim-rgb:242,245,249;--wall-scrim-a:.80;
   /* 浅底上的层次靠阴影的"扩散"而不是"黑度"：同样的 alpha 压在浅色上会显脏，
      所以三档都更淡、更散，顶边高光改成压白。 */
   --sh1:0 1px 2px rgba(9,17,26,.06),0 2px 6px -3px rgba(9,17,26,.10);
@@ -191,7 +193,7 @@
      于是无论用户把档位拉到多少，这一档三面始终接近实心。 */
   --glass-rgb:8,13,19;
   --g1a:.97; --g2a:.92; --g3a:.99;
-  --wall-scrim:rgba(0,3,8,.58);
+  --wall-scrim-rgb:0,3,8;--wall-scrim-a:.58;
   /* 高对比这一档的层次压到最低：外阴影与受光边都属于"氛围"，而这一档只服务"看清"。
      数值比深色主题更收敛，也不引入任何新颜色。 */
   --sh1:0 1px 2px rgba(0,0,0,.50);
@@ -247,7 +249,9 @@
 .wall{position:absolute;inset:0;background-image:var(--wall);
   background-size:cover;background-position:center;background-repeat:no-repeat}
 .scrim{position:absolute;inset:0;display:none}
-:root[data-wall="on"] .scrim{display:block;background:var(--wall-scrim)}
+/* 压暗层的深浅同样可以被高级选项覆盖：倍率未设置时回落到 1，出厂观感不变。 */
+:root[data-wall="on"] .scrim{display:block;
+  background:rgba(var(--wall-scrim-rgb),min(1,calc(var(--wall-scrim-a) * var(--adv-scrim,1))))}
 
 /* ---- 扁平化（独立开关，不属于主题） ----
    它动的是材质与层次（圆角、阴影、渐变、光晕），全是减法。两条边界：

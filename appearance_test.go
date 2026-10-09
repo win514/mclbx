@@ -669,10 +669,17 @@ func TestGlassOverPageKeepsTextReadable(t *testing.T) {
 				}
 			}
 			// 有背景图：背后是「用户照片 + 压暗层」，取纯白与纯黑两个极端。
-			scrim, ok := parseColor(v["--wall-scrim"])
+			// 压暗层的颜色与深浅现在是拆开的两个变量（浅深那一项要能被高级选项覆盖），
+			// 这里按同一组取值合成回来，语义与拆分前一致。
+			scrimRGB, ok := parseRGBTriple(v["--wall-scrim-rgb"])
 			if !ok {
-				t.Fatalf("%s+%s：--wall-scrim 取不到颜色（%q）", theme, acc, v["--wall-scrim"])
+				t.Fatalf("%s+%s：--wall-scrim-rgb 不是 r,g,b 三元组（%q）", theme, acc, v["--wall-scrim-rgb"])
 			}
+			scrimA, errA := strconv.ParseFloat(strings.TrimSpace(v["--wall-scrim-a"]), 64)
+			if errA != nil {
+				t.Fatalf("%s+%s：--wall-scrim-a 取不到数值（%q）", theme, acc, v["--wall-scrim-a"])
+			}
+			scrim := rgba{scrimRGB[0], scrimRGB[1], scrimRGB[2], scrimA}
 			withWall := []layer{
 				{"纯白照片+压暗层", over(scrim, rgba{255, 255, 255, 1})},
 				{"纯黑照片+压暗层", over(scrim, rgba{0, 0, 0, 1})},

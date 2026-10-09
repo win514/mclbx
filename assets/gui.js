@@ -1122,6 +1122,19 @@ function uiSub(title, extra){
   return '<div class="msub"><span class="tt">' + title + '</span>' +
     (extra ? '<span class="mi-d">' + extra + '</span>' : '') + '<span class="sp"></span></div>';
 }
+/* 高级选项的出厂位置：两根滑杆的默认值都是它，也是"有没有越过出厂"的分界线。
+   写成一个常量而不是散落的字面量 —— Go 那边另有一份同值的 uiPctDefault，
+   两处一旦不一致，"看到的是出厂值、服务端存的却不是"这种错没人查得出来。 */
+var ADV_FACTORY = 50;
+/* 高级选项的说明行。越过出厂位置（往更冒险的那一端）就当场提醒 ——
+   警告必须出现在改动的那一刻，只写在说明书里等于没提示。 */
+function advHintText(key, u){
+  var v = parseInt(key === 'wallBright' ? u.wallBright : u.transparency, 10);
+  if(isNaN(v)){ v = ADV_FACTORY; }
+  if(v > ADV_FACTORY){ return '已越过出厂值：部分文字可能看不清。'; }
+  if(v < ADV_FACTORY){ return '比出厂值更保守，文字更容易看清。'; }
+  return '出厂值。往左往右都会改变观感。';
+}
 /* 「已改动」标签的判据。默认值这份表与 uiCollect() 里那份是同一个口径 ——
    两边不一致的症状是"某一项明明是默认值却挂着已改动"，而那种错没人会去查。
    remember 存的是"关掉"的反面，logKeep 服务端给的是生效值，都要先还原成同一个口径再比。 */
@@ -1129,7 +1142,8 @@ var UI_DEF = {
   theme:'auto', accent:'mint', flat:'off', radii:'std', backdrop:'on', bgImage:'',
   glass:'on', fade:'on', scale:'std', motion:'full',
   rail:'std', musicMode:'order', musicLoop:'all', musicVol:'70', remember:'',
-  logKeep:'2000', defPort:'', defRelay:''
+  logKeep:'2000', defPort:'', defRelay:'',
+  transparency:String(ADV_FACTORY), wallBright:String(ADV_FACTORY)
 };
 function uiTag(u, key){
   // 纯动作行（帧率实测、曲库、播放控制、清除…）没有对应的设置字段，key 传空串。
@@ -1193,7 +1207,16 @@ function uiThemeHTML(u){
       '系统「减少动态效果」优先。') +
     uiItem('rail', '侧边栏样式', uiSeg('rail', u.rail, [['std','标准'],['compact','紧凑']]),
       '去掉操作行说明、收紧行距。',
-      '只影响排版；名称、顺序与行为不变。');
+      '只影响排版；名称、顺序与行为不变。') +
+    /* 高级选项自成一组：调的是同一批观感，但可能比出厂更冒险，代价由用户自己承担。
+       出厂值放正中间，所以往两端都有意义，不是一根只能往一边拉的杆。 */
+    uiSub('高级选项', '出厂值在中间；越过出厂值后文字可能看不清') +
+    uiItem('transparency', '面板透明度', uiRange('transparency', u.transparency, 0, 100),
+      advHintText('transparency', u),
+      '往右面板更透明、往左更接近实心；50 是出厂值。') +
+    uiItem('wallBright', '背景图明暗', uiRange('wallBright', u.wallBright, 0, 100),
+      advHintText('wallBright', u),
+      '往右照片更清楚、往左照片更暗；50 是出厂值。');
 }
 
 /* ---- 分类二：辅助工具 ---- */
@@ -1390,6 +1413,7 @@ function uiCollect(){
     theme:u.theme || 'auto', accent:u.accent || 'mint', motion:u.motion || 'full',
     backdrop:u.backdrop || 'on', scale:u.scale || 'std', flat:u.flat || 'off',
     glass:u.glass || 'on', fade:u.fade || 'on',
+    transparency:u.transparency || String(ADV_FACTORY), wallBright:u.wallBright || String(ADV_FACTORY),
     bgImage:u.bgImage || '', musicMode:u.musicMode || 'order', musicLoop:u.musicLoop || 'all',
     musicVol:u.musicVol || '70', remember:u.remember || '', logKeep:u.logKeep || '',
     defPort:u.defPort || '', defRelay:u.defRelay || '',
@@ -1422,6 +1446,23 @@ function uiCollect(){
   });
   return out;
 }
+/* 高级选项：把两根滑杆的百分比换算成"倍率"，写到 <html> 的内联自定义属性上。
+   倍率 1 = 出厂；透明度往右（更透）倍率小于 1，背景明暗往右（照片更亮）倍率小于 1。
+   出厂值一律用 removeProperty 清掉属性 —— 不写覆盖，出厂观感就与引入这两项之前逐值相同。
+   只改这两个无单位的倍率，颜色与基准不透明度都留在 CSS 里，避免同一组取值写两份。 */
+function applyAdvanced(el, transparency, wallBright){
+  function pct(v){
+    var n = parseInt(v, 10);
+    return isNaN(n) ? ADV_FACTORY : n;
+  }
+  function put(prop, raw, perStep){
+    var k = (pct(raw) - ADV_FACTORY) / ADV_FACTORY;  // -1 … 1
+    if(k === 0){ el.style.removeProperty(prop); return; }
+    el.style.setProperty(prop, String(1 - k * perStep));
+  }
+  put('--adv-glass', transparency, 0.60);
+  put('--adv-scrim', wallBright, 0.75);
+}
 /* 外观各项立刻生效（改完就能看到），其余的存在服务端、下次拼命令时生效 */
 function uiApply(u){
   var el = document.documentElement;
@@ -1447,6 +1488,8 @@ function uiApply(u){
     el.removeAttribute('data-wall');
     el.style.removeProperty('--wall');
   }
+  // 高级选项与背景图相关：两者改的都是"照片与面板的观感"，所以放在同一段里立刻生效。
+  applyAdvanced(el, u.transparency, u.wallBright);
   if(window.MCLBX_THEME){ window.MCLBX_THEME(u.theme || 'auto'); }
   else{ el.setAttribute('data-theme', u.theme || 'auto'); }
   syncManualTheme();
@@ -1457,7 +1500,9 @@ function uiApply(u){
 function uiRefreshHints(u){
   var body = $('settingsBody');
   if(!body || !u){ return; }
-  [['[data-in="bgImage"]', wallHintText(u)], ['[data-rng="glass"]', glassHintText(u)]].forEach(function(pr){
+  [['[data-in="bgImage"]', wallHintText(u)],
+   ['[data-rng="transparency"]', advHintText('transparency', u)],
+   ['[data-rng="wallBright"]', advHintText('wallBright', u)]].forEach(function(pr){
     var el = body.querySelector(pr[0]);
     var row = el && el.closest ? el.closest('.mitem') : null;
     var hint = row ? row.querySelector('.mi-d') : null;

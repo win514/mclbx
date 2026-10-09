@@ -25,24 +25,28 @@ type guiConfig struct {
 
 // guiUIState 界面偏好；读取时统一归一化，非法取值回落到默认。
 type guiUIState struct {
-	Theme     string `json:"theme,omitempty"`     // auto（跟随系统）/ dark / light / contrast
-	Accent    string `json:"accent,omitempty"`    // mint / blue / violet
-	Motion    string `json:"motion,omitempty"`    // full / lite
-	Backdrop  string `json:"backdrop,omitempty"`  // on / off
-	Scale     string `json:"scale,omitempty"`     // std / big（界面字号，独立于主题）
-	Flat      string `json:"flat,omitempty"`      // on / off（扁平化，独立于主题）
-	Glass     string `json:"glass,omitempty"`     // on / off（毛玻璃）：off = 实心不做模糊，on = 最透明那一档
-	Fade      string `json:"fade,omitempty"`      // on / off（面板淡入）
-	BgImage   string `json:"bgImage,omitempty"`   // 背景图片名（存档 wallpapers 目录里的一个文件）；空 = 不用
-	Radii     string `json:"radii,omitempty"`     // sharp / std / round（界面圆角大小）
-	Rail      string `json:"rail,omitempty"`      // std / compact（侧边栏样式）
-	MusicMode string `json:"musicMode,omitempty"` // order / shuffle（顺序 / 随机）
-	MusicLoop string `json:"musicLoop,omitempty"` // off / all / one（不循环 / 列表循环 / 单曲循环）
-	MusicVol  string `json:"musicVol,omitempty"`  // 0-100，十进制字符串
-	Remember  string `json:"remember,omitempty"`  // "0" = 不记住填写内容；空 = 记住
-	LogKeep   string `json:"logKeep,omitempty"`   // 日志每层保留行数
-	DefPort   string `json:"defPort,omitempty"`   // 默认游戏端口；空 = 不干预
-	DefRelay  string `json:"defRelay,omitempty"`  // 默认中转服务器；空 = 不干预
+	Theme    string `json:"theme,omitempty"`    // auto（跟随系统）/ dark / light / contrast
+	Accent   string `json:"accent,omitempty"`   // mint / blue / violet
+	Motion   string `json:"motion,omitempty"`   // full / lite
+	Backdrop string `json:"backdrop,omitempty"` // on / off
+	Scale    string `json:"scale,omitempty"`    // std / big（界面字号，独立于主题）
+	Flat     string `json:"flat,omitempty"`     // on / off（扁平化，独立于主题）
+	Glass    string `json:"glass,omitempty"`    // on / off（毛玻璃）：off = 实心不做模糊，on = 最透明那一档
+	Fade     string `json:"fade,omitempty"`     // on / off（面板淡入）
+	BgImage  string `json:"bgImage,omitempty"`  // 背景图片名（存档 wallpapers 目录里的一个文件）；空 = 不用
+	Radii    string `json:"radii,omitempty"`    // sharp / std / round（界面圆角大小）
+	Rail     string `json:"rail,omitempty"`     // std / compact（侧边栏样式）
+
+	// 高级选项：两个 0-100 的百分比，出厂都是 50。只在离开出厂值时才覆盖样式。
+	Transparency string `json:"transparency,omitempty"` // 面板透明度：越大面板越透
+	WallBright   string `json:"wallBright,omitempty"`   // 背景图明暗：越大照片越清楚
+	MusicMode    string `json:"musicMode,omitempty"`    // order / shuffle（顺序 / 随机）
+	MusicLoop    string `json:"musicLoop,omitempty"`    // off / all / one（不循环 / 列表循环 / 单曲循环）
+	MusicVol     string `json:"musicVol,omitempty"`     // 0-100，十进制字符串
+	Remember     string `json:"remember,omitempty"`     // "0" = 不记住填写内容；空 = 记住
+	LogKeep      string `json:"logKeep,omitempty"`      // 日志每层保留行数
+	DefPort      string `json:"defPort,omitempty"`      // 默认游戏端口；空 = 不干预
+	DefRelay     string `json:"defRelay,omitempty"`     // 默认中转服务器；空 = 不干预
 }
 
 // themeValues 主题白名单，须与 CSS 的 :root[data-theme=…] 及 guihtml.go 的 uiThemes() 一致。
@@ -71,6 +75,26 @@ const (
 
 // glassValues 全部合法取值。用例拿它核对"取值清单与 CSS 逐块对应"。
 var glassValues = []string{uiGlassOff, uiGlassOn}
+
+// 高级显示选项：两个 0-100 的百分比，出厂值都在正中间。
+//
+// 出厂值下前端不写任何覆盖（CSS 里的倍率回落到 1），所以"没动过这两根滑杆"的用户拿到的
+// 就是此前那组已核对过可读性的取值。往"更冒险"的方向调 —— 面板更透明、照片更亮 ——
+// 会牺牲文字的可读性；这由用户自己决定，界面上当场提示，不硬卡。
+const (
+	uiPctMin     = 0
+	uiPctMax     = 100
+	uiPctDefault = 50
+)
+
+// clampPercent 把 0-100 的百分比收成合法值：非数字、越界、空值一律回到出厂值。
+func clampPercent(s string) string {
+	n, err := strconv.Atoi(strings.TrimSpace(s))
+	if err != nil || n < uiPctMin || n > uiPctMax {
+		return strconv.Itoa(uiPctDefault)
+	}
+	return strconv.Itoa(n)
+}
 
 // radiiValues 界面圆角白名单，与 CSS 的 :root[data-radii=…] 三个块对应。
 //
@@ -123,6 +147,9 @@ func normalizeUI(u guiUIState) guiUIState {
 			u.Glass = uiGlassDefault
 		}
 	}
+	// 高级选项的两个百分比：越界与非数字一律回到出厂值，不留半个合法值。
+	u.Transparency = clampPercent(u.Transparency)
+	u.WallBright = clampPercent(u.WallBright)
 	// 面板淡入默认开；它属于视觉美化那一层，恒开，没有总开关。
 	if u.Fade != "off" {
 		u.Fade = "on"

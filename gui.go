@@ -156,6 +156,9 @@ func settingsPayload(ui guiUIState) map[string]any {
 		"bgImage":  ui.BgImage,
 		"radii":    ui.Radii,
 		"rail":     ui.Rail,
+		// 高级选项：面板透明度与背景图明暗，都是 0-100、出厂 50。
+		"transparency": ui.Transparency,
+		"wallBright":   ui.WallBright,
 		// 图库里的图片名。配置里存的就是这些名字之一，所以面板不需要用户敲路径。
 		"wallList": listWallImages(),
 		// 曲库：真相在存档的 music 目录里，这里只把扫出来的清单交给界面
