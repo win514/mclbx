@@ -129,7 +129,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);
   <h1>mclbx 联机工具</h1>
   <p class="lead">让 Minecraft Java 版的联机不依赖网络环境：玩家不需要安装任何东西，房主不需要进路由器后台。本说明覆盖连接方式的选择、体检结论的判读、常见故障的处理，以及全部 20 个操作的用途与参数。</p>
   <div class="meta">
-    <span><b>版本</b> mclbx 1.62</span>
+    <span><b>版本</b> mclbx 1.63</span>
     <span><b>平台</b> Windows 10 / 11（64 位）</span>
     <span><b>形态</b> 单个 exe，无需安装</span>
     <span><b>网络</b> 除域名入口外全程可离线部署</span>
@@ -338,7 +338,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);
   <tr><td class="grp" colspan="3">实用工具</td></tr>
   <tr><td>服务器查询</td><td>查询目标服务器的状态<span class="d">发送一次状态查询并显示返回结果，包括版本号与在线人数。可用于确认目标是否为正常运行的我的世界 Java 版服务端。</span></td><td><span class="f">目标地址</span><span class="f">端口</span></td></tr>
   <tr><td>导出诊断包</td><td>汇总版本、环境体检与最近一次日志<span class="d">生成一个文本文件：程序版本、系统与网卡、环境体检的全部结论，以及最近一次操作的日志。遇到自己解决不了的问题时，把该文件发给协助者即可，无需反复截图。文件里含本机网络地址，发出之前请先自己看一眼。文件默认写到桌面。</span></td><td><span class="f">游戏端口 — 体检用，与游戏内设置一致</span></td></tr>
-  <tr><td>端口探测</td><td>两端同时探测对端端口池，验证能否打穿<span class="d">仅用于诊断：两端都处于对称型 NAT、直连与中继均不可用时，用它确认两端之间是否存在可打通的路径。两端的口令与端口范围必须一致。它只给出结论 —— 扫描得到的地址无法直接用于联机；确认可打通之后，当前版本可用的手段仍然是中继。</span></td><td><span class="f">对端公网 IP — 对端检测报告中的出口 IP</span><span class="f">对端端口范围 — 两端需一致</span><span class="f">口令 — 两端需一致</span></td></tr>
+  <tr><td>端口探测</td><td>两端同时探测对端端口池，验证能否打通<span class="d">仅用于诊断：两端都处于对称型 NAT、直连与中继均不可用时，用它确认两端之间是否存在可打通的路径。两端的口令与端口范围必须一致。它只给出结论 —— 扫描得到的地址无法直接用于联机；确认可打通之后，当前版本可用的手段仍然是中继。</span></td><td><span class="f">对端公网 IP — 对端检测报告中的出口 IP</span><span class="f">对端端口范围 — 两端需一致</span><span class="f">口令 — 两端需一致</span></td></tr>
   <tr><td class="grp" colspan="3">中继服务</td></tr>
   <tr><td>本机中继 <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>以本机作为中继并生成链接<span class="d">启动后生成一条包含地址与访问信息的链接，发送给参与者即可使用，无需另行分发账号密码。默认尝试通过路由器自动映射端口。<b>链接里的地址就是本机对外地址，收到链接的人可以直接连到这台机器 —— 本机中继不隐藏你的地址。</b>要让地址不出现在链接里，请把中继放到另一台机器上运行。</span></td><td><span class="f">对外地址 — 留空时自动检测</span><span class="f">不修改路由器端口映射（勾选） — 默认会尝试自动映射</span></td></tr>
   <tr><td>中继校验</td><td>校验中继链接的可用性<span class="d">完整执行一次连接流程：解析链接、探测映射、申请分配与数据往返；失败时指出具体环节。</span></td><td><span class="f">中继链接</span><span class="f">账号 — 链接中未包含时填写</span><span class="f">密码 — 链接中未包含时填写</span></td></tr>
