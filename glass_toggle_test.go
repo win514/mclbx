@@ -69,13 +69,23 @@ func TestGlassOnUsesTheMostTransparentState(t *testing.T) {
 			t.Errorf("开态块里缺少 %s —— 档位表收成一块之后，这一块要给出全部取值：%q", k, body)
 		}
 	}
+	// 开态的模糊半径是**跟着性能预算定的**，不是随手写的上限：
+	// 预算由产品给定（空闲时 GPU 接近 0，使用峰值不超过 5%），据此把此前 16px/20px 提到 24px/32px。
+	// 写成等值断言而不是上限断言，是为了让"再往上加"必须是一次有意识的改动。
+	const (
+		wantBlur  = 24
+		wantBlur3 = 32
+	)
 	blur := cssVarFloat(t, body, "--glass-blur")
 	blur3 := cssVarFloat(t, body, "--blur-3")
-	if blur > 16 {
-		t.Errorf("面板模糊 %.0fpx 超过 16px 的上限", blur)
+	if blur != wantBlur {
+		t.Errorf("开态面板模糊是 %.0fpx，期望 %dpx —— 这个值跟性能预算走，改它要有依据", blur, wantBlur)
 	}
-	if blur3 > 20 {
-		t.Errorf("浮层模糊 %.0fpx 超过 20px 的上限", blur3)
+	if blur3 != wantBlur3 {
+		t.Errorf("开态浮层模糊是 %.0fpx，期望 %dpx —— 浮层要比主容器强，同样跟预算走", blur3, wantBlur3)
+	}
+	if blur3 <= blur {
+		t.Errorf("浮层模糊 %.0fpx 不大于面板模糊 %.0fpx —— 浮层该更糊", blur3, blur)
 	}
 	// “最透明”是这套取值的方向：三档不透明度都必须小于 1，否则等于实心。
 	for _, k := range []string{"--g1a", "--g2a", "--g3a"} {

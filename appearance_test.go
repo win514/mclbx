@@ -218,7 +218,7 @@ func TestGlassYieldsWhileBusy(t *testing.T) {
 
 // 档位取消后，原来那条「不透明度逐档递减、模糊逐档递增且有界」的用例没有对象了：
 // 现在只有开态一组取值。它的两条实质约束搬到了 glass_toggle_test.go：
-//   · TestGlassOnUsesTheMostTransparentState —— 开态有界（面板 ≤16px、浮层 ≤20px）；
+//   · TestGlassOnUsesTheMostTransparentState —— 开态取值有界（面板 24px、浮层 32px，跟性能预算走）；
 //   · TestNoNumericGlassLevelsRemain —— 不留数字档位的死规则。
 // 而「开态必须让文字守住 4.5」仍由下面的 TestGlassOverPageKeepsTextReadable 盯着。
 
