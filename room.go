@@ -92,6 +92,8 @@ func cmdRoom(args []string) error {
 	}
 	applyRelayFlag(*relayLink, *relayUser, *relayPass)
 
+	// 空串会被换成随机码，所以先记下用户到底给没给（卡片要不要提“房间码不生效”看它）。
+	roomGiven := strings.TrimSpace(*room) != ""
 	roomCode, err := normalizeRoomCode(*room)
 	if err != nil {
 		return err
@@ -102,6 +104,7 @@ func cmdRoom(args []string) error {
 		gamePort:  *gamePort,
 		entryPort: *entryPort,
 		room:      roomCode,
+		roomGiven: roomGiven,
 		suffix:    *suffix,
 		mode:      *mode,
 		webAddr:   *webAddr,

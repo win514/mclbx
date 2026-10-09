@@ -1,6 +1,7 @@
 package main
 
-// expose_gate_test.go —— “分享卡片上写的门槛，必须与实际生效的门槛一致”。
+// expose_gate_test.go —— “分享卡片上写的门槛，必须与实际生效的门槛一致”，
+// 以及“地址形式的选择与门槛诉求之间的关系”。
 //
 // 门槛这件事最容易出的错不是漏校验，而是**说错话**：卡片写着“名称中不含房间码的连接
 // 将被拒绝”，实际谁都能进；或者卡片写着“地址无法被全网扫描”，而那个地址是公网 IPv4，
@@ -20,34 +21,44 @@ func TestGateOffExplanationTellsTheTruthPerForm(t *testing.T) {
 		addrKind   string
 		room       string
 		noGate     bool
+		roomGiven  bool
 		mustHave   []string
 		mustNotHas []string
 	}{
 		{
-			name: "IPv6 字面量：可以说难以被扫到", addrKind: "v6raw", room: testRoom,
-			mustHave: []string{"IPv6 地址空间无法被全网扫描"},
-			// 给了房间码却承载不了，必须点出来
-			mustNotHas: []string{"房间里没有"},
+			name: "用户给了房间码但形式承载不了：要提示不生效", addrKind: "v6raw", room: testRoom,
+			roomGiven: true,
+			mustHave:  []string{"IPv6 地址空间无法被全网扫描", testRoom, "不生效"},
 		},
 		{
 			name: "公网 IPv4 直连：不许说无法被扫到", addrKind: "v4direct", room: testRoom,
+			roomGiven:  true,
 			mustHave:   []string{"可以被全网扫描", "拿到这一行的人都能进"},
 			mustNotHas: []string{"无法被全网扫描"},
 		},
 		{
 			name: "端口映射：同上", addrKind: "v4map", room: testRoom,
+			roomGiven:  true,
 			mustHave:   []string{"可以被全网扫描"},
 			mustNotHas: []string{"无法被全网扫描"},
 		},
 		{
 			name: "用户自己关了校验：要说清是他关的", addrKind: "v6dns", room: testRoom, noGate: true,
+			roomGiven:  true,
 			mustHave:   []string{"--no-gate", "拿到这一行的人都能进"},
 			mustNotHas: []string{"IPv6 地址空间无法被全网扫描"},
+		},
+		{
+			// 房间码是程序随机生成的，用户根本没见过它，不该拿它去说“不生效”。
+			name: "房间码是随机生成的：不要拿它来提醒", addrKind: "v6raw", room: "k3f9qz",
+			roomGiven:  false,
+			mustHave:   []string{"IPv6 地址空间无法被全网扫描"},
+			mustNotHas: []string{"不生效", "k3f9qz"},
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := strings.Join(gateOffExplanation(c.addrKind, c.room, c.noGate), "\n")
+			got := strings.Join(gateOffExplanation(c.addrKind, c.room, c.noGate, c.roomGiven), "\n")
 			for _, w := range c.mustHave {
 				if !strings.Contains(got, w) {
 					t.Errorf("缺少必须出现的说法 %q；实际文案：\n%s", w, got)
@@ -62,23 +73,47 @@ func TestGateOffExplanationTellsTheTruthPerForm(t *testing.T) {
 	}
 }
 
-// 给了房间码、但地址形式承载不了它时，必须明确告诉用户“房间码不生效”。
+// 用户给了房间码、但地址形式承载不了它时，必须明确告诉用户“房间码不生效”。
 func TestGateOffExplanationWarnsWhenRoomCodeCannotApply(t *testing.T) {
 	for _, kind := range []string{"v6raw", "v4direct", "v4map"} {
-		got := strings.Join(gateOffExplanation(kind, testRoom, false), "\n")
+		got := strings.Join(gateOffExplanation(kind, testRoom, false, true), "\n")
 		if !strings.Contains(got, testRoom) || !strings.Contains(got, "不生效") {
-			t.Errorf("addrKind=%s 且给了房间码时，应当明确说明房间码不生效；实际文案：\n%s", kind, got)
+			t.Errorf("addrKind=%s 且用户给了房间码时，应当明确说明房间码不生效；实际文案：\n%s", kind, got)
 		}
 	}
 	// 反例：没给房间码时不必吓唬人
-	got := strings.Join(gateOffExplanation("v6raw", "", false), "\n")
+	got := strings.Join(gateOffExplanation("v6raw", "", false, false), "\n")
 	if strings.Contains(got, "不生效") {
-		t.Errorf("没给房间码时不该出现“不生效”这类提醒；实际文案：\n%s", got)
+		t.Errorf("用户没给房间码时不该出现“不生效”这类提醒；实际文案：\n%s", got)
 	}
 	// 反例：用户自己关了校验时，也不必再提房间码
-	got = strings.Join(gateOffExplanation("v6raw", testRoom, true), "\n")
+	got = strings.Join(gateOffExplanation("v6raw", testRoom, true, true), "\n")
 	if strings.Contains(got, "不生效") {
 		t.Errorf("--no-gate 时房间码本就不该生效，不应再提醒；实际文案：\n%s", got)
+	}
+}
+
+// 地址形式与门槛诉求的关系。这是“门槛设为默认”的落点，必须逐格钉住：
+// auto 要门槛时只能选域名形式，否则房间码根本没地方写。
+func TestAddrFormFor(t *testing.T) {
+	cases := []struct {
+		mode     string
+		wantGate bool
+		want     string
+		why      string
+	}{
+		{"auto", true, "dns", "auto 且要门槛：房间码得有地方写，只能选域名形式"},
+		{"auto", false, "raw", "auto 且不要门槛：没必要为门槛去引第三方 DNS"},
+		{"raw", true, "raw", "用户点名要字面量：尊重它，代价是没有门槛"},
+		{"raw", false, "raw", "同上"},
+		{"dns", true, "dns", "用户点名要域名"},
+		{"dns", false, "dns", "用户点名要域名，即使他不要门槛"},
+	}
+	for _, c := range cases {
+		if got := addrFormFor(c.mode, c.wantGate); got != c.want {
+			t.Errorf("addrFormFor(%q, wantGate=%v) = %q，期望 %q（%s）",
+				c.mode, c.wantGate, got, c.want, c.why)
+		}
 	}
 }
 
