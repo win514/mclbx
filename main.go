@@ -43,6 +43,7 @@ const usageText = `mclbx —— 我的世界 Java 版联机工具
   mclbx probe              路况诊断：全球 IPv6 / IPv4 公网映射 / NAT 行为 / 自动端口映射
   mclbx forget             清除界面记住的输入，下次打开恢复默认值
   mclbx slpfake            排查用：仅应答服务器列表查询的假服务端
+  mclbx profile [档位]     列出暴露档位；给档位则打印它展开成的命令
   mclbx help               显示本帮助
 
 expose 选项：
@@ -288,6 +289,8 @@ func main() {
 		err = cmdVerify(os.Args[2:])
 	case "forget":
 		err = cmdForget(os.Args[2:])
+	case "profile":
+		err = cmdProfile(os.Args[2:])
 	case "help", "-h", "--help":
 		usage()
 	default:
