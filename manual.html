@@ -129,7 +129,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);
   <h1>mclbx 联机工具</h1>
   <p class="lead">让 Minecraft Java 版的联机不依赖网络环境：玩家不需要安装任何东西，房主不需要进路由器后台。本说明覆盖连接方式的选择、体检结论的判读、常见故障的处理，以及全部 20 个操作的用途与参数。</p>
   <div class="meta">
-    <span><b>版本</b> mclbx 1.50</span>
+    <span><b>版本</b> mclbx 1.51</span>
     <span><b>平台</b> Windows 10 / 11（64 位）</span>
     <span><b>形态</b> 单个 exe，无需安装</span>
     <span><b>网络</b> 除域名入口外全程可离线部署</span>
@@ -211,7 +211,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);
     <td>该选项跳过映射探测以加快检测，代价是结论更保守。</td>
   </tr>
 </table>
-<div class="note"><b>关于中继：</b>中继转发会让流量经过第三方机器。自建方式有两种：在具备公网地址的机器上运行「公网中继」，或在自己的机器上运行「本机中继」并由对方填入它输出的链接。中继地址在「高级选项 → 中继服务器」中填写，该栏留空表示不使用中继，此时直连失败不会自动切换，会直接中断并说明原因。</div>
+<div class="note"><b>关于中继：</b>中继转发会让流量经过第三方机器。要注意「本机中继」是<b>把本机当成那台第三方机器</b>：中继跑在你自己的机器上，链接里的地址就是你自己的对外地址，拿到链接的玩家会直接连到你 —— 从玩家一侧看，它就是一条直连。想用中继来隐藏房主地址，中继必须跑在<b>另一台机器</b>上（VPS、朋友的电脑），再把它输出的链接发给玩家。自建方式有两种：在具备公网地址的机器上运行「公网中继」，或在自己的机器上运行「本机中继」并由对方填入它输出的链接。中继地址在「高级选项 → 中继服务器」中填写，该栏留空表示不使用中继，此时直连失败不会自动切换，会直接中断并说明原因。</div>
 
 <h2 id="s3">3 快速开始</h2>
 <p>界面默认只呈现两个入口：<b>创建房间</b>（房主）与<b>加入房间</b>（玩家）。其余 20 项操作常驻在左侧栏里，按用途分组并带搜索，随时可点。</p>
@@ -340,7 +340,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);
   <tr><td>导出诊断包</td><td>汇总版本、环境体检与最近一次日志<span class="d">生成一个文本文件：程序版本、系统与网卡、环境体检的全部结论，以及最近一次操作的日志。遇到自己解决不了的问题时，把该文件发给协助者即可，不必反复截图。文件里含本机网络地址，发出之前请先自己看一眼。文件默认写到桌面。</span></td><td><span class="f">游戏端口 — 体检用，与游戏内设置一致</span></td></tr>
   <tr><td>端口探测</td><td>两端同时探测对端端口池，验证能否打穿<span class="d">仅用于诊断：两端都处在对称型 NAT、内置直连与中继都走不通时，用它确认两端之间是否存在可打穿的路径。两端的口令与端口范围必须一致。注意它只给结论 —— 扫出来的地址无法直接用于联机，因为内置直连会自己选端口，来源端口一变、对端 NAT 的映射就跟着变；确认可打穿之后，当前版本的可用手段仍然是中继。</span></td><td><span class="f">对端公网 IP — 对端检测报告中的出口 IP</span><span class="f">对端端口范围 — 两端需一致</span><span class="f">口令 — 两端需一致</span></td></tr>
   <tr><td class="grp" colspan="3">中继服务</td></tr>
-  <tr><td>本机中继 <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>以本机作为中继并生成链接<span class="d">启动后生成一条包含地址与凭据的链接，发送给参与者即可使用，无需另行分发账号密码。默认尝试通过路由器自动映射端口。</span></td><td><span class="f">对外地址 — 留空时自动检测</span><span class="f">不修改路由器端口映射（勾选） — 默认会尝试自动映射</span></td></tr>
+  <tr><td>本机中继 <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>以本机作为中继并生成链接<span class="d">启动后生成一条包含地址与凭据的链接，发送给参与者即可使用，无需另行分发账号密码。默认尝试通过路由器自动映射端口。<b>链接里的地址就是本机对外地址，收到链接的人可以直接连到这台机器 —— 本机中继不隐藏你的地址。</b>要让地址不出现在链接里，请把中继放到另一台机器上运行。</span></td><td><span class="f">对外地址 — 留空时自动检测</span><span class="f">不修改路由器端口映射（勾选） — 默认会尝试自动映射</span></td></tr>
   <tr><td>中继校验</td><td>校验中继链接的可用性<span class="d">完整执行一次连接流程：解析链接、探测映射、申请分配与数据往返；失败时指出具体环节。</span></td><td><span class="f">中继链接</span><span class="f">账号 — 链接中未包含时填写</span><span class="f">密码 — 链接中未包含时填写</span></td></tr>
   <tr><td>公网中继 <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>在具备公网地址的机器上运行中继<span class="d">需运行在具备公网地址的服务器上，启动完成后输出供其他人填写的链接。云主机需显式指定公网地址，网卡地址通常为内网地址。</span></td><td><span class="f">监听端口 — UDP 端口</span><span class="f">公网地址 — 云主机需填写；网卡地址通常为内网地址</span><span class="f">密钥 — 设置后无需分发固定密码</span><span class="f">中继端口范围 — 建议填写，便于仅放行该范围</span></td></tr>
   <tr><td>STUN 服务 <span class="d" style="display:inline;color:#9A6206">长时</span></td><td>提供公网地址探测，不转发数据<span class="d">用于两端探测各自的公网映射，本身不中转流量，带宽开销极低。需运行在具备公网地址的机器上。</span></td><td><span class="f">监听端口</span><span class="f">同时提供 UDP 中转（勾选） — 同时承担中继转发</span></td></tr>

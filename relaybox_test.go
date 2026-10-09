@@ -5,10 +5,51 @@ package main
 import (
 	"bytes"
 	"net"
+	"os"
 	"strings"
 	"testing"
 	"time"
 )
+
+// 分享链接里的地址，就是别人要连的地址。本机中继把中继跑在自己机器上，于是链接里那个地址
+// 就是房主自己的 —— 这不是缺陷（玩家总得能连到中继），但"以为中继藏住了自己"是这里最危险
+// 的误解：它会让人把链接发到群里。所以卡片、操作详情、说明书三处都必须明说，用例钉住，
+// 免得哪天被当成啰嗦话顺手删掉。
+func TestRelayboxSaysTheAddressInTheLinkIsYours(t *testing.T) {
+	card, err := os.ReadFile("relaybox.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"地址暴露", "不隐藏", "另一台机器"} {
+		if !strings.Contains(string(card), want) {
+			t.Errorf("分享卡片里少了地址暴露的提示（%q）—— 用户会以为「中继」藏住了自己的地址", want)
+		}
+	}
+
+	// 操作详情（Help）是用户按下之前能读到的唯一说明
+	help := ""
+	for _, tk := range guiTasks {
+		if tk.Key == "relaybox" {
+			help = tk.Help
+		}
+	}
+	if help == "" {
+		t.Fatal("找不到 relaybox 这个操作 —— 它被改名了吗？")
+	}
+	for _, want := range []string{"不隐藏", "本机对外地址", "另一台机器"} {
+		if !strings.Contains(help, want) {
+			t.Errorf("「本机中继」的说明里少了 %q —— 用户按下之前看不到地址会被公开", want)
+		}
+	}
+
+	doc, err := os.ReadFile("manual.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(doc), "把本机当成那台第三方机器") {
+		t.Error("说明书没有讲清「本机中继」里那台第三方机器就是本机自己")
+	}
+}
 
 func TestRelayboxShareLinkIsSelfContained(t *testing.T) {
 	b := &relaybox{
