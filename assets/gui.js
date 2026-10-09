@@ -1204,14 +1204,14 @@ function uiAuxHTML(u){
     uiItem('musicLoop', '循环', uiSeg('musicLoop', u.musicLoop, [['off','不循环'],['all','列表循环'],['one','单曲循环']]),
       '选「不循环」时，顺序播到最后一首就停下。',
       '随机模式下会一直播下去，不受「不循环」影响。') +
-    uiItem('musicVol', '音量', uiField('musicVol', 'small', u.musicVol, '70', ''),
-      '0 到 100，与系统音量是叠乘关系。',
+    uiItem('musicVol', '音量', uiRange('musicVol', u.musicVol, 0, 100),
+      '0 到 100，与系统音量是叠乘关系；拖动即生效。',
       '听不见时先看系统音量，再看这里是不是被调成了 0。') +
     uiItem('', '播放控制',
       '<button type="button" class="btn sm" data-act="bgmPrev">上一首</button>' +
       '<button type="button" class="btn sm" data-act="bgmPlay">播放 / 暂停</button>' +
       '<button type="button" class="btn sm" data-act="bgmNext">下一首</button>',
-      '状态栏那个音符按钮也能播放与暂停，不用每次打开设置。',
+      '状态栏那个音符按钮：左键播放/暂停，右键下一首，不用每次打开设置。',
       '它默认不自动播放 —— 这是个会长时间开着的工具，不该在没人点的时候出声。') +
     uiItem('remember', '记住上次填过的值', uiSw('remember', u.remember !== '0', '记住上次填过的值'),
       '按「任务 + 字段」记住填写内容，下次自动带出。',
@@ -1413,7 +1413,7 @@ function uiCollect(){
   Array.prototype.forEach.call(document.querySelectorAll('#settingsBody [data-in]'), function(i){
     out[i.getAttribute('data-in')] = (i.value || '').trim();
   });
-  // 档位滑杆：值就是 0-10 的十进制字符串，与服务端收的形态一致，客户端不再猜类型。
+  // 滑杆：值就是十进制字符串（档位 0-10、音量 0-100），与服务端收的形态一致，客户端不再猜类型。
   Array.prototype.forEach.call(document.querySelectorAll('#settingsBody [data-rng]'), function(r){
     out[r.getAttribute('data-rng')] = String(r.value);
   });
@@ -1852,6 +1852,13 @@ function modalTrap(e){
 }
 $('modalClose').onclick = function(){ closeModal(); };
 $('modal').onclick = function(e){ if(e.target === $('modal')){ closeModal(); } };
+/* 状态栏那个音符按钮：左键播放/暂停（原有行为），右键下一首。
+   右键不是"再点一次左键"的等价物 —— 它省掉"先暂停、再进设置挑歌"那一串动作，
+   而它走的还是「下一首」按钮用的同一个 bgmStep(1)，两条入口不会各写一套逻辑。
+   必须拦掉 contextmenu：不然弹出的会是 WebView2 自带的菜单，右键就成了"看起来没反应"。
+   这里**不加 aria-label**：那会把按钮当前的曲名与播放状态一起盖掉，而那个状态比"能点什么"更该被读到。
+   键盘用户的通路是设置里那三个显式按钮（上一首 / 播放·暂停 / 下一首），所以不另外发明快捷键。 */
+$('bgmToggle').oncontextmenu = function(e){ e.preventDefault(); bgmStep(1); };
 /* 【视觉美化，非核心功能】启动美化层。
    它只把设置写成 <html> 上的属性，不落盘、也不回头改设置 —— 改档位仍然只从设置面板那一条路走。 */
 VFX.init(window.MCLBX_UI || null);

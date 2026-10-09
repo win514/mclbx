@@ -214,7 +214,7 @@ const guiShellHTML = `<!doctype html>
     <span class="sb-task" id="ftTask">未选择操作</span>
     <span class="sb-save" id="saveState"></span>
     <span class="gap"></span>
-    <span class="bgm"><button class="btn sm" id="bgmToggle" title="背景音乐：点一下播放或暂停">♪ <span id="bgmName">未播放</span></button></span>
+    <span class="bgm"><button class="btn sm" id="bgmToggle" title="背景音乐：左键播放/暂停，右键下一首">♪ <span id="bgmName">未播放</span></button></span>
     <span class="sb-keys">Enter 执行 · Esc 取消</span>
     <span class="sb-life">
       <button class="btn sm danger" id="btnStop" disabled>停止</button>

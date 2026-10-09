@@ -74,3 +74,34 @@ func TestVisualStateHasAnAccessibleEquivalent(t *testing.T) {
 		t.Error("勾选框没有可见的焦点环：键盘用户看不出焦点落在哪一项（真 input 是透明的）")
 	}
 }
+
+// 状态栏那个音符按钮：左键播放/暂停，右键下一首。
+// 右键这条入口必须拦掉 contextmenu（否则弹出的是 WebView2 自带菜单，右键看起来"没反应"），
+// 而且必须复用「下一首」按钮走的同一个 bgmStep —— 各写一套，两处迟早会走偏。
+// 键盘用户的通路是设置里那三个显式按钮，所以这里不另外发明快捷键（这是有意的，不是漏了）。
+func TestMusicButtonHasBothClicks(t *testing.T) {
+	if !strings.Contains(guiPageHTML, "$('bgmToggle').oncontextmenu") ||
+		!strings.Contains(guiPageHTML, "e.preventDefault(); bgmStep(1)") {
+		t.Error("状态栏音符按钮没有接右键下一首，或没有拦 contextmenu —— 右键会弹出浏览器自带菜单")
+	}
+	if !strings.Contains(guiPageHTML, "function bgmStep(") {
+		t.Error("找不到 bgmStep —— 右键那条路应当与设置里的「下一首」按钮共用它")
+	}
+	if !strings.Contains(guiPageHTML, `data-act="bgmNext">下一首`) {
+		t.Error("设置里那个显式的「下一首」按钮没了 —— 右键之外必须留着键盘可达的那一条")
+	}
+}
+
+// 音量是 0-100 的滑动条，而且滑杆的值必须真的被收集上去（拖完要能存住）。
+func TestVolumeIsASliderThatGetsCollected(t *testing.T) {
+	if !strings.Contains(guiPageHTML, "uiRange('musicVol', u.musicVol, 0, 100)") {
+		t.Error("音量不是 0-100 的滑动条")
+	}
+	if !strings.Contains(guiPageHTML, "querySelectorAll('#settingsBody [data-rng]')") {
+		t.Error("滑杆没有被收集 —— 拖动之后保存不上去")
+	}
+	// 服务端那一侧也要认这个区间（0-100 之外会被归一化，用例见 uiconfig_test.go）
+	if !strings.Contains(guiPageHTML, "musicVol:u.musicVol || '70'") {
+		t.Error("默认音量没了 —— 没渲染设置页时这一项会丢")
+	}
+}
