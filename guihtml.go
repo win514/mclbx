@@ -102,14 +102,21 @@ const guiPageHTML = `<!doctype html>
   /* 背景图片的地址由服务端按当前设置注入到 <html> 的行内样式里。这里必须给一个默认值：
      样式表里一旦写了 var(--wall)，定义它的地方就得在样式表里（有用例逐个变量核对）。 */
   --wall:none;
-  /* ---- 毛玻璃用的静态色（三档） ----
-     写死成 rgba() 而不是用 color-mix() 现算：color-mix() 需要 Chromium 111+，
+  /* ---- 毛玻璃（三档） ----
+     写死成 rgba() + calc() 而不是用 color-mix() 现算：color-mix() 需要 Chromium 111+，
      而这个界面跑在系统自带的 WebView2 上，内核版本不由本程序决定。不支持的引擎会在解析期
      丢掉整条声明 —— 毛玻璃那几条只是"没效果"，但暗化层消失会让照片上的字失去衬托。
      三档对应界面上三层：--glass-1 主容器（最实）／--glass-2 次级卡片（更透，靠 1px 边框成形）
-     ／--glass-3 浮层（最实 + 最强模糊）。层次靠不透明度差 + 边框 + 阴影，不靠每层都加模糊。 */
-  --glass-1:rgba(13,21,30,.82); --glass-2:rgba(16,27,37,.62); --glass-3:rgba(13,21,30,.94);
-  --wall-scrim:rgba(7,11,17,.58);
+     ／--glass-3 浮层（最实 + 最强模糊）。层次靠不透明度差 + 边框 + 阴影，不靠每层都加模糊。
+     不透明度 = 档位给的 --g1a/--g2a/--g3a（见下面的档位表）+ 设了背景图时的补偿
+     --w1/--w2/--w3（默认 0）。颜色只由每个主题的 --glass-rgb 决定，三层共用同一个色族。 */
+  --glass-rgb:13,21,30;
+  --w1:0; --w2:0; --w3:0;
+  --g1a:.94; --g2a:.84; --g3a:.97; --glass-blur:3px; --blur-3:6px;
+  --glass-1:rgba(var(--glass-rgb),calc(var(--g1a) + var(--w1)));
+  --glass-2:rgba(var(--glass-rgb),calc(var(--g2a) + var(--w2)));
+  --glass-3:rgba(var(--glass-rgb),calc(var(--g3a) + var(--w3)));
+  --wall-scrim:rgba(7,11,17,.80);
   --disp:"Bahnschrift","Segoe UI Variable Display","Microsoft YaHei UI",sans-serif;
   --ui:"Microsoft YaHei UI","Segoe UI Variable Text","Segoe UI",sans-serif;
   --mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
@@ -159,8 +166,8 @@ const guiPageHTML = `<!doctype html>
   --grid-ink:rgba(9,17,26,.05); --sheen:rgba(255,255,255,.55);
   --scroll:#C6D2DE; --scroll-hi:#AEBECB;
   --aurora-a:rgba(14,159,110,.05); --aurora-b:rgba(42,111,214,.06);
-  --glass-1:rgba(255,255,255,.82); --glass-2:rgba(255,255,255,.62); --glass-3:rgba(255,255,255,.94);
-  --wall-scrim:rgba(242,245,249,.58);
+  --glass-rgb:255,255,255;
+  --wall-scrim:rgba(242,245,249,.80);
   --ink:#0D1620; --ink2:#4A5A6C; --muted:#5A6675; --muted2:#636B75;
   --ok-ink:#0B7A4F; --bad-ink:#C42744; --warn-ink:#8A5300; --info-ink:#1F5FA8;
   --addr-ink:#0B3B2A; --violet-ink:#4A2E86; --bar-ink:#FFFFFF; --cheek:#FFFFFF;
@@ -203,9 +210,10 @@ const guiPageHTML = `<!doctype html>
   --scroll:#3A5470; --scroll-hi:#4E7092;
   --aurora-a:rgba(0,0,0,0); --aurora-b:rgba(0,0,0,0);
   /* 高对比这一档不参与毛玻璃：它的存在理由是"看不清"，半透明与模糊都与"看清"直接冲突。
-     三档面在这里都压到接近不透明 —— 属性仍然声明（满足"每个主题声明全部"的口径），
-     但透出来的一点点底色既不影响对比度，也不至于让这一档看起来像被挖空了。 */
-  --glass-1:rgba(8,13,19,.97); --glass-2:rgba(12,18,25,.92); --glass-3:rgba(0,0,0,.99);
+     颜色与三档不透明度都在这里钉死，且档位表用 :not([data-theme="contrast"]) 把它排除在外 ——
+     于是无论用户把档位拉到多少，这一档三面始终接近实心。 */
+  --glass-rgb:8,13,19;
+  --g1a:.97; --g2a:.92; --g3a:.99;
   --wall-scrim:rgba(0,3,8,.58);
   --ink:#FFFFFF; --ink2:#DAE6F2; --muted:#A9BCD0; --muted2:#93A7BC;
   --ok-ink:#7CF5C8; --bad-ink:#FFB8C4; --warn-ink:#FFD79A; --info-ink:#B6D4FF;
@@ -301,7 +309,7 @@ const guiPageHTML = `<!doctype html>
 
    开关（均由服务端首屏注入，避免"先实心、再闪成玻璃"）：
      data-vfx       on/off              总开关，关掉 = 实心、无光、无淡入
-     data-glass     off/low/mid/high    毛玻璃档位；off 只表示不做实时模糊，面板仍半透明
+     data-glass     0-10               毛玻璃档位：0 = 关闭（实心、不模糊），1-10 越大越透明
      data-glow      on/off              轮廓微光
      data-fade      on/off              浮层淡入
      data-vfx-busy  on/off              运算期间让位（脚本在任务执行时挂上）
@@ -315,65 +323,82 @@ const guiPageHTML = `<!doctype html>
        paint 会把 .panel 四角的 -1px 描边裁掉。
 
    层次：--glass-1 主容器（带模糊）／--glass-2 面板内的次级卡片（只半透明）／--glass-3 浮层（模糊更强）。
-   设了背景图时整段让位（选择器里的 :not([data-wall="on"])）：半透明面板压在任意照片上文字对比度不达标，
-   两个功能互斥，设置页里会就地说明。 */
+   设了背景图时**不再整段让位**：那样等于"用户一设背景图就把毛玻璃关掉"，两个本该并存的功能被做成互斥。
+   照片的明暗由压暗层（--wall-scrim）与背景图补偿（--w1/--w2/--w3）收进一个有界区间，
+   文字对比度就还守得住 —— 逐档的数值由 TestGlassOverPageKeepsTextReadable 核对，不靠眼睛。 */
 /* ---- 层次一：主容器的面 ---- */
-:root[data-vfx="on"]:not([data-wall="on"]) .panel,
-:root[data-vfx="on"]:not([data-wall="on"]) .topbar,
-:root[data-vfx="on"]:not([data-wall="on"]) .statusbar{background-image:none;background-color:var(--glass-1)}
+:root[data-vfx="on"]:not([data-glass="0"]) .panel,
+:root[data-vfx="on"]:not([data-glass="0"]) .topbar,
+:root[data-vfx="on"]:not([data-glass="0"]) .statusbar{background-image:none;background-color:var(--glass-1)}
 /* ---- 层次二：面板内部的次级卡片与控件底。更透，靠边框与阴影撑出形 ---- */
-:root[data-vfx="on"]:not([data-wall="on"]) .op,
-:root[data-vfx="on"]:not([data-wall="on"]) .capcell,
-:root[data-vfx="on"]:not([data-wall="on"]) .log{background-color:var(--glass-2)}
+:root[data-vfx="on"]:not([data-glass="0"]) .op,
+:root[data-vfx="on"]:not([data-glass="0"]) .capcell,
+:root[data-vfx="on"]:not([data-glass="0"]) .log{background-color:var(--glass-2)}
 /* 顶边比其余三边亮一档。顶栏只有下边框（它贴的是视口上沿），那一档得落在下边框上 ——
    给它写 border-top-color 是一条永远不生效的死规则。 */
-:root[data-vfx="on"]:not([data-wall="on"]) .panel,
-:root[data-vfx="on"]:not([data-wall="on"]) .op,
-:root[data-vfx="on"]:not([data-wall="on"]) .log,
-:root[data-vfx="on"]:not([data-wall="on"]) .statusbar{border-top-color:var(--line2)}
-:root[data-vfx="on"]:not([data-wall="on"]) .topbar{border-bottom-color:var(--line2)}
+:root[data-vfx="on"]:not([data-glass="0"]) .panel,
+:root[data-vfx="on"]:not([data-glass="0"]) .op,
+:root[data-vfx="on"]:not([data-glass="0"]) .log,
+:root[data-vfx="on"]:not([data-glass="0"]) .statusbar{border-top-color:var(--line2)}
+:root[data-vfx="on"]:not([data-glass="0"]) .topbar{border-bottom-color:var(--line2)}
 /* 面板自己的悬停/选中态原本是实心色，玻璃下要跟着一起变透明，否则鼠标一划过就"啪"地变实了 */
-:root[data-vfx="on"]:not([data-wall="on"]) .op:hover,
-:root[data-vfx="on"]:not([data-wall="on"]) .op.on{background-color:var(--glass-1)}
+:root[data-vfx="on"]:not([data-glass="0"]) .op:hover,
+:root[data-vfx="on"]:not([data-glass="0"]) .op.on{background-color:var(--glass-1)}
 /* 被判定"环境不支持"的条目本来就是置灰的，鼠标划过不该亮起玻璃悬停色。
    上面那条 :hover 的特异性比 .op.off:hover 高，所以这里必须显式压回去。 */
-:root[data-vfx="on"]:not([data-wall="on"]) .op.off:hover{background-color:var(--surf)}
+:root[data-vfx="on"]:not([data-glass="0"]) .op.off:hover{background-color:var(--surf)}
 
-/* 两档模糊值。**档位是离散的**，所以用户拿不到"模糊 200px"这种把界面拖垮的取值；
-   低档压在 5px 以内，高档 14px 并且面板上会就地提醒代价。
-   浮层另给一档更强的：与主容器同强度就分不出主次了。 */
-:root[data-glass="low"]{--glass-blur:5px;--blur-3:9px}
-:root[data-glass="mid"]{--glass-blur:9px;--blur-3:16px}
-:root[data-glass="high"]{--glass-blur:14px;--blur-3:20px}
+/* 档位表：0 = 关闭（规则里靠 :not([data-glass="0"]) 排除），1-10 越大越透明、模糊同步增强。
+   三条约束把这一列数钉住：
+     · 三档不透明度逐档递减，模糊逐档递增；
+     · 上限压在面板 16px / 浮层 20px —— 再往上收益很小，代价却按「玻璃面积 × 变化频率」涨；
+     · 每一档都必须让文字守得住 4.5（含设了背景图的极端情形），由
+       TestGlassOverPageKeepsTextReadable 逐档核对，不是靠眼睛。
+   高对比主题整个排除在外：它的三档面本来就接近实心，随档位变透明等于把"看清"这件事交出去。
+   把排除写进选择器而不是靠源码顺序，是为了让"哪一档作用于哪些主题"一眼看得出来。 */
+:root[data-glass="1"]:not([data-theme="contrast"]){--g1a:.94;--g2a:.84;--g3a:.97;--glass-blur:3px;--blur-3:6px}
+:root[data-glass="2"]:not([data-theme="contrast"]){--g1a:.92;--g2a:.81;--g3a:.965;--glass-blur:4px;--blur-3:7px}
+:root[data-glass="3"]:not([data-theme="contrast"]){--g1a:.90;--g2a:.78;--g3a:.96;--glass-blur:5px;--blur-3:9px}
+:root[data-glass="4"]:not([data-theme="contrast"]){--g1a:.88;--g2a:.75;--g3a:.955;--glass-blur:6px;--blur-3:10px}
+:root[data-glass="5"]:not([data-theme="contrast"]){--g1a:.85;--g2a:.72;--g3a:.95;--glass-blur:7px;--blur-3:12px}
+:root[data-glass="6"]:not([data-theme="contrast"]){--g1a:.82;--g2a:.69;--g3a:.945;--glass-blur:9px;--blur-3:14px}
+:root[data-glass="7"]:not([data-theme="contrast"]){--g1a:.79;--g2a:.66;--g3a:.94;--glass-blur:10px;--blur-3:16px}
+:root[data-glass="8"]:not([data-theme="contrast"]){--g1a:.75;--g2a:.62;--g3a:.935;--glass-blur:12px;--blur-3:17px}
+:root[data-glass="9"]:not([data-theme="contrast"]){--g1a:.71;--g2a:.57;--g3a:.93;--glass-blur:14px;--blur-3:19px}
+:root[data-glass="10"]:not([data-theme="contrast"]){--g1a:.66;--g2a:.52;--g3a:.92;--glass-blur:16px;--blur-3:20px}
+/* 设了背景图：照片的明暗不由我们决定，除压暗层之外再补一点不透明度。
+   和上面一样不能越 1（"靠 clamp 兜底"不是这一套的口径，越界要在取值上避免）。 */
+:root[data-wall="on"]:not([data-theme="contrast"]){--w1:.05;--w2:.16;--w3:.03}
 
-/* 真毛玻璃只在这两处 —— 一是薄条或静止内容的主容器，二是浮层。
-   :not([data-vfx-busy="on"]) 就是运算期间的让位。 */
-:root[data-vfx="on"]:not([data-glass="off"]):not([data-wall="on"]):not([data-vfx-busy="on"]) .topbar,
-:root[data-vfx="on"]:not([data-glass="off"]):not([data-wall="on"]):not([data-vfx-busy="on"]) .statusbar,
-:root[data-vfx="on"]:not([data-glass="off"]):not([data-wall="on"]):not([data-vfx-busy="on"]) .stage>.panel:not(.logpanel){
+/* 真毛玻璃只在这几处 —— 一是薄条或静止内容的主容器，二是浮层。
+   :not([data-vfx-busy="on"]) 就是运算期间的让位；高对比主题排除在外 ——
+   它的三档面本来就接近实心，给它挂模糊只会白花 GPU。 */
+:root[data-vfx="on"]:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .topbar,
+:root[data-vfx="on"]:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .statusbar,
+:root[data-vfx="on"]:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .stage>.panel:not(.logpanel){
   contain:layout;
   backdrop-filter:blur(var(--glass-blur)) saturate(1.08)}
 /* 设置页外壳：一页占满，内部滚动。模糊加在外壳上而不是那些分类卡上 ——
    外壳不动，背后那层静止背景的模糊结果就能一直复用；卡片跟着滚，加在卡上就要每帧重算。 */
-:root[data-vfx="on"]:not([data-glass="off"]):not([data-wall="on"]):not([data-vfx-busy="on"]) .setpage{
+:root[data-vfx="on"]:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .setpage{
   contain:layout;
   backdrop-filter:blur(var(--glass-blur)) saturate(1.08)}
 /* 浮层：最实的一档 + 最强的一档模糊，并比主容器多含一层绘制隔离。 */
-:root[data-vfx="on"]:not([data-glass="off"]):not([data-wall="on"]):not([data-vfx-busy="on"]) .mbox{
+:root[data-vfx="on"]:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .mbox{
   contain:layout paint;
   backdrop-filter:blur(var(--blur-3)) saturate(1.12)}
-:root[data-vfx="on"]:not([data-wall="on"]) .mbox{background-color:var(--glass-3)}
+:root[data-vfx="on"]:not([data-glass="0"]) .mbox{background-color:var(--glass-3)}
 
 /* 科幻轮廓微光：静态的一次性光晕，**不挂 transition** ——
    给阴影挂过渡等于每次过渡都逐帧重新光栅化，那正是扁平化那一段里记下的坑。 */
-:root[data-vfx="on"][data-glow="on"]:not([data-wall="on"]) .panel:not(.logpanel){
+:root[data-vfx="on"][data-glow="on"] .panel:not(.logpanel){
   box-shadow:0 0 0 1px var(--sig-ring),0 0 16px -10px var(--sig-glow)}
-:root[data-vfx="on"][data-glow="on"]:not([data-wall="on"]) .mbox,
+:root[data-vfx="on"][data-glow="on"] .mbox,
 :root[data-vfx="on"][data-glow="on"] .toast{
   box-shadow:0 0 0 1px var(--sig-ring),0 0 22px -12px var(--sig-glow)}
 /* 轮廓微光同时把四角描边点亮一档：细描边是这套界面的科幻感来源，光晕只是它的补充。 */
-:root[data-vfx="on"][data-glow="on"]:not([data-wall="on"]) .panel:not(.logpanel)::before,
-:root[data-vfx="on"][data-glow="on"]:not([data-wall="on"]) .panel:not(.logpanel)::after{opacity:.55}
+:root[data-vfx="on"][data-glow="on"] .panel:not(.logpanel)::before,
+:root[data-vfx="on"][data-glow="on"] .panel:not(.logpanel)::after{opacity:.55}
 
 /* 面板淡入。只动 opacity，**不动 transform** ——
    玻璃面板一旦位移，背后那块纹理就得每帧重新采样，等于自己把红线请回来。
@@ -390,7 +415,7 @@ const guiPageHTML = `<!doctype html>
   display:flex;align-items:center;gap:10px;max-width:min(560px,86vw);padding:10px 14px;
   border:1px solid var(--line2);border-radius:var(--r2);background:var(--bg2);
   color:var(--ink2);font-size:var(--fs-12-5)}
-:root[data-vfx="on"]:not([data-wall="on"]) .vfxask{background:var(--glass-3)}
+:root[data-vfx="on"]:not([data-glass="0"]) .vfxask{background:var(--glass-3)}
 .vfxask button{flex:0 0 auto;padding:4px 10px;border:1px solid var(--line2);
   border-radius:var(--r1);color:var(--ink)}
 .vfxask button:hover{border-color:var(--sig-edge)}
@@ -845,6 +870,15 @@ input{font:inherit;color:inherit}
   border:1px solid var(--hair2);background:var(--field);color:var(--ink);font-size:var(--fs-12-5)}
 .mtxt:focus{outline:none;border-color:var(--sig-focus);box-shadow:0 0 0 3px var(--sig-soft)}
 .mtxt.small{max-width:120px}
+/* 档位滑杆（毛玻璃 0-10）。拖动时只更新右侧那个数字，松手才落盘 —— 见 uiBind 里那段。
+   它是控件、不是"面"，所以不进玻璃那一段，也不挂 backdrop-filter。 */
+.mrange{display:flex;align-items:center;gap:var(--s3)}
+.mrange input[type=range]{-webkit-appearance:none;appearance:none;width:190px;height:4px;
+  border-radius:2px;background:var(--line2);cursor:pointer}
+.mrange input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+  width:16px;height:16px;border-radius:50%;background:var(--sig);border:1px solid var(--sig-deep)}
+.mrange input[type=range]:focus{outline:2px solid var(--sig-focus);outline-offset:3px}
+.mrange .rv{min-width:2ch;text-align:right;font:var(--fs-11-5)/1 var(--mono);color:var(--ink2)}
 .mdot{width:22px;height:22px;border-radius:50%;border:1px solid var(--line2);cursor:pointer;padding:0}
 .mdot.on{box-shadow:0 0 0 2px var(--surf),0 0 0 4px var(--sig-edge)}
 
@@ -1160,24 +1194,36 @@ function copy(text){
      · apply()  写属性；浏览器不支持 backdrop-filter 时自动退成"关闭模糊"，不报错也不破版
      · busy()   任务执行期间摘掉毛玻璃（见 CSS 里那一段的说明）
      · watch()  帧率持续过低时问用户要不要降档，用户也可以选择维持高特效
-   另有一个 VFX.measure()，把帧率量出来交给调用方 —— 四档对比测试就是靠它（见文件顶部说明）。 */
+   另有一个 VFX.measure()，把帧率量出来交给调用方 —— 逐档对比测试就是靠它（见文件顶部说明）。 */
 var VFX = (function(){
-  var st = { vfx:'on', glass:'mid', noDegrade:false, level:'off' };
+  /* 档位是 0-10 的整数，"0" 就是关闭。GLASS_DEF 与 guiconfig.go 的 uiGlassDefault、
+     面板里 UI_DEF 的那一份必须一致 —— 三处都对不上时症状是"首屏与设置里显示的不是同一个值"。 */
+  var GLASS_MAX = 10, GLASS_DEF = '1';
+  var st = { vfx:'on', glass:GLASS_DEF, noDegrade:false, level:'0' };
   var hook = null, timer = null, bursts = null, low = 0, asked = false, probe = null;
 
   function root(){ return document.documentElement; }
+  /* 档位一律收成 "0"…"10" 的字符串。服务端给的是归一化过的，但 ?vfx= 与旧内存值不保证。 */
+  function normLevel(v){
+    var n = parseInt(v, 10);
+    if(isNaN(n) || n < 0){ return GLASS_DEF; }
+    if(n > GLASS_MAX){ return String(GLASS_MAX); }
+    return String(n);
+  }
   /* 浏览器到底认不认 backdrop-filter。不认就退成"关闭模糊" —— 半透明底还在，版式不变。 */
   function supported(){
     try{
       return !!(window.CSS && CSS.supports && CSS.supports('backdrop-filter','blur(4px)'));
     }catch(e){ return false; }
   }
-  /* 地址栏上的 ?vfx=off|low|mid|high：只为"四档各测一遍"用，**不落盘**。
+  /* 地址栏上的 ?vfx=0…10（老的 off/low/mid/high 仍然认）：只为"逐档各测一遍"用，**不落盘**。
      同一份界面不用改设置就能逐档对比，测完刷新即恢复用户自己的设置。 */
   function forced(){
     try{
-      var m = /[?&]vfx=(off|low|mid|high)(?:&|$)/.exec(location.search || '');
-      return m ? m[1] : '';
+      var m = /[?&]vfx=(off|low|mid|high|10|[0-9])(?:&|$)/.exec(location.search || '');
+      if(!m){ return ''; }
+      var alias = { off:'0', low:'3', mid:'6', high:'10' };
+      return alias[m[1]] || m[1];
     }catch(e){ return ''; }
   }
   function busy(on){ try{ root().setAttribute('data-vfx-busy', on ? 'on' : 'off'); }catch(e){} }
@@ -1186,11 +1232,11 @@ var VFX = (function(){
     try{
       u = u || {};
       if(u.vfx){ st.vfx = u.vfx === 'off' ? 'off' : 'on'; }
-      if(u.glass){ st.glass = u.glass; }
+      if(u.glass !== undefined && u.glass !== null && u.glass !== ''){ st.glass = normLevel(u.glass); }
       if(typeof u.noDegrade === 'boolean'){ st.noDegrade = u.noDegrade; }
 
-      var lv = st.vfx === 'off' ? 'off' : st.glass;
-      if(lv !== 'off' && !supported()){ lv = 'off'; }
+      var lv = st.vfx === 'off' ? '0' : st.glass;
+      if(lv !== '0' && !supported()){ lv = '0'; }
       var f = forced();
       if(f){ lv = f; }
       st.level = lv;
@@ -1241,7 +1287,7 @@ var VFX = (function(){
   function watch(){
     try{
       stopWatch();
-      if(st.vfx !== 'on' || st.level === 'off' || st.noDegrade || forced()){ return; }
+      if(st.vfx !== 'on' || st.level === '0' || st.noDegrade || forced()){ return; }
       // 20 秒一次，每次只抓约一秒。空闲时的这点开销远小于一次 tick。
       timer = setInterval(function(){
         if(document.hidden || asked){ return; }
@@ -1262,8 +1308,8 @@ var VFX = (function(){
     stopWatch();
     var d = document.createElement('div');
     d.className = 'vfxask';
-    d.innerHTML = '<span>界面帧率偏低，可能是毛玻璃的开销。要自动降到「低」档吗？</span>' +
-      '<button type="button" data-vfx-act="low">降到低档</button>' +
+    d.innerHTML = '<span>界面帧率偏低，可能是毛玻璃的开销。要自动把毛玻璃降到「2」吗？</span>' +
+      '<button type="button" data-vfx-act="low">降到 2</button>' +
       '<button type="button" data-vfx-act="keep">保持现状</button>';
     d.onclick = function(ev){
       var b = ev.target && ev.target.closest ? ev.target.closest('button') : null;
@@ -1272,7 +1318,7 @@ var VFX = (function(){
       if(d.parentNode){ d.parentNode.removeChild(d); }
       if(!hook){ return; }
       // 「保持现状」= 以后不再问（存进设置，换台机器打开也还是不再问）
-      hook(a === 'low' ? { glass:'low' } : { noDegrade:true });
+      hook(a === 'low' ? { glass:'2' } : { noDegrade:true });
     };
     document.body.appendChild(d);
   }
@@ -2090,6 +2136,14 @@ function uiField(key, cls, val, ph, suffix){
   return '<input class="mtxt ' + cls + '" data-in="' + key + '" value="' + uiEsc(val) +
     '" placeholder="' + uiEsc(ph) + '">' + (suffix ? ' ' + suffix : '');
 }
+/* 档位滑杆：0-10 的整数。拖动时只更新右侧那个数字，**松手（change）才落盘** ——
+   否则每挪一格就发一次保存请求。数字用等宽字体并占固定宽度，跳动时不会把版式撑动。 */
+function uiRange(key, val, min, max){
+  var v = (val === '' || val === null || val === undefined) ? String(min) : String(val);
+  return '<div class="mrange"><input type="range" data-rng="' + key + '" min="' + min +
+    '" max="' + max + '" step="1" value="' + uiEsc(v) + '" aria-label="' + key + '">' +
+    '<span class="rv" data-rv="' + key + '">' + uiEsc(v) + '</span></div>';
+}
 /* 强调色圆点自带的预览色。看着和 CSS 重复，但**不能**改成 var(--sig)：
    点任意一个圆点会立刻保存并套用，data-accent 一变，所有圆点都会变成同一个颜色，
    预览就失去意义了。它必须是各自独立的色值（口径是"在深浅底上都看得出来的中间调"）。 */
@@ -2109,18 +2163,14 @@ function wallHintText(u){
   return '点「导入图片…」选一张图（JPEG / PNG / GIF，单张上限 32MB）；也可以把图放进存档的 wallpapers 目录再点「刷新」。建议用不透明的图：透明区域转成 JPEG 后会发黑。';
 }
 function glassHintText(u){
-  if(u.bgImage){
-    return '已设背景图片，毛玻璃让位、面板保持实心：半透明面板压在任意照片上时文字对比度不达标。两个功能只能取一个。';
-  }
   if(u.vfx === 'off'){ return '总开关关着，这一档暂时不生效；重新打开「视觉美化」后回到这一档。'; }
-  var lv = u.glass || 'off';
-  if(lv === 'off'){
-    return '只留半透明底色，不做实时模糊 —— 最省的一档。';
-  }
-  var cost = lv === 'high'
-    ? '高档（14px）明显增加显卡与浏览器开销，低配设备可能掉帧；建议先用「帧率实测」量一下。'
-    : '任务执行期间自动让位，跑完立刻恢复。';
-  return '面板半透明，并实时模糊背后的内容；模糊只加在局部面板上，不会铺到整页。' + cost;
+  var n = parseInt(u.glass, 10);
+  if(isNaN(n)){ n = 1; }
+  if(n === 0){ return '0 = 关闭：面板实心、不做模糊，最省的一档。'; }
+  var cost = n >= 8 ? '这一档开销明显，低配机器可能掉帧，建议先「帧率实测」。'
+    : n >= 4 ? '中等档：任务执行期间自动让位，跑完立刻恢复。'
+    : '偏保守的一档：观感接近实心，开销最小。';
+  return '0 到 10：越大越透明、模糊越强。' + cost + (u.bgImage ? '已设背景图，面板会补一点不透明度。' : '');
 }
 /* 图库选择器。
    配置里存的是「导入后的文件名」，所以这里给下拉列表而不是让用户敲路径 —— 路径那种做法
@@ -2236,7 +2286,7 @@ function uiSub(title, extra){
    noDegrade / remember 存的是"关掉"的反面，logKeep 服务端给的是生效值，都要先还原成同一个口径再比。 */
 var UI_DEF = {
   theme:'auto', accent:'mint', flat:'off', radii:'std', backdrop:'on', bgImage:'',
-  vfx:'on', glass:'mid', glow:'on', fade:'on', noDegrade:'', scale:'std', motion:'full',
+  vfx:'on', glass:'1', glow:'on', fade:'on', noDegrade:'', scale:'std', motion:'full',
   rail:'std', musicMode:'order', musicLoop:'all', musicVol:'70', remember:'',
   logKeep:'2000', defPort:'', defRelay:''
 };
@@ -2288,9 +2338,11 @@ function uiThemeHTML(u){
     uiItem('vfx', '视觉美化', uiSw('vfx', u.vfx !== 'off', '科幻外观总开关'),
       '关掉等于面板实心、去掉光晕与淡入，回到基础扁平外观。',
       '总开关只影响观感，开关前后功能与计算结果完全一致。') +
-    uiItem('glass', '毛玻璃', uiSeg('glass', u.glass, [['off','关闭'],['low','低'],['mid','中'],['high','高']]),
+    uiItem('glass', '毛玻璃', uiRange('glass', u.glass, 0, 10),
       glassHintText(u),
-      '模糊按层次分配：主容器一档、浮层更强；面板内部的卡片只做半透明。') +
+      '模糊按层次分配：主容器一档、浮层更强，面板内部的卡片只做半透明。' +
+      '设了背景图时两者会一起用 —— 程序把照片压暗一些，并给面板补一点不透明度，' +
+      '保证照片上的字仍达 4.5 的对比度。高对比主题不参与毛玻璃。') +
     uiItem('glow', '科幻轮廓微光', uiSw('glow', u.glow !== 'off', '面板描边与四角微光'),
       '静态光晕，画好一次就不再重绘。') +
     uiItem('fade', '面板淡入', uiSw('fade', u.fade !== 'off', '浮层出现时淡入'),
@@ -2487,6 +2539,11 @@ function uiBind(){
     inp.onchange = uiSave;
     inp.onkeydown = function(e){ if(e.key === 'Enter'){ uiSave(); } };
   });
+  Array.prototype.forEach.call(body.querySelectorAll('[data-rng]'), function(r){
+    var out = body.querySelector('[data-rv="' + r.getAttribute('data-rng') + '"]');
+    r.oninput = function(){ if(out){ out.textContent = r.value; } };
+    r.onchange = uiSave;
+  });
   var fi = $('wallFile');
   if(fi){ fi.onchange = function(){ if(fi.files && fi.files[0]){ uiImportWall(fi.files[0]); } }; }
   var cf = $('cfgFile');
@@ -2502,7 +2559,7 @@ function uiCollect(){
   var out = {
     theme:u.theme || 'auto', accent:u.accent || 'mint', motion:u.motion || 'full',
     backdrop:u.backdrop || 'on', scale:u.scale || 'std', flat:u.flat || 'off',
-    glass:u.glass || 'off', vfx:u.vfx || 'on', glow:u.glow || 'on', fade:u.fade || 'on',
+    glass:u.glass || '1', vfx:u.vfx || 'on', glow:u.glow || 'on', fade:u.fade || 'on',
     bgImage:u.bgImage || '', musicMode:u.musicMode || 'order', musicLoop:u.musicLoop || 'all',
     musicVol:u.musicVol || '70', remember:u.remember || '', logKeep:u.logKeep || '',
     defPort:u.defPort || '', defRelay:u.defRelay || '',
@@ -2534,6 +2591,10 @@ function uiCollect(){
   });
   Array.prototype.forEach.call(document.querySelectorAll('#settingsBody [data-in]'), function(i){
     out[i.getAttribute('data-in')] = (i.value || '').trim();
+  });
+  // 档位滑杆：值就是 0-10 的十进制字符串，与服务端收的形态一致，客户端不再猜类型。
+  Array.prototype.forEach.call(document.querySelectorAll('#settingsBody [data-rng]'), function(r){
+    out[r.getAttribute('data-rng')] = String(r.value);
   });
   return out;
 }
@@ -2572,7 +2633,7 @@ function uiApply(u){
 function uiRefreshHints(u){
   var body = $('settingsBody');
   if(!body || !u){ return; }
-  [['[data-in="bgImage"]', wallHintText(u)], ['[data-seg="glass"]', glassHintText(u)]].forEach(function(pr){
+  [['[data-in="bgImage"]', wallHintText(u)], ['[data-rng="glass"]', glassHintText(u)]].forEach(function(pr){
     var el = body.querySelector(pr[0]);
     var row = el && el.closest ? el.closest('.mitem') : null;
     var hint = row ? row.querySelector('.mi-d') : null;

@@ -38,7 +38,7 @@ func withTempArchive(t *testing.T) string {
 // 三向对齐，任何一头多出来或少掉都会被这条抓住。
 func TestPanelOnlyShowsRealSettings(t *testing.T) {
 	panel := bodyBetween(t, "function uiThemeHTML(u){", "function uiAboutHTML(u){")
-	keyRe := regexp.MustCompile(`ui(?:Seg|Sw|Field)\('([A-Za-z]+)'`)
+	keyRe := regexp.MustCompile(`ui(?:Seg|Sw|Field|Range)\('([A-Za-z]+)'`)
 	seen := map[string]bool{}
 	for _, m := range keyRe.FindAllStringSubmatch(panel, -1) {
 		seen[m[1]] = true
@@ -59,6 +59,10 @@ func TestPanelOnlyShowsRealSettings(t *testing.T) {
 	}
 	// 面板里若有内联的输入控件，也一并算上
 	for _, m := range regexp.MustCompile(`data-in="([A-Za-z]+)"`).FindAllStringSubmatch(panel, -1) {
+		seen[m[1]] = true
+	}
+	// 自定义控件（滑杆）同理：认它的 data- 钩子。
+	for _, m := range regexp.MustCompile(`data-rng="([A-Za-z]+)"`).FindAllStringSubmatch(panel, -1) {
 		seen[m[1]] = true
 	}
 	if len(seen) == 0 {
@@ -268,7 +272,8 @@ func TestExportImportRoundTrip(t *testing.T) {
 		t.Errorf("自己导出的文件里出现了不认识的条目：%v", res.Skipped)
 	}
 	got := loadUI()
-	if got.Theme != "dark" || got.Glass != "high" || got.LogKeep != "1500" {
+	// 毛玻璃在这里顺手验一遍迁移：存进去的 "high" 是旧四档的写法，归一化后应当是 10。
+	if got.Theme != "dark" || got.Glass != "10" || got.LogKeep != "1500" {
 		t.Errorf("导入后取值不对：theme=%q glass=%q logKeep=%q", got.Theme, got.Glass, got.LogKeep)
 	}
 }

@@ -31,7 +31,7 @@ type guiUIState struct {
 	Backdrop  string `json:"backdrop,omitempty"`  // on / off
 	Scale     string `json:"scale,omitempty"`     // std / big（界面字号，独立于主题）
 	Flat      string `json:"flat,omitempty"`      // on / off（扁平化，独立于主题）
-	Glass     string `json:"glass,omitempty"`     // off / low / mid / high（毛玻璃档位）
+	Glass     string `json:"glass,omitempty"`     // 0-10 十进制字符串（毛玻璃档位）：0 = 关闭，越大越透明
 	VFX       string `json:"vfx,omitempty"`       // on / off（视觉美化总开关）
 	Glow      string `json:"glow,omitempty"`      // on / off（科幻轮廓微光）
 	Fade      string `json:"fade,omitempty"`      // on / off（面板淡入）
@@ -58,10 +58,25 @@ var accentValues = []string{"blue", "violet"}
 // scaleValues 界面字号白名单，是与 Motion/Backdrop 同级的独立维度。
 var scaleValues = []string{"std", "big"}
 
-// glassValues 毛玻璃档位白名单，须与 CSS 的 :root[data-glass=…] 与界面上的四档一致。
+// 毛玻璃档位：0 表示关闭，1-10 越大越透明（模糊随之增强）。
 //
-// 它是离散档位而非像素值，可保证取值都在实测范围内（数值见 CSS 里 --glass-blur 的定义）。
-var glassValues = []string{"off", "low", "mid", "high"}
+// 它是离散的整数档而非像素值：既保证取值落在实测范围内，也让"数值越大越透明"
+// 这一条在界面上可预期。每个档位在 CSS 里有一块 :root[data-glass="N"] 与之一一对应，
+// 具体颜色由各主题的 --glass-rgb 决定（见 guihtml.go 的 VFX 段）。
+const (
+	uiGlassMin     = 0
+	uiGlassMax     = 10
+	uiGlassDefault = "1"
+)
+
+// glassLevels 全部合法档位（含 0）。用例拿它核对"档位表与 CSS 逐块对应"。
+var glassLevels = func() []string {
+	out := make([]string, 0, uiGlassMax-uiGlassMin+1)
+	for i := uiGlassMin; i <= uiGlassMax; i++ {
+		out = append(out, strconv.Itoa(i))
+	}
+	return out
+}()
 
 // radiiValues 界面圆角白名单，与 CSS 的 :root[data-radii=…] 三个块对应。
 //
@@ -70,10 +85,6 @@ var radiiValues = []string{"sharp", "std", "round"}
 
 // railValues 侧边栏样式白名单，与 CSS 的 :root[data-rail=…] 对应。
 var railValues = []string{"std", "compact"}
-
-// uiGlassDefault 毛玻璃默认档位。
-// 取 mid 而非 high：它被自动让位、帧率降级询问、总开关三层兜底。
-const uiGlassDefault = "mid"
 
 // 日志每层保留的行数上限与下限。
 const (
@@ -103,11 +114,21 @@ func normalizeUI(u guiUIState) guiUIState {
 	if u.Flat != "on" {
 		u.Flat = "off"
 	}
-	// 毛玻璃改为四档：旧配置的 "on"（面板半透明、无实时模糊）迁移到 mid。
-	if !containsStr(glassValues, u.Glass) {
-		if u.Glass == "on" {
-			u.Glass = "mid"
-		} else {
+	// 毛玻璃改为 0-10 的连续档：0 = 关闭，越大越透明。旧的四档与更早的 on/off 在这里迁移，
+	// 迁移后仍是"用户的意图"，而不是一律打回默认。
+	if n, err := strconv.Atoi(strings.TrimSpace(u.Glass)); err == nil && n >= uiGlassMin && n <= uiGlassMax {
+		u.Glass = strconv.Itoa(n)
+	} else {
+		switch strings.TrimSpace(u.Glass) {
+		case "off": // 早期的"关"（面板仍半透明、不做模糊）
+			u.Glass = "0"
+		case "low":
+			u.Glass = "3"
+		case "on", "mid": // "on" 是最早那版的"开"，当初迁到 mid
+			u.Glass = "6"
+		case "high":
+			u.Glass = "10"
+		default:
 			u.Glass = uiGlassDefault
 		}
 	}

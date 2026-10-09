@@ -122,6 +122,14 @@ var sharedVars = map[string]bool{
 	"--wall":     true,
 	"--sig-soft": true, "--sig-edge": true, "--sig-ring": true,
 	"--sig-focus": true, "--sig-live": true,
+	// 毛玻璃那一族也不是"主题私有"：颜色由每个主题的 --glass-rgb 决定，
+	// 不透明度与模糊由档位块给（档位块与主题正交），三档合成值 --glass-1/2/3 在基础块里算一次。
+	// 唯一会覆盖它们的是高对比主题（档位块用 :not([data-theme="contrast"]) 把它排除在外），
+	// 那一头由 TestGlassLevelsAreBoundedAndOrdered 与 TestGlassOverPageKeepsTextReadable 盯着。
+	"--glass-1": true, "--glass-2": true, "--glass-3": true,
+	"--g1a": true, "--g2a": true, "--g3a": true,
+	"--glass-blur": true, "--blur-3": true,
+	"--w1": true, "--w2": true, "--w3": true,
 }
 
 // isSharedVar 在 sharedVars 之外，按前缀认领 --fs-*（字号）与 --row-*（栏高）。
@@ -175,7 +183,14 @@ func TestEveryThemeCoversEveryThemeOwnedVariable(t *testing.T) {
 	}
 }
 
-// 共用变量不许被任何主题块重新定义。
+// themeOverridableShared 是"共用、但允许某个主题覆盖"的那一小撮。
+//
+// 目前只有毛玻璃的三档不透明度，理由在 guihtml.go 的档位表那一段：档位块与主题正交，
+// 唯独高对比主题必须把它们钉回接近实心（它的存在理由是"看清"，不能随档位变透明）。
+// 这是一处**明写的例外**，不是把守卫放松 —— 除这三个名字之外，共用变量依旧不许被主题重新定义。
+var themeOverridableShared = map[string]bool{"--g1a": true, "--g2a": true, "--g3a": true}
+
+// 共用变量不许被任何主题块重新定义（上面那三个例外除外）。
 func TestSharedVarsAreNotRedefinedByThemes(t *testing.T) {
 	for _, theme := range themeValues {
 		sel := themeBlock(theme)
@@ -183,7 +198,7 @@ func TestSharedVarsAreNotRedefinedByThemes(t *testing.T) {
 			continue
 		}
 		for name := range cssVars(cssBlock(t, sel)) {
-			if isSharedVar(name) {
+			if isSharedVar(name) && !themeOverridableShared[name] {
 				t.Errorf("共用变量 %s 被主题 %s 重新定义了 —— 它要么该归主题私有（补进共用清单的对面），要么这次覆盖是绕开检查的补丁", name, theme)
 			}
 		}
@@ -329,12 +344,14 @@ func TestNoNonexistentVariablesInCSS(t *testing.T) {
 			}
 		}
 	}
-	// 毛玻璃档位同理：--glass-blur 是按档位声明的（与字号档同一形态，不是主题私有变量）。
-	for _, name := range glassValues {
-		if name == "off" {
-			continue
+	// 毛玻璃档位同理：--glass-blur 与三档不透明度是按档位声明的（与字号档同一形态，不是主题私有变量）。
+	// 档位块带 :not([data-theme="contrast"])，选择器要照抄，否则这里collect不到、会误报成"变量没定义"。
+	for _, name := range glassLevels {
+		if name == "0" {
+			continue // 0 是关闭，没有属于自己的块
 		}
-		if sel := `:root[data-glass="` + name + `"]`; hasBlock(guiPageHTML, sel) {
+		sel := `:root[data-glass="` + name + `"]:not([data-theme="contrast"])`
+		if hasBlock(guiPageHTML, sel) {
 			for v := range cssVars(cssBlock(t, sel)) {
 				declared[v] = true
 			}
