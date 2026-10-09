@@ -943,6 +943,28 @@ func guiAllowedHost(addr string) bool {
 	return host == "127.0.0.1" || host == "localhost" || host == "::1"
 }
 
+// guiNoStorePath —— 哪些路径的内容是随着 exe 一起变的。
+//
+// 只有这些：界面本体与 JSON 接口。它们不写缓存头时，浏览器会按启发式规则自己猜一个
+// 新鲜期（拿 Last-Modified 的 10% 当期限一类做法），于是换上新版 exe 之后打开的仍是
+// 上一份界面 —— 用户看到的是「更新了，毛病还在」。排查音乐放不出来时就撞上过这一条：
+// 服务端已经在发修好的页面，标签页里跑的却还是旧的函数。
+//
+// 音频与背景图明确**不**在此列：它们各有该有的缓存策略，
+// /music/ 的 no-cache 让拖动进度不被整段重下，/bg/ 的 immutable 靠名字里的内容哈希。
+func guiNoStorePath(p string) bool {
+	return p == "/" || strings.HasPrefix(p, "/api/")
+}
+
+func guiCachePolicy(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if guiNoStorePath(r.URL.Path) {
+			w.Header().Set("Cache-Control", "no-store")
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func cmdGui(args []string) error {
 	fs := flag.NewFlagSet("gui", flag.ContinueOnError)
 	addr := fs.String("addr", fmt.Sprintf("127.0.0.1:%d", guiDefaultPort), "界面监听地址；仅允许绑定本机")
@@ -1219,7 +1241,9 @@ func cmdGui(args []string) error {
 	}))
 
 	srv := &http.Server{
-		Handler: mux,
+		// 缓存策略在这里统一决定，不散在各个 handler 里：
+		// 新增一个 /api/ 接口时不会漏掉，也不可能顺手把音频的 Range 缓存抹掉。
+		Handler: guiCachePolicy(mux),
 		// 各阶段均设明确时限，避免单个卡住的连接阻塞其他请求
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,

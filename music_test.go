@@ -4,8 +4,10 @@ package main
 // 播放本身交给界面的 <audio>，所以这里没有播放状态机可测 —— 那是界面那一侧的事。
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,14 +25,16 @@ func withTempMusic(t *testing.T) string {
 }
 
 // 一个合法的 MP3 头就够了：曲库只嗅文件头，解码交给界面。
+// 没有 ID3 标签时按帧长（417 字节）铺帧头，模拟真实的文件。
 func writeTestMP3(t *testing.T, p string, size int, id3 bool) {
 	t.Helper()
 	b := make([]byte, size)
 	if id3 {
 		copy(b, []byte("ID3"))
 	} else {
-		// 没有 ID3 标签时看 MPEG 帧同步：前 11 位为 1
-		b[0], b[1] = 0xFF, 0xFB
+		for off := 0; off+4 <= size; off += 417 {
+			b[off], b[off+1], b[off+2], b[off+3] = 0xFF, 0xFB, 0x90, 0x64
+		}
 	}
 	if err := os.WriteFile(p, b, 0o644); err != nil {
 		t.Fatal(err)
@@ -97,6 +101,78 @@ func TestServeMusicOnlyServesPlainAudioNames(t *testing.T) {
 		serveMusic(w, httptest.NewRequest(http.MethodGet, c.path, nil))
 		if w.Code != c.want {
 			t.Errorf("%s 应当返回 %d，实际 %d", c.path, c.want, w.Code)
+		}
+	}
+}
+
+// 曲库报出来的每一首，都必须真的取得到。
+//
+// 这条不变量正是那次线上现象的正面版本：载荷把每首序列化成 {name, size}，而界面曾经把它
+// 当字符串数组用，于是每首都去请求 /music/[object Object]，现象是「列得出来但一首也放不了」。
+// 列表与提供文件这两条路必须对同一批文件达成一致，光测各自都过是发现不了的。
+func TestEveryListedTrackIsServable(t *testing.T) {
+	dir := withTempMusic(t)
+	writeTestMP3(t, filepath.Join(dir, "带标签.mp3"), 4096, true)
+	writeTestMP3(t, filepath.Join(dir, "无标签.mp3"), 4096, false)
+
+	// 第三首：前面塞一段垃圾（有些下载工具会这样做，甚至塞的是加密过的头部）。
+	// 宽松的解码器会跳过去照放，所以曲库也得认它 —— 「PCL2 能放这里不能」差的就是这一步。
+	junkPath := filepath.Join(dir, "前面有垃圾.mp3")
+	writeTestMP3(t, junkPath, 4096, false)
+	raw, err := os.ReadFile(junkPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	junk := []byte{0x7C, 0xD5, 0x32, 0xEB, 0x86, 0x02, 0x7F, 0x4B, 0xA8, 0xAF, 0xA6, 0x8E, 0x0F, 0xFF, 0x99, 0x14}
+	if err := os.WriteFile(junkPath, append(append([]byte{}, junk...), raw...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tracks := listMusicTracks()
+	names := make([]string, 0, len(tracks))
+	for _, tr := range tracks {
+		names = append(names, tr.Name)
+	}
+	if len(tracks) != 3 {
+		t.Fatalf("应当认出 3 首（含带垃圾前缀那首），实际 %d：%v", len(tracks), names)
+	}
+
+	for _, tr := range tracks {
+		if tr.Name == "" {
+			t.Errorf("曲库里有一首没有名字（%+v）—— 界面拿它拼不出地址", tr)
+			continue
+		}
+		// 界面就是这么拼地址的：/music/ + encodeURIComponent(name)
+		w := httptest.NewRecorder()
+		serveMusic(w, httptest.NewRequest(http.MethodGet, "/music/"+url.PathEscape(tr.Name), nil))
+		if w.Code != http.StatusOK {
+			t.Errorf("列出来的「%s」取不到（HTTP %d）—— 用户看到的就是「列得出来但放不了」", tr.Name, w.Code)
+		}
+	}
+
+	// 载荷的形状也钉住：界面按 name 取文件名
+	b, err := json.Marshal(tracks)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"name"`) {
+		t.Errorf("曲库序列化之后应当带 name 字段（界面按它拼地址），实际 %s", string(b))
+	}
+}
+
+// 曲库列出的名单里，不该混进纯文本之类改了后缀的东西 —— 上面那条放宽了 MP3 的识别，
+// 这条守住它的另一头。
+func TestMusicSniffDoesNotSwallowText(t *testing.T) {
+	dir := withTempMusic(t)
+	if err := os.WriteFile(filepath.Join(dir, "其实是文本.mp3"), []byte("这是一段普通的文字内容，里面没有任何音频帧。"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := listMusicTracks(); len(got) != 0 {
+		t.Errorf("纯文本不该被当成音频，实际收进了 %d 首", len(got))
+	}
+	for _, head := range [][]byte{nil, {}, {0xFF}, {0xFF, 0xFB}, {0xFF, 0xFB, 0x90}} {
+		if got := sniffMusicExt(head); got != "" {
+			t.Errorf("太短的输入不该被认成音频（%v -> %q）", head, got)
 		}
 	}
 }

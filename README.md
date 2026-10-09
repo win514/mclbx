@@ -126,7 +126,7 @@ mclbx gui --no-elevate
 
 ```powershell
 $env:CGO_ENABLED = '0'
-go build -trimpath -ldflags "-s -w -X 'main.version=mclbx 1.40'" -o dist/mclbx.exe .
+go build -trimpath -ldflags "-s -w -X 'main.version=mclbx 1.41'" -o dist/mclbx.exe .
 ```
 
 一次构建五个平台（Windows amd64 / 386 / arm64、Linux amd64 / arm64），产物输出到 `dist\`：

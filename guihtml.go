@@ -2060,7 +2060,11 @@ function bgmPaint(){
   el.textContent = (bgmEl && !bgmEl.paused ? '正在放：' : '已暂停：') + n;
 }
 function bgmSetList(list){
-  bgmList = list || [];
+  // 载荷里每首是 {name, size}，这里统一成文件名 —— 早先这里直接当字符串用了，
+  // 于是每首都去请求 /music/[object Object]，现象是「列得出来但一首也放不了」。
+  bgmList = (list || []).map(function(x){
+    return (x && x.name) ? x.name : String(x);
+  });
   if(bgmIdx >= 0 && !bgmList[bgmIdx]){ bgmIdx = -1; } // 那一首被删了
   bgmPaint();
 }

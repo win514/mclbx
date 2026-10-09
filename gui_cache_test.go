@@ -1,0 +1,93 @@
+package main
+
+// gui_cache_test.go 管界面服务的缓存口径。
+//
+// 起因是一次真实的排查：音乐放不出来，服务端明明已经在发修好的页面，浏览器里跑的却还是
+// 旧的函数 —— 页面没有缓存头，浏览器按启发式规则自己猜了一个新鲜期，于是换上新版 exe 之后
+// 打开的仍是上一份界面，用户看到的是「更新了，毛病还在」。
+//
+// 反过来也不能一刀切no-store：音频要 Range 拖动，背景图名字里带内容哈希，
+// 它们各自有该有的策略，被中间件抹掉才是新的 bug。
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+// 界面本体与所有 JSON 接口一律不许缓存。
+func TestGuiCachePolicyCoversPageAndAPIs(t *testing.T) {
+	for _, p := range []string{"/", "/api/state", "/api/tasks", "/api/settings", "/api/wall/import", "/api/start", "/api/quit"} {
+		if !guiNoStorePath(p) {
+			t.Errorf("%s 是随 exe 一起变的，必须不让缓存", p)
+		}
+	}
+}
+
+// 音频、背景图、静态资源各按自己的策略缓存，不能被这个中间件顺手抹掉。
+func TestGuiCachePolicyLeavesMediaAlone(t *testing.T) {
+	for _, p := range []string{"/music/歌.mp3", "/bg/bg-0123456789abcdef.jpg", "/assets/favicon.png", "/manual", "/apiary"} {
+		if guiNoStorePath(p) {
+			t.Errorf("%s 不该由缓存中间件决定缓存头 —— 它有自己的策略（Range 拖动 / 内容哈希）", p)
+		}
+	}
+}
+
+// 中间件只改该改的那一类路径，其余请求原样放行。
+func TestGuiCachePolicyHeaderPerPath(t *testing.T) {
+	cases := []struct {
+		path     string
+		wantNone bool
+	}{
+		{"/", true},
+		{"/api/state", true},
+		{"/music/歌.mp3", false},
+		{"/bg/bg-0123456789abcdef.jpg", false},
+	}
+	for _, c := range cases {
+		var seen string
+		h := guiCachePolicy(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			seen = w.Header().Get("Cache-Control")
+		}))
+		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, c.path, nil))
+		if got := seen == "no-store"; got != c.wantNone {
+			t.Errorf("%s 的 Cache-Control 是 %q，期望 no-store 存在=%v", c.path, seen, c.wantNone)
+		}
+	}
+}
+
+// 策略必须真的挂在服务上。少了这一行，上面的用例全都照样通过 ——
+// 那种「测了但没接上」的松弛正是这类改动最容易留下的缺口。
+func TestGuiCachePolicyIsWired(t *testing.T) {
+	b, err := os.ReadFile("gui.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "Handler: guiCachePolicy(mux)") {
+		t.Error("界面服务没有挂上 guiCachePolicy —— 页面与 /api/ 又会变成可缓存的，" +
+			"换上新版 exe 后浏览器仍可能拿旧界面")
+	}
+}
+
+// 音频不设 no-store（否则每拖一次进度就整段重下），但也不要长缓存：
+// 曲库里的文件是用户自己换的，多半没有 Last-Modified 之外的新鲜度信息。
+func TestMusicResponseStaysRevalidated(t *testing.T) {
+	dir := withTempMusic(t)
+	writeTestMP3(t, filepath.Join(dir, "歌.mp3"), 4096, true)
+
+	w := httptest.NewRecorder()
+	serveMusic(w, httptest.NewRequest(http.MethodGet, "/music/%E6%AD%8C.mp3", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("应当取得到音频，实际 %d", w.Code)
+	}
+	cc := w.Header().Get("Cache-Control")
+	if cc == "" {
+		t.Error("音频没有缓存头：浏览器会按启发式规则猜一个新鲜期，换掉文件后界面听不到新的")
+	}
+	if strings.Contains(cc, "no-store") {
+		t.Errorf("音频不该是 %q —— no-store 会让拖动进度变成整段重下", cc)
+	}
+}

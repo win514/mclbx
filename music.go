@@ -16,6 +16,7 @@ package main
 // 没有播放状态机、没有轮询、没有定时器 —— 播放状态归界面那一侧。
 
 import (
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -44,18 +45,45 @@ func isMusicExt(ext string) bool {
 	return false
 }
 
-// sniffMusicExt 第二层：只看文件头。
+// mp3FrameAt 判断从这个位置开始是不是一个说得通的 MPEG 音频帧头。
+// 只看同步位太容易误判，所以把版本/层/码率/采样率里的保留值一并排掉。
+func mp3FrameAt(b []byte, i int) bool {
+	if i+1 >= len(b) || b[i] != 0xFF || b[i+1]&0xE0 != 0xE0 {
+		return false
+	}
+	if i+2 >= len(b) {
+		return false
+	}
+	if (b[i+1]>>3)&0x03 == 0x01 { // 版本保留值
+		return false
+	}
+	if (b[i+1]>>1)&0x03 == 0x00 { // 层保留值
+		return false
+	}
+	if br := (b[i+2] >> 4) & 0x0F; br == 0x00 || br == 0x0F { // 码率保留值
+		return false
+	}
+	if (b[i+2]>>2)&0x03 == 0x03 { // 采样率保留值
+		return false
+	}
+	return true
+}
+
+// sniffMusicExt 第二层：看文件头。
 //
 // 这一层挡的是「改了扩展名的非音频文件」。PCL2 的更新日志里有过两条与音乐有关的修复
 // ——「背景音乐数量显示有误」与「背景音乐数量错误地计入了非音乐文件」—— 说的就是这类问题。
 // 第三层（这个文件到底能不能解码）交给界面：<audio> 报 error 时我们就标记它放不了，
 // 而不是在这里替浏览器猜。
+//
+// MP3 这里**不能只看开头**：有些下载工具会在文件前面塞一段垃圾（甚至加密过的头部），
+// 而宽松的解码器会跳过去、往前找到帧同步照放不误 —— 用户遇到的现象就是「PCL2 能放、
+// 这里不认」。所以认不出已知文件头时，再往前扫一遍帧同步；要求扫到**两个**说得通的帧头，
+// 这样纯文本之类的东西不会被误认成音频。
 func sniffMusicExt(head []byte) string {
 	switch {
 	case len(head) >= 3 && string(head[:3]) == "ID3":
 		return ".mp3" // 带 ID3 标签
-	case len(head) >= 2 && head[0] == 0xFF && head[1]&0xE0 == 0xE0:
-		return ".mp3" // MPEG 帧同步：没有 ID3 标签的 MP3
 	case len(head) >= 12 && string(head[:4]) == "RIFF" && string(head[8:12]) == "WAVE":
 		return ".wav"
 	case len(head) >= 4 && string(head[:4]) == "fLaC":
@@ -66,6 +94,15 @@ func sniffMusicExt(head []byte) string {
 		return ".m4a"
 	case len(head) >= 4 && head[0] == 0x30 && head[1] == 0x26 && head[2] == 0xB2 && head[3] == 0x75:
 		return ".wma"
+	}
+	frames := 0
+	for i := 0; i+2 < len(head); i++ {
+		if mp3FrameAt(head, i) {
+			frames++
+			if frames >= 2 {
+				return ".mp3"
+			}
+		}
 	}
 	return ""
 }
@@ -111,14 +148,18 @@ func listMusicTracks() []musicTrack {
 	return out
 }
 
+// musicHeadBytes 嗅探时最多读这么多字节。要往前扫帧同步，所以不能只读十来字节；
+// 8KB 对「文件前面有一段垃圾」这个情形足够，而列一次曲库也就多读几 MB。
+const musicHeadBytes = 8 << 10
+
 func readMusicHead(p string) []byte {
 	f, err := os.Open(p)
 	if err != nil {
 		return nil
 	}
 	defer f.Close()
-	b := make([]byte, 12)
-	n, _ := f.Read(b)
+	b := make([]byte, musicHeadBytes)
+	n, _ := io.ReadFull(f, b)
 	return b[:n]
 }
 
