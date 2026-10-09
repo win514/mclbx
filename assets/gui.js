@@ -1910,6 +1910,14 @@ $('bgmToggle').oncontextmenu = function(e){ e.preventDefault(); bgmStep(1); };
 /* 【视觉美化，非核心功能】启动美化层。
    它只把设置写成 <html> 上的属性，不落盘、也不回头改设置 —— 改档位仍然只从设置面板那一条路走。 */
 VFX.init(window.MCLBX_UI || null);
+/* 高级选项的两项也要在首屏生效。倍率的唯一写入口是 applyAdvanced，而它平时只被 uiApply
+   叫到 —— uiApply 只在保存设置时跑，于是重开程序后界面会一直停在出厂观感，直到用户动
+   任何一项设置才跳回自己的取值。这里补上首屏这一次；出厂值仍走 removeProperty，不写覆盖。 */
+(function(){
+  var u = window.MCLBX_UI;
+  if(!u){ return; }
+  try{ applyAdvanced(document.documentElement, u.transparency, u.wallBright); }catch(e){}
+})();
 Array.prototype.forEach.call($('segs').querySelectorAll('.seg'), function(sg){
   sg.onclick = function(){
     layer = sg.getAttribute('data-f');

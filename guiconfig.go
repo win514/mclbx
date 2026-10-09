@@ -232,6 +232,10 @@ func wallAttr(w wallResult) string {
 }
 
 // uiStartupJSON 注入页面启动所需字段：跟随系统的原始主题值与日志行数。
+//
+// 外观那几项必须在这里就交给前端：属性注入（htmlAttr）管的是"值直接对应一个 CSS 块"的项，
+// 而高级选项的两个百分比要先在浏览器端换算成倍率，服务端只发取值。少了它们，前端在首屏
+// 无从知道用户调过面板透明度与背景明暗，界面会一直停在出厂观感，直到用户动一次设置。
 func (u guiUIState) uiStartupJSON() string {
 	b, err := json.Marshal(struct {
 		Theme     string `json:"theme"`
@@ -245,17 +249,22 @@ func (u guiUIState) uiStartupJSON() string {
 		Fade  string `json:"fade"`
 		Radii string `json:"radii"`
 		Rail  string `json:"rail"`
+		// 高级选项的两个百分比：倍率由前端算，服务端只把取值发下去。
+		Transparency string `json:"transparency"`
+		WallBright   string `json:"wallBright"`
 	}{
-		Theme:     u.Theme,
-		FollowOS:  u.Theme == "auto",
-		LogKeep:   u.logKeep(),
-		MusicMode: u.MusicMode,
-		MusicLoop: u.MusicLoop,
-		MusicVol:  u.MusicVol,
-		Glass:     u.Glass,
-		Fade:      u.Fade,
-		Radii:     u.Radii,
-		Rail:      u.Rail,
+		Theme:        u.Theme,
+		FollowOS:     u.Theme == "auto",
+		LogKeep:      u.logKeep(),
+		MusicMode:    u.MusicMode,
+		MusicLoop:    u.MusicLoop,
+		MusicVol:     u.MusicVol,
+		Glass:        u.Glass,
+		Fade:         u.Fade,
+		Radii:        u.Radii,
+		Rail:         u.Rail,
+		Transparency: u.Transparency,
+		WallBright:   u.WallBright,
 	})
 	if err != nil {
 		return "{}"

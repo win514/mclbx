@@ -124,3 +124,27 @@ func TestAdvancedOptionWarnsPastFactory(t *testing.T) {
 		}
 	}
 }
+
+// TestAdvancedOptionsAreAppliedOnFirstScreen 两项必须在首屏就生效，而不是等用户动一次设置。
+//
+// 只把取值存住是不够的：倍率的唯一写入口是 applyAdvanced，而它平时只被 uiApply 叫到 ——
+// uiApply 只在保存设置、导入配置与恢复默认三处跑。首屏那一次如果没人补，重开程序后界面会
+// 一直停在出厂观感（面板偏实、照片偏暗），用户看到的就是"设置没生效，点一下才回来"。
+func TestAdvancedOptionsAreAppliedOnFirstScreen(t *testing.T) {
+	// 一、服务端首屏要把取值发给前端：这两项不像主题那样能直接对应一个 CSS 块，
+	// 倍率由浏览器算，所以取值必须在首屏 JSON 里。
+	boot := normalizeUI(guiUIState{Transparency: "100", WallBright: "20"}).uiStartupJSON()
+	for _, want := range []string{`"transparency":"100"`, `"wallBright":"20"`} {
+		if !strings.Contains(boot, want) {
+			t.Errorf("首屏 JSON 里没有 %s —— 前端无从知道用户调过这两项", want)
+		}
+	}
+	// 二、启动段要真的写下去，且以首屏 JSON 的取值为准。
+	i := strings.Index(guiPageHTML, "VFX.init(window.MCLBX_UI || null);")
+	if i < 0 {
+		t.Fatal("找不到美化层的启动调用 —— 这条检查等于没做")
+	}
+	if !strings.Contains(guiPageHTML[i:], "applyAdvanced(") {
+		t.Error("启动段没有调用 applyAdvanced —— 重开程序后会停在出厂观感，直到动一次设置")
+	}
+}
