@@ -307,10 +307,9 @@ const guiPageHTML = `<!doctype html>
 /* ============ 视觉美化（VFX）：可整段删除的装饰层 ============
    本段与脚本里的 VFX 模块不参与业务判断，删掉后界面回到实心扁平外观。
 
-   开关（均由服务端首屏注入，避免"先实心、再闪成玻璃"）：
-     data-vfx       on/off              总开关，关掉 = 实心、无光、无淡入
+   这一层恒开，不再有总开关（实测它对帧率没有可测影响，"关掉"省不下什么、
+   却要一套三处接线的开关）。属性（首屏由服务端注入，避免"先实心、再闪成玻璃"）：
      data-glass     0-10               毛玻璃档位：0 = 关闭（实心、不模糊），1-10 越大越透明
-     data-glow      on/off              轮廓微光
      data-fade      on/off              浮层淡入
      data-vfx-busy  on/off              运算期间让位（脚本在任务执行时挂上）
 
@@ -327,26 +326,26 @@ const guiPageHTML = `<!doctype html>
    照片的明暗由压暗层（--wall-scrim）与背景图补偿（--w1/--w2/--w3）收进一个有界区间，
    文字对比度就还守得住 —— 逐档的数值由 TestGlassOverPageKeepsTextReadable 核对，不靠眼睛。 */
 /* ---- 层次一：主容器的面 ---- */
-:root[data-vfx="on"]:not([data-glass="0"]) .panel,
-:root[data-vfx="on"]:not([data-glass="0"]) .topbar,
-:root[data-vfx="on"]:not([data-glass="0"]) .statusbar{background-image:none;background-color:var(--glass-1)}
+:root:not([data-glass="0"]) .panel,
+:root:not([data-glass="0"]) .topbar,
+:root:not([data-glass="0"]) .statusbar{background-image:none;background-color:var(--glass-1)}
 /* ---- 层次二：面板内部的次级卡片与控件底。更透，靠边框与阴影撑出形 ---- */
-:root[data-vfx="on"]:not([data-glass="0"]) .op,
-:root[data-vfx="on"]:not([data-glass="0"]) .capcell,
-:root[data-vfx="on"]:not([data-glass="0"]) .log{background-color:var(--glass-2)}
+:root:not([data-glass="0"]) .op,
+:root:not([data-glass="0"]) .capcell,
+:root:not([data-glass="0"]) .log{background-color:var(--glass-2)}
 /* 顶边比其余三边亮一档。顶栏只有下边框（它贴的是视口上沿），那一档得落在下边框上 ——
    给它写 border-top-color 是一条永远不生效的死规则。 */
-:root[data-vfx="on"]:not([data-glass="0"]) .panel,
-:root[data-vfx="on"]:not([data-glass="0"]) .op,
-:root[data-vfx="on"]:not([data-glass="0"]) .log,
-:root[data-vfx="on"]:not([data-glass="0"]) .statusbar{border-top-color:var(--line2)}
-:root[data-vfx="on"]:not([data-glass="0"]) .topbar{border-bottom-color:var(--line2)}
+:root:not([data-glass="0"]) .panel,
+:root:not([data-glass="0"]) .op,
+:root:not([data-glass="0"]) .log,
+:root:not([data-glass="0"]) .statusbar{border-top-color:var(--line2)}
+:root:not([data-glass="0"]) .topbar{border-bottom-color:var(--line2)}
 /* 面板自己的悬停/选中态原本是实心色，玻璃下要跟着一起变透明，否则鼠标一划过就"啪"地变实了 */
-:root[data-vfx="on"]:not([data-glass="0"]) .op:hover,
-:root[data-vfx="on"]:not([data-glass="0"]) .op.on{background-color:var(--glass-1)}
+:root:not([data-glass="0"]) .op:hover,
+:root:not([data-glass="0"]) .op.on{background-color:var(--glass-1)}
 /* 被判定"环境不支持"的条目本来就是置灰的，鼠标划过不该亮起玻璃悬停色。
    上面那条 :hover 的特异性比 .op.off:hover 高，所以这里必须显式压回去。 */
-:root[data-vfx="on"]:not([data-glass="0"]) .op.off:hover{background-color:var(--surf)}
+:root:not([data-glass="0"]) .op.off:hover{background-color:var(--surf)}
 
 /* 档位表：0 = 关闭（规则里靠 :not([data-glass="0"]) 排除），1-10 越大越透明、模糊同步增强。
    三条约束把这一列数钉住：
@@ -373,52 +372,40 @@ const guiPageHTML = `<!doctype html>
 /* 真毛玻璃只在这几处 —— 一是薄条或静止内容的主容器，二是浮层。
    :not([data-vfx-busy="on"]) 就是运算期间的让位；高对比主题排除在外 ——
    它的三档面本来就接近实心，给它挂模糊只会白花 GPU。 */
-:root[data-vfx="on"]:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .topbar,
-:root[data-vfx="on"]:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .statusbar,
-:root[data-vfx="on"]:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .stage>.panel:not(.logpanel){
+:root:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .topbar,
+:root:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .statusbar,
+:root:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .stage>.panel:not(.logpanel){
   contain:layout;
   backdrop-filter:blur(var(--glass-blur)) saturate(1.08)}
 /* 设置页外壳：一页占满，内部滚动。模糊加在外壳上而不是那些分类卡上 ——
    外壳不动，背后那层静止背景的模糊结果就能一直复用；卡片跟着滚，加在卡上就要每帧重算。 */
-:root[data-vfx="on"]:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .setpage{
+:root:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .setpage{
   contain:layout;
   backdrop-filter:blur(var(--glass-blur)) saturate(1.08)}
 /* 浮层：最实的一档 + 最强的一档模糊，并比主容器多含一层绘制隔离。 */
-:root[data-vfx="on"]:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .mbox{
+:root:not([data-glass="0"]):not([data-theme="contrast"]):not([data-vfx-busy="on"]) .mbox{
   contain:layout paint;
   backdrop-filter:blur(var(--blur-3)) saturate(1.12)}
-:root[data-vfx="on"]:not([data-glass="0"]) .mbox{background-color:var(--glass-3)}
+:root:not([data-glass="0"]) .mbox{background-color:var(--glass-3)}
 
 /* 科幻轮廓微光：静态的一次性光晕，**不挂 transition** ——
-   给阴影挂过渡等于每次过渡都逐帧重新光栅化，那正是扁平化那一段里记下的坑。 */
-:root[data-vfx="on"][data-glow="on"] .panel:not(.logpanel){
+   给阴影挂过渡等于每次过渡都逐帧重新光栅化，那正是扁平化那一段里记下的坑。
+   它原来是一个独立开关（「科幻轮廓微光」），现在恒开：实测它对帧率没有可测影响。 */
+:root .panel:not(.logpanel){
   box-shadow:0 0 0 1px var(--sig-ring),0 0 16px -10px var(--sig-glow)}
-:root[data-vfx="on"][data-glow="on"] .mbox,
-:root[data-vfx="on"][data-glow="on"] .toast{
+:root .mbox,
+:root .toast{
   box-shadow:0 0 0 1px var(--sig-ring),0 0 22px -12px var(--sig-glow)}
 /* 轮廓微光同时把四角描边点亮一档：细描边是这套界面的科幻感来源，光晕只是它的补充。 */
-:root[data-vfx="on"][data-glow="on"] .panel:not(.logpanel)::before,
-:root[data-vfx="on"][data-glow="on"] .panel:not(.logpanel)::after{opacity:.55}
+:root .panel:not(.logpanel)::before,
+:root .panel:not(.logpanel)::after{opacity:.55}
 
 /* 面板淡入。只动 opacity，**不动 transform** ——
    玻璃面板一旦位移，背后那块纹理就得每帧重新采样，等于自己把红线请回来。
    时长走变量，精简动效与系统的"减少动态效果"把变量归零即等于关掉（两处必须逐条相同）。 */
 :root{--vfx-fade:.16s}
 @keyframes vfx-fade{from{opacity:0}to{opacity:1}}
-:root[data-vfx="on"][data-fade="on"] .mbox{animation:vfx-fade var(--vfx-fade) ease-out both}
-
-/* 帧率偏低时那条询问。它也属于美化这一层：关掉总开关就整段消失，业务侧一行都不用改。
-   底色先给实心的一份，玻璃那份单列一条 —— 没有背景图时才半透明，
-   于是"压在任何一张照片上都读得清"这条口径对它同样成立（见下面那条让位规则）。
-   它不带模糊 —— 一次提示不值得再多一块玻璃面。 */
-.vfxask{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);z-index:60;
-  display:flex;align-items:center;gap:10px;max-width:min(560px,86vw);padding:10px 14px;
-  border:1px solid var(--line2);border-radius:var(--r2);background:var(--bg2);
-  color:var(--ink2);font-size:var(--fs-12-5)}
-:root[data-vfx="on"]:not([data-glass="0"]) .vfxask{background:var(--glass-3)}
-.vfxask button{flex:0 0 auto;padding:4px 10px;border:1px solid var(--line2);
-  border-radius:var(--r1);color:var(--ink)}
-.vfxask button:hover{border-color:var(--sig-edge)}
+:root[data-fade="on"] .mbox{animation:vfx-fade var(--vfx-fade) ease-out both}
 
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
@@ -1187,20 +1174,21 @@ function copy(text){
    业务代码与它的接触面只有三处，且三处都不看返回值：
      · 设置生效时  VFX.apply(ui)
      · 任务启停时  VFX.busy(running)
-     · 首屏        VFX.init(cfg, 保存回调)
+     · 首屏        VFX.init(cfg)
    每个入口都兜了 try，所以这一段自身出问题也影响不到工具本身。
 
-   三件事在这里：
+   两件事在这里：
      · apply()  写属性；浏览器不支持 backdrop-filter 时自动退成"关闭模糊"，不报错也不破版
      · busy()   任务执行期间摘掉毛玻璃（见 CSS 里那一段的说明）
-     · watch()  帧率持续过低时问用户要不要降档，用户也可以选择维持高特效
-   另有一个 VFX.measure()，把帧率量出来交给调用方 —— 逐档对比测试就是靠它（见文件顶部说明）。 */
+   另有一个 VFX.measure()，把帧率量出来交给调用方 —— 设置页那行「帧率实测」与逐档对比测试都靠它。
+   （原来的帧率巡检与"要不要降档"的询问随「帧率自动降级」那一项一起撤销了：那个询问的
+   "以后别再问"只能存在设置里，设置项没了它就会反复开口。） */
 var VFX = (function(){
   /* 档位是 0-10 的整数，"0" 就是关闭。GLASS_DEF 与 guiconfig.go 的 uiGlassDefault、
      面板里 UI_DEF 的那一份必须一致 —— 三处都对不上时症状是"首屏与设置里显示的不是同一个值"。 */
   var GLASS_MAX = 10, GLASS_DEF = '1';
-  var st = { vfx:'on', glass:GLASS_DEF, noDegrade:false, level:'0' };
-  var hook = null, timer = null, bursts = null, low = 0, asked = false, probe = null;
+  var st = { glass:GLASS_DEF, level:'0' };
+  var probe = null;
 
   function root(){ return document.documentElement; }
   /* 档位一律收成 "0"…"10" 的字符串。服务端给的是归一化过的，但 ?vfx= 与旧内存值不保证。 */
@@ -1231,36 +1219,27 @@ var VFX = (function(){
   function apply(u){
     try{
       u = u || {};
-      if(u.vfx){ st.vfx = u.vfx === 'off' ? 'off' : 'on'; }
       if(u.glass !== undefined && u.glass !== null && u.glass !== ''){ st.glass = normLevel(u.glass); }
-      if(typeof u.noDegrade === 'boolean'){ st.noDegrade = u.noDegrade; }
 
-      var lv = st.vfx === 'off' ? '0' : st.glass;
+      var lv = st.glass;
       if(lv !== '0' && !supported()){ lv = '0'; }
       var f = forced();
       if(f){ lv = f; }
       st.level = lv;
 
       var e = root();
-      e.setAttribute('data-vfx', st.vfx);
       e.setAttribute('data-glass', lv);
-      e.setAttribute('data-glow', u.glow === 'off' ? 'off' : 'on');
       e.setAttribute('data-fade', u.fade === 'off' ? 'off' : 'on');
     }catch(err){ /* 美化失败不该影响工具 */ }
-    watch();
   }
-  function init(cfg, saveHook){
+  function init(cfg){
     try{
-      hook = saveHook || null;
       if(cfg){ apply(cfg); }
     }catch(e){}
   }
 
-  /* ---- 帧率巡检 ----
-     只在"真的可能有问题"时跑：总开关关着、档位是 off、用户已经选了维持高特效、
-     页面在后台 —— 这四种情况一律不测，连定时器都不留。
-     测法是**有界的一小段**：连抓约一秒的帧间隔就停，不做常驻 rAF 循环。
-     它只在空闲时测：任务执行期间毛玻璃本来就让位了，那时候的帧率代表不了玻璃的开销。 */
+  /* 量一段帧率：**有界的一小段** —— 连抓约一秒的帧间隔就停，不做常驻 rAF 循环。
+     设置页那行「帧率实测」与逐档对比都走它；它只在被叫到时才跑，页面闲着时不留任何定时器。 */
   function sample(ms){
     return new Promise(function(res){
       var frames = 0, worst = 0, t0 = 0, last = 0;
@@ -1280,57 +1259,14 @@ var VFX = (function(){
       requestAnimationFrame(step);
     });
   }
-  function stopWatch(){
-    if(timer){ clearInterval(timer); timer = null; }
-    bursts = null;
-  }
-  function watch(){
-    try{
-      stopWatch();
-      if(st.vfx !== 'on' || st.level === '0' || st.noDegrade || forced()){ return; }
-      // 20 秒一次，每次只抓约一秒。空闲时的这点开销远小于一次 tick。
-      timer = setInterval(function(){
-        if(document.hidden || asked){ return; }
-        if(bursts){ return; }                 // 上一次还没回来就不叠加
-        bursts = sample(1000).then(function(r){
-          bursts = null;
-          probe = r;
-          if(r.fps < 45){ low++; } else { low = 0; }
-          if(low >= 2){ ask(); }               // 连续两次偏低才开口，避免一次抖动就打扰
-        }).catch(function(){ bursts = null; });
-      }, 20000);
-    }catch(e){ stopWatch(); }
-  }
-  /* 问一次。属于美化这一层：关掉总开关时它跟着消失，业务侧一行都不用改。 */
-  function ask(){
-    if(asked){ return; }
-    asked = true;
-    stopWatch();
-    var d = document.createElement('div');
-    d.className = 'vfxask';
-    d.innerHTML = '<span>界面帧率偏低，可能是毛玻璃的开销。要自动把毛玻璃降到「2」吗？</span>' +
-      '<button type="button" data-vfx-act="low">降到 2</button>' +
-      '<button type="button" data-vfx-act="keep">保持现状</button>';
-    d.onclick = function(ev){
-      var b = ev.target && ev.target.closest ? ev.target.closest('button') : null;
-      if(!b){ return; }
-      var a = b.getAttribute('data-vfx-act');
-      if(d.parentNode){ d.parentNode.removeChild(d); }
-      if(!hook){ return; }
-      // 「保持现状」= 以后不再问（存进设置，换台机器打开也还是不再问）
-      hook(a === 'low' ? { glass:'2' } : { noDegrade:true });
-    };
-    document.body.appendChild(d);
-  }
   return {
     apply: apply,
     init: init,
     busy: busy,
-    watch: watch,
     // 量一段帧率交给调用方，同时记一份供面板/控制台查看
     measure: function(ms){ return sample(ms || 1500).then(function(r){ probe = r; return r; }); },
-    stats: function(){ return { level:st.level, vfx:st.vfx, glass:st.glass,
-      noDegrade:st.noDegrade, supported:supported(), last:probe }; }
+    stats: function(){ return { level:st.level, glass:st.glass,
+      supported:supported(), last:probe }; }
   };
 })();
 
@@ -2283,10 +2219,10 @@ function uiSub(title, extra){
 }
 /* 「已改动」标签的判据。默认值这份表与 uiCollect() 里那份是同一个口径 ——
    两边不一致的症状是"某一项明明是默认值却挂着已改动"，而那种错没人会去查。
-   noDegrade / remember 存的是"关掉"的反面，logKeep 服务端给的是生效值，都要先还原成同一个口径再比。 */
+   remember 存的是"关掉"的反面，logKeep 服务端给的是生效值，都要先还原成同一个口径再比。 */
 var UI_DEF = {
   theme:'auto', accent:'mint', flat:'off', radii:'std', backdrop:'on', bgImage:'',
-  vfx:'on', glass:'1', glow:'on', fade:'on', noDegrade:'', scale:'std', motion:'full',
+  glass:'1', fade:'on', scale:'std', motion:'full',
   rail:'std', musicMode:'order', musicLoop:'all', musicVol:'70', remember:'',
   logKeep:'2000', defPort:'', defRelay:''
 };
@@ -2295,7 +2231,6 @@ function uiTag(u, key){
   // 不加这一句的话它们会全部挂上「已改动」—— 因为空键在两张表里都取不到值，比出来就是"不同"。
   if(!key){ return null; }
   var v = u ? u[key] : '';
-  if(key === 'noDegrade'){ v = u.noDegrade ? '1' : ''; }
   if(key === 'remember'){ v = (u.remember === '0') ? '0' : ''; }
   if(key === 'logKeep'){ v = String((u && u.logKeep) || '2000'); }
   if(v === undefined || v === null){ v = ''; }
@@ -2334,23 +2269,15 @@ function uiThemeHTML(u){
       '图片按比例铺满窗口，上面压一层与主题同色的暗化层。') +
     /* 视觉特效自成一个分组：这一组管的是"面板长什么样"，
        与上面那几项（配色、背景）和下面那几项（字号、动效、侧栏）不是一类。 */
-    uiSub('视觉特效', '面板的半透明与模糊，以及为它服务的几个开关') +
-    uiItem('vfx', '视觉美化', uiSw('vfx', u.vfx !== 'off', '科幻外观总开关'),
-      '关掉等于面板实心、去掉光晕与淡入，回到基础扁平外观。',
-      '总开关只影响观感，开关前后功能与计算结果完全一致。') +
+    uiSub('视觉特效', '面板的半透明与模糊；这一层恒开，没有总开关') +
     uiItem('glass', '毛玻璃', uiRange('glass', u.glass, 0, 10),
       glassHintText(u),
       '模糊按层次分配：主容器一档、浮层更强，面板内部的卡片只做半透明。' +
       '设了背景图时两者会一起用 —— 程序把照片压暗一些，并给面板补一点不透明度，' +
       '保证照片上的字仍达 4.5 的对比度。高对比主题不参与毛玻璃。') +
-    uiItem('glow', '科幻轮廓微光', uiSw('glow', u.glow !== 'off', '面板描边与四角微光'),
-      '静态光晕，画好一次就不再重绘。') +
     uiItem('fade', '面板淡入', uiSw('fade', u.fade !== 'off', '浮层出现时淡入'),
       '只动透明度、不动位置。',
       '选「动画效果：精简」或系统开了「减少动态效果」时自动不生效。') +
-    uiItem('noDegrade', '帧率自动降级', uiSw('noDegrade', !u.noDegrade, '帧率过低时询问我'),
-      '连续两次量到偏低就问一次要不要降到「低」档。',
-      '每 20 秒量一次，每次约一秒，任务执行期间不量。想强制维持高特效就取消勾选。') +
     uiItem('', '帧率实测',
       '<button type="button" class="btn sm" data-act="vfxMeasure">在当前档位测一秒</button>' +
       '<span class="mi-out" id="vfxStats">尚未测过</span>',
@@ -2559,11 +2486,11 @@ function uiCollect(){
   var out = {
     theme:u.theme || 'auto', accent:u.accent || 'mint', motion:u.motion || 'full',
     backdrop:u.backdrop || 'on', scale:u.scale || 'std', flat:u.flat || 'off',
-    glass:u.glass || '1', vfx:u.vfx || 'on', glow:u.glow || 'on', fade:u.fade || 'on',
+    glass:u.glass || '1', fade:u.fade || 'on',
     bgImage:u.bgImage || '', musicMode:u.musicMode || 'order', musicLoop:u.musicLoop || 'all',
     musicVol:u.musicVol || '70', remember:u.remember || '', logKeep:u.logKeep || '',
     defPort:u.defPort || '', defRelay:u.defRelay || '',
-    autoProbe:!!u.autoProbe, noDegrade:u.noDegrade ? '1' : ''
+    autoProbe:!!u.autoProbe
   };
   Array.prototype.forEach.call(document.querySelectorAll('#settingsBody [data-seg]'), function(seg){
     var on = seg.querySelector('button.on');
@@ -2580,14 +2507,8 @@ function uiCollect(){
     // 现在有一条用例（TestEverySwitchInThePanelIsCollected）逐键比对面板上的开关与这里的读取。
     if(k === 'backdrop'){ out.backdrop = c.checked ? 'on' : 'off'; }
     if(k === 'flat'){ out.flat = c.checked ? 'on' : 'off'; }
-    // 【视觉美化，非核心功能】三个开关：总开关与两个附加项
-    if(k === 'vfx'){ out.vfx = c.checked ? 'on' : 'off'; }
-    if(k === 'glow'){ out.glow = c.checked ? 'on' : 'off'; }
+    // 【视觉美化，非核心功能】面板淡入
     if(k === 'fade'){ out.fade = c.checked ? 'on' : 'off'; }
-    // 这一格问的是"帧率过低时要不要询问我"，存的是它的反面 ——
-    // 与「记住上次填过的值」那种"存的是关掉"的口径一致，避免多一个反义字段名。
-    // 注意发出去必须是字符串（服务端那个字段是 string，布尔会直接解不出来）
-    if(k === 'noDegrade'){ out.noDegrade = c.checked ? '' : '1'; }
   });
   Array.prototype.forEach.call(document.querySelectorAll('#settingsBody [data-in]'), function(i){
     out[i.getAttribute('data-in')] = (i.value || '').trim();
@@ -2610,7 +2531,7 @@ function uiApply(u){
   // 面板上选了新档位，界面要等下次刷新才变 —— 看起来就像没保存成功。
   el.setAttribute('data-radii', u.radii || 'std');
   el.setAttribute('data-rail', u.rail || 'std');
-  // 【视觉美化，非核心功能】data-vfx / data-glass / data-glow / data-fade 四项交给 VFX 去写。
+  // 【视觉美化，非核心功能】data-glass / data-fade 两项交给 VFX 去写。
   // 集中在那里的原因：档位要先过一遍"浏览器认不认 backdrop-filter"，不支持时降级；
   // 业务侧只把设置递过去，不参与任何渲染决策，也**不看它的返回值**。
   VFX.apply(u);
@@ -2991,29 +2912,9 @@ $('btnCopyLog').onclick = function(){ copy((layer === 'user' ? userLines : rawLi
 $('btnCopyAddr').onclick = function(){ copy(addr); };
 $('modalClose').onclick = function(){ setHidden($('modal'), true); };
 $('modal').onclick = function(e){ if(e.target === $('modal')){ setHidden($('modal'), true); } };
-/* 【视觉美化，非核心功能】启动美化层，并把"它想改设置"接回业务这一侧。
-   VFX 本身不认识任何接口，它只说"降到低档 / 以后别再问"，落盘这件事由这里做 ——
-   所以整段美化删掉时，这个函数也就没人调用了，接口那条路一行都不用改。 */
-async function vfxSave(patch){
-  try{
-    if(!ui){ ui = await (await fetch('/api/settings')).json(); }
-    if(!ui || !ui.ok){ return; }
-    // 服务端收的是**整份**设置（缺字段会被归一化回默认值），所以照设置面板那条路的字段发一遍
-    var body = { theme:ui.theme, accent:ui.accent, motion:ui.motion, backdrop:ui.backdrop,
-      scale:ui.scale, flat:ui.flat, glass:ui.glass, vfx:ui.vfx, glow:ui.glow, fade:ui.fade,
-      bgImage:ui.bgImage, musicMode:ui.musicMode, musicLoop:ui.musicLoop, musicVol:ui.musicVol,
-      remember:ui.remember, logKeep:ui.logKeep, defPort:ui.defPort, defRelay:ui.defRelay,
-      autoProbe:!!ui.autoProbe, noDegrade:ui.noDegrade ? '1' : '' };
-    for(var k in patch){ body[k] = patch[k]; }
-    var r = await api('/api/settings', body);
-    if(!r || !r.ok){ return; }
-    ui = r.ui;
-    uiApply(ui);
-    uiRefreshHints(ui);
-    if(page === 'settings'){ renderSettings(); }  // 设置页开着就地重渲染，档位跟着变
-  }catch(e){ /* 降级失败不该影响工具 */ }
-}
-VFX.init(window.MCLBX_UI || null, vfxSave);
+/* 【视觉美化，非核心功能】启动美化层。
+   它只把设置写成 <html> 上的属性，不落盘、也不回头改设置 —— 改档位仍然只从设置面板那一条路走。 */
+VFX.init(window.MCLBX_UI || null);
 Array.prototype.forEach.call($('segs').querySelectorAll('.seg'), function(sg){
   sg.onclick = function(){
     layer = sg.getAttribute('data-f');

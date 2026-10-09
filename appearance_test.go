@@ -197,15 +197,21 @@ func cssNoCommentsOne(sel string) string {
 	return regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(sel, "")
 }
 
-// 每一条模糊规则都必须同时挂着三道闸：总开关、档位不为 0、"当前不在运算期间"。
+// 每一条模糊规则都必须同时挂着两道闸：档位不为 0、"当前不在运算期间"。
 // 少任何一道，界面就会在不该花钱的时候花钱。
+// （原来还有第三道「视觉美化总开关」，那个开关已撤销 —— 实测它对帧率没有可测影响，
+// 关掉它省不下什么，却要付一套三处接线的成本。）
 func TestGlassYieldsWhileBusy(t *testing.T) {
 	for _, r := range blurRules(t) {
 		sel := strings.Join(strings.Fields(r.sel), " ")
-		for _, want := range []string{`data-vfx="on"`, `:not([data-glass="0"])`, `:not([data-vfx-busy="on"])`} {
+		for _, want := range []string{`:not([data-glass="0"])`, `:not([data-vfx-busy="on"])`} {
 			if !strings.Contains(sel, want) {
 				t.Errorf("这条模糊规则少了 %s，等于绕开了那道闸：\n  %s", want, sel)
 			}
+		}
+		// 总开关的属性名一旦重新出现，就说明那个开关又被加回来了（或改了一半留下死规则）。
+		if strings.Contains(sel, `data-vfx="`) {
+			t.Errorf("这条模糊规则还在引用已撤销的总开关属性：\n  %s", sel)
 		}
 	}
 }
@@ -460,37 +466,40 @@ func TestFlatAndGlassAreWiredEndToEnd(t *testing.T) {
 		{"旧值 mid", normalizeUI(guiUIState{Glass: "mid"}).Glass, "6"},
 		{"旧值 on", normalizeUI(guiUIState{Glass: "on"}).Glass, "6"},
 		{"旧值 high", normalizeUI(guiUIState{Glass: "high"}).Glass, "10"},
-		{"默认总开关", normalizeUI(guiUIState{}).VFX, "on"},
-		{"总开关只认 off", normalizeUI(guiUIState{VFX: "yes"}).VFX, "on"},
-		{"关掉总开关", normalizeUI(guiUIState{VFX: "off"}).VFX, "off"},
-		// 总开关关掉时**不改**存着的档位：用户再打开时要回到他原来选的那一档
-		{"关总开关不动档位", normalizeUI(guiUIState{VFX: "off", Glass: "high"}).Glass, "10"},
-		{"默认微光", normalizeUI(guiUIState{}).Glow, "on"},
 		{"默认淡入", normalizeUI(guiUIState{}).Fade, "on"},
-		{"默认自动降级", normalizeUI(guiUIState{}).NoDegrade, ""},
-		{"关掉自动降级", normalizeUI(guiUIState{NoDegrade: "1"}).NoDegrade, "1"},
 	} {
 		if c.got != c.want {
 			t.Errorf("%s：得到 %q，期望 %q", c.name, c.got, c.want)
 		}
 	}
 	// 首屏注入：每个开关都要显式写在 <html> 上，缺省等于把语义交给猜测
-	a := normalizeUI(guiUIState{Flat: "on", Glass: "7", VFX: "on", Glow: "on", Fade: "on"}).htmlAttr()
+	a := normalizeUI(guiUIState{Flat: "on", Glass: "7", Fade: "on"}).htmlAttr()
 	for _, want := range []string{`data-flat="on"`, `data-glass="7"`,
-		`data-vfx="on"`, `data-glow="on"`, `data-fade="on"`} {
+		`data-fade="on"`} {
 		if !strings.Contains(a, want) {
 			t.Errorf("htmlAttr 没有带上 %s：%q", want, a)
 		}
 	}
 	d := normalizeUI(guiUIState{}).htmlAttr()
 	for _, want := range []string{`data-flat="off"`, `data-glass="` + uiGlassDefault + `"`,
-		`data-vfx="on"`, `data-glow="on"`, `data-fade="on"`} {
+		`data-fade="on"`} {
 		if !strings.Contains(d, want) {
 			t.Errorf("默认也要显式写 %s，否则默认值就靠猜", want)
 		}
 	}
+	// 撤销的「视觉美化总开关」不许再回头：属性一旦重新出现，说明那个开关又被加回来了。
+	// 这条同时挡住"改了一半"——把 CSS 里的老选择器留着、属性却不再输出，那种规则会静默失效。
+	for _, s := range []string{a, d} {
+		if strings.Contains(s, "data-vfx") {
+			t.Errorf("htmlAttr 里又出现了 data-vfx：%q", s)
+		}
+	}
+	if strings.Contains(cssRegion(t), `data-vfx="`) {
+		t.Error("样式表里还留着 data-vfx 的选择器 —— 那个属性已不再输出，这些规则会静默失效" +
+			"（轮廓微光、毛玻璃与淡入都会跟着不见）")
+	}
 	// 改完要立刻生效，不能等重开界面。
-	// 这四项属性由 VFX 统一写（它要先过一遍"浏览器认不认 backdrop-filter"），
+	// 这几项属性由 VFX 统一写（它要先过一遍"浏览器认不认 backdrop-filter"），
 	// 所以这里查的是"uiApply 有没有把它递进去"。
 	apply := bodyBetween(t, "function uiApply", "async function uiSave")
 	if !strings.Contains(apply, "VFX.apply(u)") {
@@ -501,10 +510,14 @@ func TestFlatAndGlassAreWiredEndToEnd(t *testing.T) {
 	}
 	// VFX 自己必须把这几项都写出来，少一项就等于那个开关失效
 	vfx := bodyBetween(t, "var VFX = (function(){", "async function api")
-	for _, want := range []string{"data-vfx", "data-glass", "data-glow", "data-fade"} {
+	for _, want := range []string{"data-glass", "data-fade"} {
 		if !strings.Contains(vfx, want) {
 			t.Errorf("VFX.apply 没有写 %s —— 那个开关点了没反应", want)
 		}
+	}
+	// 撤销的两项不许再回头：外壳属性一旦重新出现，说明设置项又被加回来了
+	if strings.Contains(a, "data-glow") || strings.Contains(vfx, "data-glow") {
+		t.Error("data-glow 又出现了 —— 「科幻轮廓微光」那一项已撤销，轮廓微光改为跟随总开关")
 	}
 	// 支持性检测与降级必须在内：不认 backdrop-filter 的老内核上要退成"档位 0 不做模糊"，而不是报错破版
 	if !strings.Contains(vfx, "CSS.supports") || !strings.Contains(vfx, "'0'") {
@@ -560,7 +573,7 @@ func TestAppearanceControlsExistInThePanel(t *testing.T) {
 	panel := bodyBetween(t, "function uiThemeHTML(u){", "function uiAboutHTML(u){")
 	for _, want := range []string{
 		"uiSeg('theme'", "uiAccentDots(u)", "uiSeg('flat'", "uiRange('glass'",
-		"uiSw('vfx'", "uiSw('glow'", "uiSw('fade'", "uiSw('noDegrade'", "uiSw('backdrop'",
+		"uiSw('fade'", "uiSw('backdrop'",
 		"uiSeg('radii'", "uiSeg('rail'", "uiSeg('scale'", "uiSeg('motion'",
 		"uiWallPicker(", "vfxMeasure",
 	} {

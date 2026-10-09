@@ -26,7 +26,7 @@ func bodyBetween(t *testing.T, from, to string) string {
 // TestEverySwitchInThePanelIsCollected 检查面板上每个开关都被 uiCollect() 读到。
 //
 // 分段与输入框走的是通用扫描（见下一条），开关不是：每个开关值怎么落到配置上都不同
-// （例如「记住」存的是关掉、「帧率自动降级」也存的是关掉），所以必须逐个显式处理。
+// （例如「记住」存的是关掉），所以必须逐个显式处理。
 // 漏一个的症状是：拨了没反应，而且下一次任意保存都会把它打回默认。
 func TestEverySwitchInThePanelIsCollected(t *testing.T) {
 	panel := bodyBetween(t, "function uiThemeHTML(u){", "function uiAboutHTML(u){")

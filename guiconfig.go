@@ -32,10 +32,7 @@ type guiUIState struct {
 	Scale     string `json:"scale,omitempty"`     // std / big（界面字号，独立于主题）
 	Flat      string `json:"flat,omitempty"`      // on / off（扁平化，独立于主题）
 	Glass     string `json:"glass,omitempty"`     // 0-10 十进制字符串（毛玻璃档位）：0 = 关闭，越大越透明
-	VFX       string `json:"vfx,omitempty"`       // on / off（视觉美化总开关）
-	Glow      string `json:"glow,omitempty"`      // on / off（科幻轮廓微光）
 	Fade      string `json:"fade,omitempty"`      // on / off（面板淡入）
-	NoDegrade string `json:"noDegrade,omitempty"` // "1" = 关掉帧率自动降级
 	BgImage   string `json:"bgImage,omitempty"`   // 背景图片名（存档 wallpapers 目录里的一个文件）；空 = 不用
 	Radii     string `json:"radii,omitempty"`     // sharp / std / round（界面圆角大小）
 	Rail      string `json:"rail,omitempty"`      // std / compact（侧边栏样式）
@@ -132,18 +129,9 @@ func normalizeUI(u guiUIState) guiUIState {
 			u.Glass = uiGlassDefault
 		}
 	}
-	// 视觉美化总开关与两个附加开关默认开；总开关关掉时不改存着的档位。
-	if u.VFX != "off" {
-		u.VFX = "on"
-	}
-	if u.Glow != "off" {
-		u.Glow = "on"
-	}
+	// 面板淡入默认开；它属于视觉美化那一层，恒开，没有总开关。
 	if u.Fade != "off" {
 		u.Fade = "on"
-	}
-	if u.NoDegrade != "1" {
-		u.NoDegrade = ""
 	}
 	// 圆角与侧边栏样式：白名单之外一律回落到默认（取值直接命中 CSS 里对应的块）。
 	if !containsStr(radiiValues, u.Radii) {
@@ -209,8 +197,8 @@ func (u guiUIState) logKeep() int {
 // htmlAttr 拼出 <html> 的主题属性，由服务端注入以避免首屏闪烁。
 // 视觉美化那几项也注进去（决定首屏是否"先实心再闪成玻璃"），不在 CSS 里用总开关去推。
 func (u guiUIState) htmlAttr() string {
-	return fmt.Sprintf(` data-theme="%s" data-accent="%s" data-motion="%s" data-backdrop="%s" data-scale="%s" data-flat="%s" data-glass="%s" data-vfx="%s" data-glow="%s" data-fade="%s" data-radii="%s" data-rail="%s"`,
-		u.Theme, u.Accent, u.Motion, u.Backdrop, u.Scale, u.Flat, u.Glass, u.VFX, u.Glow, u.Fade, u.Radii, u.Rail)
+	return fmt.Sprintf(` data-theme="%s" data-accent="%s" data-motion="%s" data-backdrop="%s" data-scale="%s" data-flat="%s" data-glass="%s" data-fade="%s" data-radii="%s" data-rail="%s"`,
+		u.Theme, u.Accent, u.Motion, u.Backdrop, u.Scale, u.Flat, u.Glass, u.Fade, u.Radii, u.Rail)
 }
 
 // wallAttr 拼出背景图片那一段：data-wall 标记加一个行内 --wall 变量；没有可用图片时返回空串。
@@ -231,14 +219,11 @@ func (u guiUIState) uiStartupJSON() string {
 		MusicMode string `json:"musicMode"`
 		MusicLoop string `json:"musicLoop"`
 		MusicVol  string `json:"musicVol"`
-		// 视觉美化：帧率自动降级那几个判断要在首屏就知道，省一次取设置的往返。
-		VFX       string `json:"vfx"`
-		Glass     string `json:"glass"`
-		Glow      string `json:"glow"`
-		Fade      string `json:"fade"`
-		Radii     string `json:"radii"`
-		Rail      string `json:"rail"`
-		NoDegrade bool   `json:"noDegrade"`
+		// 视觉美化那一组要在首屏就知道，省一次取设置的往返。
+		Glass string `json:"glass"`
+		Fade  string `json:"fade"`
+		Radii string `json:"radii"`
+		Rail  string `json:"rail"`
 	}{
 		Theme:     u.Theme,
 		FollowOS:  u.Theme == "auto",
@@ -246,13 +231,10 @@ func (u guiUIState) uiStartupJSON() string {
 		MusicMode: u.MusicMode,
 		MusicLoop: u.MusicLoop,
 		MusicVol:  u.MusicVol,
-		VFX:       u.VFX,
 		Glass:     u.Glass,
-		Glow:      u.Glow,
 		Fade:      u.Fade,
 		Radii:     u.Radii,
 		Rail:      u.Rail,
-		NoDegrade: u.NoDegrade == "1",
 	})
 	if err != nil {
 		return "{}"
