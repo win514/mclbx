@@ -37,7 +37,7 @@ func withTempArchive(t *testing.T) string {
 // 反过来，登记过的每一项也必须在面板上出现，guiUIState 的每个字段也必须登记过。
 // 三向对齐，任何一头多出来或少掉都会被这条抓住。
 func TestPanelOnlyShowsRealSettings(t *testing.T) {
-	panel := bodyBetween(t, "function uiSettingsHTML(u){", "async function openSettings(){")
+	panel := bodyBetween(t, "function uiThemeHTML(u){", "function uiAboutHTML(u){")
 	keyRe := regexp.MustCompile(`ui(?:Seg|Sw|Field)\('([A-Za-z]+)'`)
 	seen := map[string]bool{}
 	for _, m := range keyRe.FindAllStringSubmatch(panel, -1) {
@@ -91,8 +91,8 @@ func TestPanelOnlyShowsRealSettings(t *testing.T) {
 // 这条是"漏接线"的护栏：本面板重做时就出现过按钮被留下、处理逻辑却跟着旧版面一起删掉的情况，
 // 页面能打开、按钮能点、只是毫无反应，光看代码不容易发现。
 func TestEveryPanelActionHasAHandler(t *testing.T) {
-	client := bodyBetween(t, "async function uiAction(a){", "\n// 允许用 ?manual=1")
-	bind := bodyBetween(t, "function uiBind(", "async function uiAction(a){")
+	client := bodyBetween(t, "async function uiAction(a, btn){", "\n/* 起手：先按地址栏的 hash")
+	bind := bodyBetween(t, "function uiBind(){", "function uiCollect(){")
 
 	// 服务端的 action 分支：只认 settingsSave 里那个 switch，别把文件里其它 switch 也算进来
 	src, err := os.ReadFile("gui.go")
@@ -150,10 +150,10 @@ func TestNewSegmentOptionsMatchTheWhitelist(t *testing.T) {
 // ---- 规矩二：只读区里不许有可编辑控件 ----
 
 func TestReadonlyBlockHasNoEditableControls(t *testing.T) {
-	ro := bodyBetween(t, "function uiReadonlyHTML(u){", "function uiChangesHTML(u){")
-	for _, bad := range []string{"uiSeg(", "uiSw(", "uiField(", "data-in=", "data-sw=", "data-seg=", "data-accent="} {
+	ro := bodyBetween(t, "function uiAboutHTML(u){", "function uiChangesHTML(u){")
+	for _, bad := range []string{"uiSeg(", "uiSw(", "uiField(", "uiItem(", "data-in=", "data-sw=", "data-seg=", "data-accent="} {
 		if strings.Contains(ro, bad) {
-			t.Errorf("只读信息区里出现了 %s —— 这一块是纯展示，不许留任何编辑入口", bad)
+			t.Errorf("「关于与状态」里出现了 %s —— 这一块是纯展示，不许留任何编辑入口", bad)
 		}
 	}
 	// 反向确认这段真的在渲染内容，而不是一个空函数

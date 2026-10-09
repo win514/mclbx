@@ -29,7 +29,7 @@ func bodyBetween(t *testing.T, from, to string) string {
 // （例如「记住」存的是关掉、「帧率自动降级」也存的是关掉），所以必须逐个显式处理。
 // 漏一个的症状是：拨了没反应，而且下一次任意保存都会把它打回默认。
 func TestEverySwitchInThePanelIsCollected(t *testing.T) {
-	panel := bodyBetween(t, "function uiSettingsHTML(u){", "async function openSettings(){")
+	panel := bodyBetween(t, "function uiThemeHTML(u){", "function uiAboutHTML(u){")
 	collect := bodyBetween(t, "function uiCollect", "function uiApply")
 
 	seen := map[string]bool{}
@@ -51,7 +51,7 @@ func TestEverySwitchInThePanelIsCollected(t *testing.T) {
 
 // 分段器（uiSeg）与输入框（uiField）同理：确认收集端扫了对应的 data 属性。
 func TestSegmentAndFieldAreCollectedGenerically(t *testing.T) {
-	panel := bodyBetween(t, "function uiSettingsHTML(u){", "async function openSettings(){")
+	panel := bodyBetween(t, "function uiThemeHTML(u){", "function uiAboutHTML(u){")
 	collect := bodyBetween(t, "function uiCollect", "function uiApply")
 
 	if strings.Contains(panel, "uiSeg('") && !strings.Contains(collect, "[data-seg]") {

@@ -20,15 +20,15 @@ const guiPageHTML = `<!doctype html>
   · 四档怎么测（关闭 / 低 / 中 / 高）：在地址栏加参数即可逐档对比，**不改设置、不落盘**：
       http://localhost:<端口>/?vfx=off    ?vfx=low    ?vfx=mid    ?vfx=high
     每一档都按这份清单走一遍，四档的表现应当完全一致：
-      ① 左侧条目能选中、能切换；② 表单能输入、能回车提交；
-      ③ 任务能启动、日志会滚动、能停止；④ 设置面板能开、能关、能保存。
+      ① 侧栏操作能选中、能切换；② 表单能输入、能回车提交；
+      ③ 任务能启动、日志会滚动、能停止；④ 顶栏能换页，设置页能改、能存、能恢复默认。
     想要数字：控制台执行 await VFX.measure(2000) 看 fps 与最慢一帧，或 VFX.stats()。
     四档的数字应当接近 —— 差得多就说明这一档的玻璃没被限住。
 
   · 性能硬约束（改这一段时请守住，各条都有可执行的判据）：
       · 模糊只准加在**局部面板**上，禁止整屏图层（.bg / .aurora / .grid / .modal）；
-      · 内容持续追加的地方不许加模糊（.logcard / .log / .top，后者的进度点在呼吸）；
-      · 悬停会位移的元素不许加模糊（.t / .gcard 带 transform，位移等于每帧重新取样）；
+      · 内容持续追加的地方不许加模糊（.logpanel / .log / .tasks）；
+      · 会跟着滚动或重算的地方不许加模糊（.op 行、侧栏面板、设置页里的分类卡）；
       · 任务执行期间整体让位（data-vfx-busy），跑完立刻恢复；
       · 不写 will-change —— 那会为每一块玻璃永久占一个合成层；
       · 淡入只动 opacity；一旦动 transform，背后那层模糊就得每帧重采样。
@@ -118,12 +118,13 @@ const guiPageHTML = `<!doctype html>
   --fs-10:10px; --fs-10-5:10.5px; --fs-11:11px; --fs-11-5:11.5px; --fs-12:12px; --fs-12-5:12.5px;
   --fs-13:13px; --fs-13-5:13.5px; --fs-14:14px; --fs-15:15px; --fs-16:16px; --fs-17:17px; --fs-18:18px;
   --fs-9:9px; --fs-26:26px;
-  /* 顶栏与底栏的高度跟着字号走：字号一放大，固定高度的这两条会把字切掉。 */
-  --row-top:56px; --row-bot:30px;
+  /* 顶栏与状态栏的高度跟着字号走：字号一放大，固定高度的这两条会把字切掉。
+     状态栏比原来高 10px —— 停止/退出挪进来之后它要放得下按钮，不再只是一行小字。 */
+  --row-top:56px; --row-bot:40px;
   /* 背景图片的地址由服务端按当前设置注入到 <html> 的行内样式里。这里必须给一个默认值：
      样式表里一旦写了 var(--wall)，定义它的地方就得在样式表里（有用例逐个变量核对）。 */
   --wall:none;
-  /* ---- 毛玻璃与壁纸用的静态色 ----
+  /* ---- 毛玻璃用的静态色（三档层次） ----
      这几个值写死成 rgba()，而不是用 color-mix() 从 --surf 现算。
      原因：color-mix() 是 Chromium 111（2023-03）才有的函数，而这个界面跑在系统自带的
      WebView2 上 —— 那台机器上的 Chromium 版本由微软的更新决定，不由这个 exe 决定。
@@ -131,11 +132,15 @@ const guiPageHTML = `<!doctype html>
        · 毛玻璃那几条只是"没效果"（面板回落到原本的实心色），还算能看；
        · **暗化层会直接消失**，照片上的字就没有东西托着了 —— 这一档是危险的。
      所以这里不接受任何版本相关的色彩函数，宁可每个主题各写一份静态值
-     （有没有漏写由「每个主题必须声明全部主题私有变量」那条用例兜住）。 */
-  --glass:rgba(13,21,30,.74); --glass-2:rgba(16,27,37,.78); --glass-3:rgba(20,33,45,.78);
-  /* 【视觉美化，非核心功能】设置面板自己的底：它比普通面板实一档，因为里面是表单，
-     字要最好读；比实心又多透出一点，好让背后那层模糊看得出来。 */
-  --glass-panel:rgba(13,21,30,.88);
+     （有没有漏写由「每个主题必须声明全部主题私有变量」那条用例兜住）。
+
+     三档不是同一块面换了三个名字，它们对应界面上三层真实的层次：
+       --glass-1  主容器（顶栏 / 状态栏 / 主区面板 / 侧栏面板）—— 最实，文字压在上面最稳
+       --glass-2  次级卡片（面板内部的行、格子、控件底）—— 更透，靠 1px 边框撑出形
+       --glass-3  浮层（详情弹窗、提示）—— 最实 + 最强模糊：浮层要盖住一切，不能发灰
+     层次靠**不透明度差 + 边框 + 阴影**做，不靠"每层都加一次模糊"：
+     两层模糊相加既贵又脏（第二层看到的是第一层的模糊结果，叠起来就是一团糊）。 */
+  --glass-1:rgba(13,21,30,.82); --glass-2:rgba(16,27,37,.62); --glass-3:rgba(13,21,30,.94);
   --wall-scrim:rgba(7,11,17,.58);
   --disp:"Bahnschrift","Segoe UI Variable Display","Microsoft YaHei UI",sans-serif;
   --ui:"Microsoft YaHei UI","Segoe UI Variable Text","Segoe UI",sans-serif;
@@ -193,8 +198,7 @@ const guiPageHTML = `<!doctype html>
   --grid-ink:rgba(9,17,26,.05); --sheen:rgba(255,255,255,.55);
   --scroll:#C6D2DE; --scroll-hi:#AEBECB;
   --aurora-a:rgba(14,159,110,.05); --aurora-b:rgba(42,111,214,.06);
-  --glass:rgba(255,255,255,.74); --glass-2:rgba(246,249,252,.78); --glass-3:rgba(237,242,248,.78);
-  --glass-panel:rgba(255,255,255,.90);
+  --glass-1:rgba(255,255,255,.82); --glass-2:rgba(255,255,255,.62); --glass-3:rgba(255,255,255,.94);
   --wall-scrim:rgba(242,245,249,.58);
   --ink:#0D1620; --ink2:#4A5A6C; --muted:#5A6675; --muted2:#636B75;
   --ok-ink:#0B7A4F; --bad-ink:#C42744; --warn-ink:#8A5300; --info-ink:#1F5FA8;
@@ -237,10 +241,10 @@ const guiPageHTML = `<!doctype html>
   --grid-ink:rgba(255,255,255,0); --sheen:rgba(255,255,255,.10);
   --scroll:#3A5470; --scroll-hi:#4E7092;
   --aurora-a:rgba(0,0,0,0); --aurora-b:rgba(0,0,0,0);
-  --glass:rgba(8,13,19,.74); --glass-2:rgba(12,18,25,.78); --glass-3:rgba(17,25,34,.78);
-  /* 高对比这一档不参与毛玻璃（面板保持实心，见 VFX 那一段）：它的存在理由是"看不清"，
-     半透明与模糊都与"看清"直接冲突。这里仍然声明，是为了满足"每个主题声明全部"的口径。 */
-  --glass-panel:rgba(0,0,0,.98);
+  /* 高对比这一档不参与毛玻璃：它的存在理由是"看不清"，半透明与模糊都与"看清"直接冲突。
+     三档面在这里都压到接近不透明 —— 属性仍然声明（满足"每个主题声明全部"的口径），
+     但透出来的一点点底色既不影响对比度，也不至于让这一档看起来像被挖空了。 */
+  --glass-1:rgba(8,13,19,.97); --glass-2:rgba(12,18,25,.92); --glass-3:rgba(0,0,0,.99);
   --wall-scrim:rgba(0,3,8,.58);
   --ink:#FFFFFF; --ink2:#DAE6F2; --muted:#A9BCD0; --muted2:#93A7BC;
   --ok-ink:#7CF5C8; --bad-ink:#FFB8C4; --warn-ink:#FFD79A; --info-ink:#B6D4FF;
@@ -284,7 +288,7 @@ const guiPageHTML = `<!doctype html>
   --fs-10:11px; --fs-10-5:11.5px; --fs-11:12px; --fs-11-5:12.5px; --fs-12:13px; --fs-12-5:13.5px;
   --fs-13:14px; --fs-13-5:14.5px; --fs-14:15px; --fs-15:16px; --fs-16:17.5px; --fs-17:18.5px; --fs-18:19.5px;
   --fs-9:10px; --fs-26:29px;
-  --row-top:62px; --row-bot:34px;
+  --row-top:62px; --row-bot:46px;
 }
 /* ---- 背景图片（独立于背景光效） ----
    一层静态贴图 + 一层压暗。**静态是硬要求**：给背景做平移、缓慢缩放（Ken Burns）或视差，
@@ -315,15 +319,15 @@ const guiPageHTML = `<!doctype html>
 :root[data-radii="sharp"]{--r1:3px;--r2:4px;--r3:6px}
 :root[data-radii="round"]{--r1:10px;--r2:14px;--r3:20px}
 
-/* 侧边栏样式「紧凑」：去掉任务列表里的说明行、收紧行距，一屏能多看几项。
-   只动左栏的排版，任务的名称、顺序与行为一概不变。 */
-:root[data-rail="compact"] .t{padding:6px 10px 6px 11px;margin-bottom:3px}
-:root[data-rail="compact"] .t .ds{display:none}
-:root[data-rail="compact"] .t .nm{margin-bottom:0}
+/* 侧边栏样式「紧凑」：去掉操作行里的说明行、收紧行距，一屏能多看几项。
+   只动侧栏的排版，操作的名称、顺序与行为一概不变。 */
+:root[data-rail="compact"] .op{padding:6px 10px 6px 11px;margin-bottom:3px}
+:root[data-rail="compact"] .op .ds{display:none}
+:root[data-rail="compact"] .op .nm{margin-bottom:0}
 
 :root[data-flat="on"]{--r1:0px;--r2:0px;--r3:0px;--pill:0px}
 :root[data-flat="on"] .glyph{background:var(--sig);box-shadow:none}
-:root[data-flat="on"] .card,
+:root[data-flat="on"] .panel,
 :root[data-flat="on"] .hero,
 :root[data-flat="on"] .plate{background:var(--surf)}
 :root[data-flat="on"] .plate .shine{display:none}
@@ -336,11 +340,11 @@ const guiPageHTML = `<!doctype html>
 :root[data-flat="on"] ::-webkit-scrollbar-thumb,
 :root[data-flat="on"] .chip,
 :root[data-flat="on"] .linkbtn,
-:root[data-flat="on"] .t .nm .lg,
-:root[data-flat="on"] .t .lim,
-:root[data-flat="on"] .t.on::before,
-:root[data-flat="on"] .grp .tag,
-:root[data-flat="on"] .subtitle .v,
+:root[data-flat="on"] .navi,
+:root[data-flat="on"] .op .nm .lg,
+:root[data-flat="on"] .op .lim,
+:root[data-flat="on"] .op.on::before,
+:root[data-flat="on"] .opgrp .tag,
 :root[data-flat="on"] .ck .bx,
 :root[data-flat="on"] .qbtn,
 :root[data-flat="on"] .qform input,
@@ -371,8 +375,8 @@ const guiPageHTML = `<!doctype html>
    现在放开的理由不是"模糊变便宜了"，而是把这两个乘数都压住了：
      · 只给**局部**面板加模糊，并刻意避开三类地方：
        整屏层（.modal / .bg / .aurora / .grid）；
-       悬停会位移的行（.t / .gcard 带 transform，一移动就得每帧重新取样）；
-       内容持续追加的日志（.logcard / .log）。
+       一屏几十行、会随搜索与滚动重排的列表（.tasks / .op / 侧栏那两个面板）；
+       内容持续追加的日志（.logpanel / .log）。
      · 运算期间整体让位：任务一跑起来就挂 data-vfx-busy，backdrop-filter 全部退回 none，
        跑完再恢复。日志在流、进度点在转的那段时间，正是最不该花这个钱的时候。
      · 帧率持续过低时脚本会问用户要不要降档，用户也可以选择维持高特效（见 VFX.watch）。
@@ -385,9 +389,10 @@ const guiPageHTML = `<!doctype html>
    按需合成的代价比常驻小，所以它不写在这里，而不是漏了。
 
    ---- contain 的分工 ----
-   .mbox / .toast 用 contain:layout paint，把渲染范围框在面板自己身上。
-   .card / .foot 只用 layout，**不能用 paint**：.card 的四角描边画在 -1px 处（.card::before），
-   paint containment 会把它们裁掉 —— 那是这套界面里最不该丢的一处细节。
+   .mbox 用 contain:layout paint（它是个独立浮层，绘制范围框在自己身上最省）。
+   .panel / .topbar / .statusbar / .setpage 只用 layout，**不能用 paint**：
+   .panel 的四角描边画在 -1px 处（.panel::before/::after），paint containment 会把它们裁掉
+   —— 那是这套界面里最不该丢的一处细节。
 
    ---- 为什么设了背景图时毛玻璃一律让位（选择器里那个 :not 不是随手加的）----
    文字要读得清，就得和它实际压着的那个合成色差够远。半透明面板压在一张任意照片上时，
@@ -398,64 +403,78 @@ const guiPageHTML = `<!doctype html>
    反过来把第三、第四级灰各自调亮/调暗到能承受照片，会让这两级收敛成同一个颜色，
    四级灰阶就塌成三级。
    所以这里不去两头凑，直接把两个功能做成互斥：设了背景图，面板保持实心。
-   面板上会就地把这件事说清楚（见 uiSettingsHTML 里毛玻璃那一行），不是静默失效。
+   面板上会就地把这件事说清楚（见 uiThemeHTML 里毛玻璃那一行），不是静默失效。
 
-   有意**不**玻璃化的几处，不是漏了：.capcell / .linkbar / .stat 是嵌在玻璃条里的控件，
-   再叠一层半透明会重复压暗一层，而且 .cap 靠 1px 间隙画分隔线，透过去会露出线色。 */
-:root[data-vfx="on"]:not([data-wall="on"]) .top,
-:root[data-vfx="on"]:not([data-wall="on"]) .foot,
-:root[data-vfx="on"]:not([data-wall="on"]) .card,
-:root[data-vfx="on"]:not([data-wall="on"]) .gcard,
-:root[data-vfx="on"]:not([data-wall="on"]) .t,
-:root[data-vfx="on"]:not([data-wall="on"]) .log{
-  background-image:none;
-  background-color:var(--glass)}
-/* 顶边比其余三边亮一档。.top 只有下边框（它贴的是视口上沿），那一档得落在下边框上 ——
+   ---- 层次怎么分（不是"每块面各加一层模糊"）----
+   三档面见上面 :root 里的 --glass-1/2/3。真模糊只加在两个层次上，且强度不同：
+     · 层次一 主容器：顶栏、状态栏、主区面板、设置页外壳。它们背后是**静止的**背景层
+       （.bg 是 fixed，且与主内容不重叠），所以模糊结果能被复用 —— 这是它能便宜的原因。
+     · 层次三 浮层：详情弹窗。它比主容器更实、模糊更强，因为浮层要盖住一切、不能发灰。
+   次级卡片（面板内部的行、格子、日志面）**不加模糊**，只做半透明 + 1px 边框。理由有两条：
+   一是两层模糊相加看到的是"第一层的模糊结果再模糊一次"，观感是一团糊；
+   二是它们都在会滚动/会重算的容器里，跟着一起动就得每帧重新取样。
+
+   有意**不**玻璃化的几处，不是漏了：
+     · 侧栏那两个面板：内容随搜索与滚动变，模糊要跟着重算，收益不值这个价；
+     · 日志面：任务执行期间持续追加；
+     · .modal / .bg / .aurora / .grid：整屏层，就是那条红线的成因本身。 */
+/* ---- 层次一：主容器的面 ---- */
+:root[data-vfx="on"]:not([data-wall="on"]) .panel,
+:root[data-vfx="on"]:not([data-wall="on"]) .topbar,
+:root[data-vfx="on"]:not([data-wall="on"]) .statusbar{background-image:none;background-color:var(--glass-1)}
+/* ---- 层次二：面板内部的次级卡片与控件底。更透，靠边框与阴影撑出形 ---- */
+:root[data-vfx="on"]:not([data-wall="on"]) .op,
+:root[data-vfx="on"]:not([data-wall="on"]) .capcell,
+:root[data-vfx="on"]:not([data-wall="on"]) .log{background-color:var(--glass-2)}
+/* 顶边比其余三边亮一档。顶栏只有下边框（它贴的是视口上沿），那一档得落在下边框上 ——
    给它写 border-top-color 是一条永远不生效的死规则。 */
-:root[data-vfx="on"]:not([data-wall="on"]) .card,
-:root[data-vfx="on"]:not([data-wall="on"]) .gcard,
-:root[data-vfx="on"]:not([data-wall="on"]) .t,
+:root[data-vfx="on"]:not([data-wall="on"]) .panel,
+:root[data-vfx="on"]:not([data-wall="on"]) .op,
 :root[data-vfx="on"]:not([data-wall="on"]) .log,
-:root[data-vfx="on"]:not([data-wall="on"]) .foot{border-top-color:var(--line2)}
-:root[data-vfx="on"]:not([data-wall="on"]) .top{border-bottom-color:var(--line2)}
+:root[data-vfx="on"]:not([data-wall="on"]) .statusbar{border-top-color:var(--line2)}
+:root[data-vfx="on"]:not([data-wall="on"]) .topbar{border-bottom-color:var(--line2)}
 /* 面板自己的悬停/选中态原本是实心色，玻璃下要跟着一起变透明，否则鼠标一划过就"啪"地变实了 */
-:root[data-vfx="on"]:not([data-wall="on"]) .t:hover,
-:root[data-vfx="on"]:not([data-wall="on"]) .t.on{background-color:var(--glass-2)}
-:root[data-vfx="on"]:not([data-wall="on"]) .gcard:hover{background-color:var(--glass-3)}
+:root[data-vfx="on"]:not([data-wall="on"]) .op:hover,
+:root[data-vfx="on"]:not([data-wall="on"]) .op.on{background-color:var(--glass-1)}
 /* 被判定"环境不支持"的条目本来就是置灰的，鼠标划过不该亮起玻璃悬停色。
-   上面那条 :hover 的特异性比 .t.off:hover 高，所以这里必须显式压回去。 */
-:root[data-vfx="on"]:not([data-wall="on"]) .t.off:hover{background-color:var(--surf)}
+   上面那条 :hover 的特异性比 .op.off:hover 高，所以这里必须显式压回去。 */
+:root[data-vfx="on"]:not([data-wall="on"]) .op.off:hover{background-color:var(--surf)}
 
-/* 四档模糊值。**档位是离散的**，所以用户拿不到"模糊 200px"这种把界面拖垮的取值；
-   低档压在 5px 以内，高档 14px 并且面板上会就地提醒代价。 */
-:root[data-glass="low"]{--glass-blur:5px}
-:root[data-glass="mid"]{--glass-blur:9px}
-:root[data-glass="high"]{--glass-blur:14px}
+/* 两档模糊值。**档位是离散的**，所以用户拿不到"模糊 200px"这种把界面拖垮的取值；
+   低档压在 5px 以内，高档 14px 并且面板上会就地提醒代价。
+   浮层另给一档更强的：与主容器同强度就分不出主次了。 */
+:root[data-glass="low"]{--glass-blur:5px;--blur-3:9px}
+:root[data-glass="mid"]{--glass-blur:9px;--blur-3:16px}
+:root[data-glass="high"]{--glass-blur:14px;--blur-3:20px}
 
-/* 真毛玻璃只在这几处。挑它们的依据是"背后确实有东西可看"：
-   .card 压着网格与极光、.foot 压着极光下缘、.mbox 压着整个主界面 —— 模糊看得出来。
-   被排除的三类地方见上面的说明。:not([data-vfx-busy="on"]) 就是运算期间的让位。 */
-:root[data-vfx="on"]:not([data-glass="off"]):not([data-wall="on"]):not([data-vfx-busy="on"]) .card:not(.logcard),
-:root[data-vfx="on"]:not([data-glass="off"]):not([data-wall="on"]):not([data-vfx-busy="on"]) .foot,
-:root[data-vfx="on"]:not([data-glass="off"]):not([data-wall="on"]):not([data-vfx-busy="on"]) .mbox{
+/* 真毛玻璃只在这两处 —— 一是薄条或静止内容的主容器，二是浮层。
+   :not([data-vfx-busy="on"]) 就是运算期间的让位。 */
+:root[data-vfx="on"]:not([data-glass="off"]):not([data-wall="on"]):not([data-vfx-busy="on"]) .topbar,
+:root[data-vfx="on"]:not([data-glass="off"]):not([data-wall="on"]):not([data-vfx-busy="on"]) .statusbar,
+:root[data-vfx="on"]:not([data-glass="off"]):not([data-wall="on"]):not([data-vfx-busy="on"]) .stage>.panel:not(.logpanel){
   contain:layout;
   backdrop-filter:blur(var(--glass-blur)) saturate(1.08)}
-/* 设置面板要能看出背后那层模糊，就得先比实心透一档。高对比主题除外 ——
-   那一档存在的理由就是"看不清"，半透明与模糊都跟它直接冲突，面板保持实心。 */
-:root[data-vfx="on"]:not([data-wall="on"]):not([data-theme="contrast"]) .mbox{
+/* 设置页外壳：一页占满，内部滚动。模糊加在外壳上而不是那些分类卡上 ——
+   外壳不动，背后那层静止背景的模糊结果就能一直复用；卡片跟着滚，加在卡上就要每帧重算。 */
+:root[data-vfx="on"]:not([data-glass="off"]):not([data-wall="on"]):not([data-vfx-busy="on"]) .setpage{
+  contain:layout;
+  backdrop-filter:blur(var(--glass-blur)) saturate(1.08)}
+/* 浮层：最实的一档 + 最强的一档模糊，并比主容器多含一层绘制隔离。 */
+:root[data-vfx="on"]:not([data-glass="off"]):not([data-wall="on"]):not([data-vfx-busy="on"]) .mbox{
   contain:layout paint;
-  background-color:var(--glass-panel)}
+  backdrop-filter:blur(var(--blur-3)) saturate(1.12)}
+:root[data-vfx="on"]:not([data-wall="on"]) .mbox{background-color:var(--glass-3)}
 
 /* 科幻轮廓微光：静态的一次性光晕，**不挂 transition** ——
    给阴影挂过渡等于每次过渡都逐帧重新光栅化，那正是扁平化那一段里记下的坑。 */
-:root[data-vfx="on"][data-glow="on"]:not([data-wall="on"]) .card:not(.logcard){
+:root[data-vfx="on"][data-glow="on"]:not([data-wall="on"]) .panel:not(.logpanel){
   box-shadow:0 0 0 1px var(--sig-ring),0 0 16px -10px var(--sig-glow)}
 :root[data-vfx="on"][data-glow="on"]:not([data-wall="on"]) .mbox,
 :root[data-vfx="on"][data-glow="on"] .toast{
   box-shadow:0 0 0 1px var(--sig-ring),0 0 22px -12px var(--sig-glow)}
 /* 轮廓微光同时把四角描边点亮一档：细描边是这套界面的科幻感来源，光晕只是它的补充。 */
-:root[data-vfx="on"][data-glow="on"]:not([data-wall="on"]) .card:not(.logcard)::before,
-:root[data-vfx="on"][data-glow="on"]:not([data-wall="on"]) .card:not(.logcard)::after{opacity:.55}
+:root[data-vfx="on"][data-glow="on"]:not([data-wall="on"]) .panel:not(.logpanel)::before,
+:root[data-vfx="on"][data-glow="on"]:not([data-wall="on"]) .panel:not(.logpanel)::after{opacity:.55}
 
 /* 面板淡入。只动 opacity，**不动 transform** ——
    玻璃面板一旦位移，背后那块纹理就得每帧重新采样，等于自己把红线请回来。
@@ -472,7 +491,7 @@ const guiPageHTML = `<!doctype html>
   display:flex;align-items:center;gap:10px;max-width:min(560px,86vw);padding:10px 14px;
   border:1px solid var(--line2);border-radius:var(--r2);background:var(--bg2);
   color:var(--ink2);font-size:var(--fs-12-5)}
-:root[data-vfx="on"]:not([data-wall="on"]) .vfxask{background:var(--glass-panel)}
+:root[data-vfx="on"]:not([data-wall="on"]) .vfxask{background:var(--glass-3)}
 .vfxask button{flex:0 0 auto;padding:4px 10px;border:1px solid var(--line2);
   border-radius:var(--r1);color:var(--ink)}
 .vfxask button:hover{border-color:var(--sig-edge)}
@@ -497,10 +516,15 @@ input{font:inherit;color:inherit}
   background-size:48px 48px;
   mask-image:radial-gradient(130% 100% at 50% 0,#000 24%,transparent 92%)}
 
-.app{position:relative;z-index:1;display:grid;grid-template-rows:var(--row-top) 1fr var(--row-bot);height:100%}
+/* ===== 外壳：顶栏 / 页面 / 状态栏 三段纵向 =====
+   三段高度都由 token 决定（--row-top / --row-bot），字号一放大它们跟着长，
+   否则字会被切掉。三条横向带夹着中间那一页，是这套界面唯一的结构。 */
+.shell{position:relative;z-index:1;display:grid;grid-template-rows:var(--row-top) 1fr var(--row-bot);height:100%}
 
-/* ---------------------------------------------------------------- 顶栏 ---- */
-.top{display:flex;align-items:center;gap:var(--s3);padding:0 20px;
+/* ---------------------------------------------------------------- 顶栏 ----
+   四段各司其职：身份（这是哪个工具）、页面导航（我在哪、能去哪）、
+   连接进展（现在走到哪一步）、当前状态（此刻在干什么）。 */
+.topbar{display:flex;align-items:center;gap:var(--s3);padding:0 18px;
   border-bottom:1px solid var(--line);background:var(--chrome)}
 .glyph{position:relative;width:22px;height:22px;flex:0 0 auto;border-radius:6px;
   background:linear-gradient(150deg,var(--sig),var(--sig-deep));box-shadow:0 0 0 1px var(--sig-edge)}
@@ -509,8 +533,16 @@ input{font:inherit;color:inherit}
 .brand{display:flex;align-items:baseline;gap:9px;min-width:0}
 .brand b{font:600 var(--fs-16)/1 var(--disp);letter-spacing:.03em}
 .brand .sub{font-size:var(--fs-12-5);color:var(--ink2)}
-.brand .ver{font:var(--fs-11-5)/1 var(--mono);color:var(--muted);padding-left:2px}
 .spacer{flex:1}
+
+/* 页面导航：三段式，当前页高亮。它替代了原先散在右上角的两个按钮 ——
+   "我在哪、能去哪"现在只有一处答案，说明书也顺势从整屏覆盖层降成了一页。 */
+.nav{display:flex;align-items:center;gap:2px;padding:3px;border:1px solid var(--line);
+  border-radius:var(--pill);background:var(--surf)}
+.navi{padding:5px 13px;border-radius:var(--pill);font-size:var(--fs-12-5);color:var(--muted);
+  transition:color .16s,background .16s}
+.navi:hover{color:var(--ink2);background:var(--surf2)}
+.navi.on{color:var(--on-sig);background:var(--sig);font-weight:600}
 
 .linkbar{display:flex;align-items:center;padding:4px 4px 4px 10px;
   border:1px solid var(--line);border-radius:var(--pill);background:var(--surf)}
@@ -543,24 +575,31 @@ input{font:inherit;color:inherit}
   background:var(--amber-soft);border-bottom:1px solid var(--amber-edge)}
 .notice i{width:6px;height:6px;border-radius:50%;background:var(--amber);flex:0 0 auto}
 
-/* ---------------------------------------------------------------- 主体 ---- */
-main{display:grid;grid-template-columns:340px minmax(0,1fr);gap:var(--s4);
-  min-height:0;padding:var(--s4) 20px}
-.col{display:flex;flex-direction:column;gap:var(--s3);min-width:0;min-height:0}
+/* ---------------------------------------------------------------- 页面 ----
+   一页 = 侧栏 + 主区。工作台用这个两列；设置与说明书是整页内容，另有自己的排法。
+   窗口变窄时侧栏让位到上面（见文件末尾的媒体查询），主区永远保持可读宽度。 */
+.page{display:grid;grid-template-columns:330px minmax(0,1fr);gap:var(--s4);
+  min-height:0;padding:var(--s4) 18px}
+.side{display:flex;flex-direction:column;min-height:0;gap:var(--s2)}
+.stage{display:flex;flex-direction:column;gap:var(--s3);min-width:0;min-height:0}
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-thumb{background:var(--scroll);border-radius:9px;border:2px solid transparent;background-clip:content-box}
 ::-webkit-scrollbar-thumb:hover{background:var(--scroll-hi);background-clip:content-box}
 ::-webkit-scrollbar-track{background:transparent}
 
-.rail{display:flex;flex-direction:column;min-height:0;gap:var(--s2)}
-/* 「更多功能」展开后，操作列表必须自己滚，不能把上面的能力条挤没：
-   实测（headless 截图）收起的列表展开时，能力条会被压成一条 1px 的线。
-   根因是 #railmore 只有内容高度、撑破了这一列，于是 flex 收缩落到了能力条头上。
-   三处都写死不许收缩、把滚动交给 .tasks，问题消失。 */
-.cap,.morebtn{flex:0 0 auto}
-#railmore{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
-.rowline{display:flex;align-items:center;gap:var(--s2)}
-.search{position:relative;flex:1}
+/* 侧栏的两块：环境结论 + 操作。都是"面板"，但用 panel-flat ——
+   它们的面由 --glass-2 这一级给（见 VFX 那一段），因为它们的内容会随搜索与滚动重算。 */
+.side>.panel{flex:0 0 auto;padding:var(--s3)}
+.side>.panel.grow{flex:1;min-height:0;display:flex;flex-direction:column}
+/* 面板自己的小标题。它替代了原来"每块内容各写一种标题样式"的做法：
+   现在整页只有 .ph 这一种面板标题，字号、字距、左侧短横线都一致。 */
+.ph{display:flex;align-items:center;gap:var(--s2);margin:0 0 var(--s2)}
+.ph h2{font:var(--fs-11)/1 var(--mono);letter-spacing:.14em;color:var(--muted);font-weight:400}
+.ph h2::before{content:"";display:inline-block;width:10px;height:1px;background:var(--muted2);
+  vertical-align:middle;margin-right:7px}
+.ph .linkbtn{margin-left:auto}
+
+.search{position:relative;flex:0 0 auto}
 .search input{width:100%;padding:8px 11px 8px 30px;border:1px solid var(--line);border-radius:var(--r1);
   background:var(--search);outline:none;font-size:var(--fs-12-5);transition:border-color .16s,box-shadow .16s}
 .search input:focus{border-color:var(--sig-focus);box-shadow:0 0 0 3px var(--sig-soft)}
@@ -569,7 +608,8 @@ main{display:grid;grid-template-columns:340px minmax(0,1fr);gap:var(--s4);
   border:1.5px solid var(--muted);border-radius:50%}
 .search .ic::after{content:"";position:absolute;right:-4px;bottom:-3px;width:5px;height:1.5px;
   background:var(--muted);transform:rotate(45deg);border-radius:1px}
-.railcount{font:var(--fs-11)/1 var(--mono);color:var(--muted2);white-space:nowrap}
+.sidecount{font:var(--fs-11)/1.5 var(--mono);color:var(--muted2);white-space:nowrap;
+  padding:var(--s2) 2px var(--s2)}
 
 /* 环境能力条：体检结论的精简投影。不可用的能力标红，对应的操作会被置灰。 */
 .cap{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);
@@ -585,78 +625,70 @@ main{display:grid;grid-template-columns:340px minmax(0,1fr);gap:var(--s4);
 /* 未检测时并成一格：横跨两列，值那一侧用信号绿，明确它是"可点的动作"而不是结论 */
 .capcell.wide{grid-column:1 / -1;cursor:pointer}
 .capcell.wide .cv{color:var(--sig)}
-.capnote{font-size:var(--fs-11-5);color:var(--muted2);padding:0 2px;line-height:1.5}
 /* 未选操作时主区那一句话。轻量到不抢视线，只负责把"其他操作在哪"说清楚。 */
 .idle{font-size:var(--fs-12-5);color:var(--muted2);line-height:1.7}
 .idle b{color:var(--ink2);font-weight:600}
 
+/* ---- 操作列表：常驻，按用途分组 ----
+   行名 .op 是"operation"，不再叫 .t（那个名字读不出是什么）。
+   悬停只换边框与底色、**不做位移**：位移会让这一行所在的玻璃面每帧重新取样，
+   而它带来的观感收益只有 2px 那么多。
+   注意这里用的是**实心**的 --surf/--surf2：半透明与玻璃只在 VFX 那一段里覆写
+   （那一段的选择器都带着"设了背景图就让位"的排除）。基础样式一旦自己用玻璃色，
+   美化层就删不干净，设了背景图时也没有东西把它压回实心。 */
 .tasks{flex:1;min-height:0;overflow:auto;padding-right:5px}
-.grp{display:flex;align-items:center;gap:8px;margin:var(--s4) 0 var(--s2);
-  padding:5px 0 5px 2px;background:var(--bg)}
-.grp:first-child{margin-top:2px}
-.grp .tag{width:5px;height:5px;border-radius:1.5px;flex:0 0 auto;background:var(--muted2)}
-.grp .t{font:var(--fs-11)/1 var(--mono);letter-spacing:.14em;color:var(--muted)}
-.grp .rule{flex:1;height:1px;background:var(--line)}
-.grp.g1 .tag{background:var(--sig)} .grp.g2 .tag{background:var(--blue)}
-.grp.g3 .tag{background:var(--violet)} .grp.g4 .tag{background:var(--amber)}
-.grp.g5 .tag{background:var(--muted)} .grp.g6 .tag{background:var(--rose)}
+.opgrp{display:flex;align-items:center;gap:8px;margin:var(--s4) 0 var(--s2);
+  padding:5px 0 5px 2px}
+.opgrp:first-child{margin-top:2px}
+.opgrp .tag{width:5px;height:5px;border-radius:1.5px;flex:0 0 auto;background:var(--muted2)}
+.opgrp .gl{font:var(--fs-11)/1 var(--mono);letter-spacing:.14em;color:var(--muted)}
+.opgrp .rule{flex:1;height:1px;background:var(--line)}
+.opgrp.g1 .tag{background:var(--sig)} .opgrp.g2 .tag{background:var(--blue)}
+.opgrp.g3 .tag{background:var(--violet)} .opgrp.g4 .tag{background:var(--amber)}
+.opgrp.g5 .tag{background:var(--muted)} .opgrp.g6 .tag{background:var(--rose)}
 
-.t{display:block;width:100%;text-align:left;padding:9px 12px 9px 13px;margin-bottom:6px;
+.op{display:block;width:100%;text-align:left;padding:9px 12px 9px 13px;margin-bottom:6px;
   border:1px solid var(--line);border-radius:var(--r2);background:var(--surf);position:relative;
-  transition:border-color .16s,background .16s,transform .16s}
-.t:hover{border-color:var(--line2);background:var(--surf2);transform:translateX(2px)}
-.t .nm{display:flex;align-items:center;gap:7px;font-size:var(--fs-13);font-weight:600;margin-bottom:2px}
-.t .nm .lg{margin-left:auto;font:var(--fs-10)/1 var(--mono);color:var(--muted);border:1px solid var(--line2);
+  transition:border-color .16s,background .16s}
+.op:hover{border-color:var(--line2);background:var(--surf2)}
+.op .nm{display:flex;align-items:center;gap:7px;font-size:var(--fs-13);font-weight:600;margin-bottom:2px}
+.op .nm .lg{margin-left:auto;font:var(--fs-10)/1 var(--mono);color:var(--muted);border:1px solid var(--line2);
   border-radius:3px;padding:2px 4px;white-space:nowrap}
-.t .ds{font-size:var(--fs-11-5);line-height:1.5;color:var(--muted);
+.op .ds{font-size:var(--fs-11-5);line-height:1.5;color:var(--muted);
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.t.on{border-color:var(--sig-edge);background:var(--surf2)}
-.t.on::before{content:"";position:absolute;left:-1px;top:9px;bottom:9px;width:2px;border-radius:2px;background:var(--sig)}
-.t.on .ds{color:var(--ink2)}
-/* 环境不支持的操作：置灰，鼠标提示只给一句原因（见 .t.off 的 title） */
-.t.off{opacity:.42;cursor:not-allowed}
-.t.off:hover{border-color:var(--line);background:var(--surf);transform:none}
+.op.on{border-color:var(--sig-edge);background:var(--surf2)}
+.op.on::before{content:"";position:absolute;left:-1px;top:9px;bottom:9px;width:2px;border-radius:2px;background:var(--sig)}
+.op.on .ds{color:var(--ink2)}
+/* 环境不支持的操作：置灰，鼠标提示只给一句原因（见 .op.off 的 title） */
+.op.off{opacity:.42;cursor:not-allowed}
+.op.off:hover{border-color:var(--line);background:var(--surf)}
 /* 环境存疑但不禁用：琥珀色标记，同样把原因放在 title 里 */
-.t .lim{font:var(--fs-10)/1 var(--mono);color:var(--amber);border:1px solid var(--amber-edge);
+.op .lim{font:var(--fs-10)/1 var(--mono);color:var(--amber);border:1px solid var(--amber-edge);
   border-radius:3px;padding:2px 4px;background:var(--amber-soft);white-space:nowrap}
-.t.hide{display:none}
-.tempty{padding:26px 10px;text-align:center;color:var(--muted2);font-size:var(--fs-12-5)}
+.op.hide{display:none}
+.opempty{padding:26px 10px;text-align:center;color:var(--muted2);font-size:var(--fs-12-5)}
 
-.card{position:relative;border:1px solid var(--line);border-radius:var(--r3);
+/* ---- 面板：一级容器 ----
+   面板 = 界面上所有"一块内容"的统一容器。以前这里有三套写法（内容用 .card、
+   浮层用 .mbox、设置用 .mset），圆角与边框各写一遍、命名也读不出同一件事；
+   现在统一到 .panel 这一套，只有浮层例外 —— 它要压在一切之上，圆角与阴影都更重一档。 */
+.panel{position:relative;border:1px solid var(--line);border-radius:var(--r3);
   background:linear-gradient(180deg,var(--surf),var(--bg2))}
-.card::before,.card::after{content:"";position:absolute;width:10px;height:10px;pointer-events:none;
+.panel::before,.panel::after{content:"";position:absolute;width:10px;height:10px;pointer-events:none;
   opacity:0;transition:opacity .18s}
-.card::before{top:-1px;left:-1px;border-top:1px solid var(--sig);border-left:1px solid var(--sig);border-radius:var(--r3) 0 0 0}
-.card::after{bottom:-1px;right:-1px;border-bottom:1px solid var(--sig);border-right:1px solid var(--sig);border-radius:0 0 var(--r3) 0}
-.card:hover::before,.card:hover::after{opacity:.9}
+.panel::before{top:-1px;left:-1px;border-top:1px solid var(--sig);border-left:1px solid var(--sig);border-radius:var(--r3) 0 0 0}
+.panel::after{bottom:-1px;right:-1px;border-bottom:1px solid var(--sig);border-right:1px solid var(--sig);border-radius:0 0 var(--r3) 0}
+.panel:hover::before,.panel:hover::after{opacity:.9}
+/* panel-flat：面板里还嵌着面板时用。去掉渐变，只留一层更透的底，靠边框分层。 */
+.panel-flat{background:var(--surf)}
 
 .k{display:flex;align-items:center;gap:8px;font:var(--fs-11)/1 var(--mono);letter-spacing:.14em;
   color:var(--muted);margin-bottom:var(--s3)}
 .k::before{content:"";width:12px;height:1px;background:var(--muted2)}
 .hint{font-size:var(--fs-12-5);color:var(--ink2)}
 
-/* 首屏：未选择操作时的入口 */
-.guide{padding:var(--s5) var(--s5) var(--s4)}
-.gtitle{font:600 var(--fs-18)/1.35 var(--disp);letter-spacing:.01em;margin-bottom:6px}
-.gsub{font-size:var(--fs-12-5);color:var(--ink2);margin-bottom:var(--s5);max-width:62ch}
-.gcards{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s3)}
-.gcard{position:relative;text-align:left;padding:var(--s4);border:1px solid var(--line);border-radius:var(--r2);
-  background:var(--surf2);overflow:hidden;transition:border-color .18s,background .18s,transform .18s}
-.gcard:hover{border-color:var(--sig-edge);background:var(--surf3);transform:translateY(-2px)}
-.gcard .no{font:var(--fs-11)/1 var(--mono);color:var(--muted2);letter-spacing:.1em}
-.gcard .gt{font-size:var(--fs-14);font-weight:600;margin:9px 0 5px}
-.gcard .gd{font-size:var(--fs-12);line-height:1.55;color:var(--muted)}
-.gcard .bar{position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--sig);opacity:.5}
-.gcard.g-b .bar{background:var(--blue)} .gcard.g-v .bar{background:var(--violet)}
-.gcard.off{opacity:.42;cursor:not-allowed}
-.gcard.off:hover{border-color:var(--line);background:var(--surf2);transform:none}
-.gsteps{margin-top:var(--s5);padding-top:var(--s4);border-top:1px solid var(--line);display:flex;gap:var(--s5);flex-wrap:wrap}
-.gstep{display:flex;gap:9px;align-items:flex-start;font-size:var(--fs-12);color:var(--ink2);max-width:32ch}
-.gstep b{display:flex;align-items:center;justify-content:center;width:17px;height:17px;flex:0 0 auto;
-  border-radius:50%;font:var(--fs-11)/1 var(--mono);color:var(--bg);background:var(--sig)}
-
 /* 操作头 + 表单 */
-.formcard{padding:0;display:flex;flex-direction:column;flex:0 1 auto;max-height:min(56vh,600px)}
+.formpanel{padding:0;display:flex;flex-direction:column;flex:0 1 auto;max-height:min(56vh,600px)}
 .workhead{padding:var(--s4) var(--s5) var(--s4)}
 .whTop{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap}
 .whTop h2{font:600 var(--fs-17)/1.3 var(--disp);letter-spacing:.01em}
@@ -719,23 +751,12 @@ main{display:grid;grid-template-columns:340px minmax(0,1fr);gap:var(--s4);
 .addr{font:600 var(--fs-26)/1.32 var(--mono);letter-spacing:.005em;word-break:break-all;color:var(--addr-ink);
   -webkit-user-select:all;user-select:all}
 .rack{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s3)}
-.steps{display:flex;flex-direction:column;gap:7px;margin-top:var(--s4);padding-top:var(--s3);border-top:1px solid var(--line)}
-.step{display:flex;gap:9px;font-size:var(--fs-12-5);color:var(--ink2)}
-.step b{font:var(--fs-11)/1.5 var(--mono);color:var(--sig);flex:0 0 auto}
-.jin{margin-top:var(--s4)}
-.subtitle{display:flex;align-items:center;gap:8px;margin:0 0 var(--s2);
-  font:var(--fs-11)/1 var(--mono);letter-spacing:.12em;color:var(--muted)}
-.subtitle .v{width:9px;height:9px;border-radius:2px;background:var(--violet)}
-.joinline{font:var(--fs-12-5)/1.5 var(--mono);color:var(--violet-ink);word-break:break-all;
-  -webkit-user-select:all;user-select:all;padding:10px 12px;border:1px solid var(--violet-edge);
-  border-radius:var(--r1);background:var(--violet-soft)}
 
-/* 说明书覆盖层：整屏接管，内部是独立文档（自带浅色排版），与应用界面互不影响样式 */
-.manual{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;background:var(--bg)}
-.manual-h{display:flex;align-items:center;gap:var(--s3);height:46px;padding:0 16px;
-  border-bottom:1px solid var(--line);background:var(--chrome);flex:0 0 auto}
-.manual-h span{flex:1;font-size:var(--fs-13);color:var(--ink2)}
-.manual iframe{flex:1;border:0;width:100%;background:#fff}
+/* 说明书页：它本身就是一份独立文档（iframe 内自带排版与主题），这里只负责给它一块地方。
+   以前它是整屏覆盖层，还自带一条标题栏与关闭按钮 —— 标题栏由顶栏导航承担之后，
+   那一整层（定位、层级、关闭语义）连同它的按钮一起删掉了。 */
+#pageManual{display:block;padding:0}
+#manualFrame{width:100%;height:100%;border:0;background:#fff;display:block}
 
 /* 一步开局：默认入口。房主只要一个房间码，玩家只要一次粘贴。
    颜色与圆角沿用既有配色（信号绿 var(--sig) / 四级文字 / 圆角 8-16），不引第二套样式。 */
@@ -776,9 +797,6 @@ main{display:grid;grid-template-columns:340px minmax(0,1fr);gap:var(--s4);
   border:1px solid var(--hair);border-radius:8px;padding:10px 12px;
   color:var(--ink2);max-height:280px;overflow:auto}
 
-/* 「更多功能」：操作列表收起后留在左栏的入口 */
-.morebtn{display:block;width:100%;text-align:left;margin-top:8px}
-
 /* 提示条：一句结论 + 一个动作。目前只用于"入站未放行"这一件事。
    Windows 防火墙默认拦掉所有入站，这是"我这边正常、玩家就是连不上"的头号原因，
    所以提示放在最上面；但要不要放行由用户点，界面不自动改系统。 */
@@ -791,7 +809,7 @@ main{display:grid;grid-template-columns:340px minmax(0,1fr);gap:var(--s4);
 .banner .btn.amber:hover:not(:disabled){background:var(--amber);color:var(--amber-on);filter:brightness(1.06)}
 
 /* 日志：两层各一个容器，切换靠显示/隐藏，不重建节点 */
-.logcard{flex:1;min-height:140px;display:flex;flex-direction:column;padding:var(--s3) var(--s4) var(--s4)}
+.logpanel{flex:1;min-height:140px;display:flex;flex-direction:column;padding:var(--s3) var(--s4) var(--s4)}
 .loghead{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-bottom:var(--s2)}
 .loghead .k{margin:0}
 .segs{display:flex;border:1px solid var(--line);border-radius:var(--r1);overflow:hidden}
@@ -815,10 +833,11 @@ main{display:grid;grid-template-columns:340px minmax(0,1fr);gap:var(--s4);
 .ln.info .tx{color:var(--info-ink)}
 .lgempty{padding:30px 16px;text-align:center;color:var(--muted2);font:var(--fs-12)/1.7 var(--mono)}
 
-/* 详情面板：原理性内容放这里，不铺在主界面 */
+/* ---- 详情浮层：界面上唯一的浮层 ----
+   操作里那些原理性内容（握手过程、为什么这样做）放在这里，不铺在主界面。
+   设置与说明书都不再走这里 —— 它们是页，不是"点开看完就关掉"的东西。 */
 .modal{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;
   background:var(--panel)}
-/* 面板宽度按设计文档取 760：620 放下表单够用，但要再塞进一列 172 的模块导航就不够了 */
 .mbox{width:min(760px,92vw);max-height:76vh;display:flex;flex-direction:column;
   border:1px solid var(--line2);border-radius:var(--r3);background:var(--bg2)}
 .mhead{display:flex;align-items:center;gap:var(--s3);padding:var(--s4) var(--s5);
@@ -827,44 +846,71 @@ main{display:grid;grid-template-columns:340px minmax(0,1fr);gap:var(--s4);
 .mbody{padding:var(--s4) var(--s5);overflow:auto;font-size:var(--fs-13);line-height:1.75;color:var(--ink2);
   white-space:pre-wrap}
 
-/* 设置面板。它复用「详情」那扇门（#modal）—— 同样是"点开看完就关掉"的一块内容，
-   再开一扇门只会让人多记一个位置。唯一的差别是里面是表单，所以把 pre-wrap 关掉。 */
-.mset{white-space:normal}
-.mgrp{display:flex;align-items:center;gap:var(--s2);margin:20px 0 8px;
-  font:var(--fs-11)/1 var(--mono);letter-spacing:.12em;color:var(--muted)}
-.mgrp:first-child{margin-top:0}
-.mgrp::after{content:"";flex:1;height:1px;background:var(--line)}
-.mrow{display:flex;align-items:center;gap:var(--s3);padding:6px 0}
-.mrow>.ml{flex:0 0 118px;font-size:var(--fs-12-5);color:var(--ink2)}
-.mrow>.md{flex:1;min-width:0;display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap}
-.mhint{flex:1 1 100%;font-size:var(--fs-11-5);color:var(--muted);line-height:1.55}
+/* ==================== 设置页 ====================
+   三个一级分类，顺序固定，各自只装一类信息：
+     主题外观   —— 配色、背景、特效、排版。全是"看一眼就知道改了什么"的外观项。
+     辅助工具   —— 背景音乐、填表与日志。软件自带的附加能力，关掉任何一项联机照常。
+     关于与状态 —— 只读信息集中在这里（版本、环境、目录、占用），另加维护动作。
+   每个设置项的结构统一为：标题 + 状态标签 / 说明 / 控件 / 悬停可见的更细提示。
+   面板上只放真的会生效的设置 —— 做不到的东西不进来（有用例逐项兜着）。
+   为什么状态信息只在"关于与状态"里出现一次：它以前在顶栏、底栏、设置里各有一份，
+   三处不一致时没人知道该信哪一个。 */
+/* 设置页外壳：占满一页、自己不滚，滚动交给里面的 .mset。
+   玻璃加在这一层而不是那些分类卡上 —— 外壳不动，背后静止背景的模糊结果就能一直复用。 */
+.setpage{display:block;padding:0;overflow:hidden}
+.mset{height:100%;overflow:auto;padding:var(--s5) 22px var(--s5);
+  display:flex;flex-direction:column;gap:var(--s4);white-space:normal}
+/* 页首一句话：这一页怎么用。它替掉了原先面板底部那段"没有未保存状态"的说明 ——
+   那句话是给"找不到保存按钮的人"看的，放在最前面才有用。 */
+.mintro{font-size:var(--fs-12-5);color:var(--ink2);line-height:1.7;max-width:78ch}
+.mintro b{color:var(--ink)}
 
-/* ---- 设置面板：两个可编辑板块 + 只读信息 + 维护操作 ----
-   面板只放**真正会生效**的设置。做不到的东西一律不在这里出现 ——
-   宁可让页面靠排版、分组、说明与只读信息撑起饱满度，
-   也不摆一批点不动、改了没反应的占位开关。 */
-.mset{white-space:normal}
-.mface{margin-bottom:var(--s5)}
-.mfaceh{display:flex;align-items:center;gap:var(--s2);margin:0 0 var(--s2)}
-.mfaceh .ic{flex:0 0 auto;display:flex;color:var(--sig)}
-.mfaceh .tt{font-size:var(--fs-14);font-weight:600;color:var(--ink)}
-.mfaceh .sub{flex:1;min-width:0;font-size:var(--fs-11-5);color:var(--muted)}
-.mcard{border:1px solid var(--line);border-radius:var(--r2);background:var(--surf);
-  padding:var(--s2) var(--s3) var(--s3);margin-bottom:var(--s2)}
-.mcardh{display:flex;align-items:center;gap:var(--s2);margin:var(--s1) 0 var(--s1);
-  font:var(--fs-11)/1.6 var(--mono);letter-spacing:.1em;color:var(--muted)}
-.mcardh::after{content:"";flex:1;height:1px;background:var(--hair)}
+/* 一级分类卡 */
+.mcat{border:1px solid var(--line);border-radius:var(--r3);background:var(--surf);
+  padding:var(--s4) var(--s5) var(--s3)}
+.mcathead{display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s3)}
+.mcathead .ic{flex:0 0 auto;display:flex;color:var(--sig)}
+.mcathead .tt{font:600 var(--fs-15)/1.2 var(--disp)}
+.mcathead .sub{flex:1;min-width:0;font-size:var(--fs-11-5);color:var(--muted);line-height:1.5}
+
+/* 设置项：一行一项。左边标题+说明，右边控件 —— 控件位置固定，扫一列就知道改哪个。 */
+.mitem{display:grid;grid-template-columns:minmax(0,1fr) max-content;gap:var(--s2) var(--s5);
+  align-items:center;padding:11px 0;border-top:1px solid var(--hair)}
+.mitem:first-child{border-top:0}
+.mi-h{display:flex;align-items:center;gap:var(--s2);margin-bottom:3px}
+.mi-t{font-size:var(--fs-13);font-weight:600;color:var(--ink)}
+/* 状态标签：只说"这一项现在是什么状态"，不重复控件里的信息。 */
+.mi-tag{font:var(--fs-10)/1 var(--mono);padding:2px 6px;border-radius:3px;white-space:nowrap;
+  border:1px solid var(--line2);color:var(--muted)}
+.mi-tag.chg{border-color:var(--sig-edge);color:var(--sig);background:var(--sig-soft)}
+.mi-d{font-size:var(--fs-11-5);color:var(--muted);line-height:1.6;max-width:64ch}
+.mi-c{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;justify-content:flex-end}
+/* 控件旁边的一小句结果（例如帧率实测的数字）。等宽字体，因为它量的是数字。 */
+.mi-out{font:var(--fs-11-5)/1 var(--mono);color:var(--muted2)}
+/* 分类内部的小标题：用在只读信息与变更记录之间，只做分隔，不再承载分组语义。 */
+.msub{display:flex;align-items:baseline;gap:var(--s3);margin:var(--s4) 0 var(--s2);
+  padding-top:var(--s3);border-top:1px solid var(--hair)}
+.msub:first-child{margin-top:0;padding-top:0;border-top:0}
+.msub .tt{font:var(--fs-11)/1.5 var(--mono);letter-spacing:.12em;color:var(--muted);white-space:nowrap}
+.msub .sp{flex:1}
+/* 窄窗口下控件换到下一行铺开：硬挤在同一行会把说明压成一条缝 */
+@media (max-width:760px){
+  .mitem{grid-template-columns:1fr}
+  .mi-c{justify-content:flex-start}
+}
+
 /* 辅助板块的定位声明：把"这是附加项"写在脸上，而不是让用户去猜 */
-.mbenefit{display:flex;gap:var(--s2);margin:0 0 var(--s2);padding:var(--s2) var(--s3);
+.mbenefit{display:flex;gap:var(--s2);margin:0 0 var(--s3);padding:var(--s2) var(--s3);
   border:1px solid var(--line);border-radius:var(--r1);background:var(--surf2);
   font-size:var(--fs-11-5);line-height:1.6;color:var(--ink2)}
 .mbenefit .ic{flex:0 0 auto;display:flex;color:var(--muted)}
-/* 只读区：整块锁住，不给任何输入控件留位置 */
-.minfo{display:grid;grid-template-columns:max-content 1fr;gap:5px var(--s4);margin:0;
-  font-size:var(--fs-11-5)}
-.minfo dt{color:var(--muted)}
-.minfo dd{margin:0;color:var(--ink2);overflow-wrap:anywhere}
-.minfo dd.mono{font-family:var(--mono);font-size:var(--fs-11)}
+
+/* 关于与状态：整块只读，不给任何输入控件留位置（有用例守住这一条） */
+.mabout{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px var(--s5);margin:0;
+  font-size:var(--fs-12)}
+.mabout dt{color:var(--muted)}
+.mabout dd{margin:0;color:var(--ink2);overflow-wrap:anywhere}
+.mabout dd.mono{font-family:var(--mono);font-size:var(--fs-11-5)}
 .mstats{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s2);margin-top:var(--s3)}
 .mstat{padding:var(--s2) var(--s3);border:1px solid var(--hair);border-radius:var(--r1);
   background:var(--surf2)}
@@ -875,6 +921,9 @@ main{display:grid;grid-template-columns:340px minmax(0,1fr);gap:var(--s4);
   border:1px solid var(--amber-edge);border-radius:var(--r1);background:var(--amber-soft);
   font-size:var(--fs-11-5);line-height:1.6;color:var(--ink2)}
 .mnotice .ic{flex:0 0 auto;display:flex;color:var(--amber)}
+
+/* 变更记录：就放在"关于与状态"里，不再是一扇独立的门 ——
+   它是状态的一部分（这份配置被谁改过），不是第二个设置页。 */
 .mchg{display:flex;flex-direction:column;margin:var(--s2) 0}
 .mchgr{display:flex;align-items:baseline;gap:8px;padding:5px 0;
   border-bottom:1px solid var(--hair);font-size:var(--fs-11-5);color:var(--ink2)}
@@ -882,11 +931,10 @@ main{display:grid;grid-template-columns:340px minmax(0,1fr);gap:var(--s4);
 .mchgr .m{flex:0 0 92px;color:var(--muted)}
 .mchgr .i{flex:1;min-width:0}
 .mchgr .v{flex:0 0 auto;font-family:var(--mono);color:var(--muted)}
-@media (max-width:820px){
-  .mstats{grid-template-columns:repeat(2,1fr)}
-  .minfo{grid-template-columns:1fr;gap:1px}
-  .minfo dt{margin-top:var(--s2)}
-}
+.mchgempty{padding:var(--s3) 2px;color:var(--muted2);font-size:var(--fs-11-5)}
+
+/* ---- 设置控件（统一命名 m 前缀） ----
+   分段器 / 开关 / 输入框 / 色点，四种就够：面板上不该出现第五种控件形态。 */
 .mseg{display:flex;border:1px solid var(--line);border-radius:var(--r1);overflow:hidden}
 .mseg button{padding:5px 12px;font-size:var(--fs-12);color:var(--muted);transition:color .16s,background .16s}
 .mseg button+button{border-left:1px solid var(--line)}
@@ -898,22 +946,36 @@ main{display:grid;grid-template-columns:340px minmax(0,1fr);gap:var(--s4);
   border:1px solid var(--hair2);background:var(--field);color:var(--ink);font-size:var(--fs-12-5)}
 .mtxt:focus{outline:none;border-color:var(--sig-focus);box-shadow:0 0 0 3px var(--sig-soft)}
 .mtxt.small{max-width:120px}
-/* 路径输入框要占满整行：完整路径本来就长，挤在 330px 里没法核对填错在哪一段 */
-.mtxt.path{max-width:100%;font-family:var(--mono);font-size:var(--fs-11-5)}
 .mdot{width:22px;height:22px;border-radius:50%;border:1px solid var(--line2);cursor:pointer;padding:0}
 .mdot.on{box-shadow:0 0 0 2px var(--surf),0 0 0 4px var(--sig-edge)}
-.mfoot{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-top:18px;
-  padding-top:14px;border-top:1px solid var(--line)}
-.mfoot .mnote{flex:1 1 100%;font-size:var(--fs-11-5);color:var(--muted);line-height:1.6}
-.msaved{font-size:var(--fs-11-5);color:var(--sig)}
 
-/* 底栏 */
-.foot{display:flex;align-items:center;gap:var(--s3);padding:0 20px;border-top:1px solid var(--line);
+/* ---- 维护操作：一律集中在这里 ----
+   恢复默认、导出、导入、变更记录、打开数据目录、导出诊断包 —— 全是"动作"而不是设置，
+   所以它们不在上面三个分类里，也不会散落在各分类的标题旁边。
+   恢复默认仍然保留两个范围（当前分类 / 全部），但入口只有一个，点开后再选范围。 */
+.mmaint{border:1px solid var(--line);border-radius:var(--r3);background:var(--surf);
+  padding:var(--s4) var(--s5)}
+.mmaint .acts{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s3)}
+.mmaint .mnote{flex:1 1 100%;margin-top:var(--s2);font-size:var(--fs-11-5);color:var(--muted);line-height:1.6}
+/* 就地确认条：重置是"会连改好几项"的操作，先问一句再动手，不弹系统对话框。 */
+.mconfirm{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s3);
+  padding:var(--s2) var(--s3);border:1px solid var(--amber-edge);border-radius:var(--r1);
+  background:var(--amber-soft);font-size:var(--fs-11-5);color:var(--ink2)}
+.mconfirm .sp{flex:1}
+.mconfirm .q{font-size:var(--fs-11-5);color:var(--ink2)}
+
+/* 状态栏：当前任务 + 保存状态 + 常驻小工具 + 快捷键 + 生命周期动作。
+   它以前只放一句任务名和一个版本号（那个版本号还和顶栏重复），中间一大片空白；
+   版本号撤掉、停止/退出挪进来之后，这一条才真的在用。 */
+.statusbar{display:flex;align-items:center;gap:var(--s3);padding:0 18px;border-top:1px solid var(--line);
   background:var(--chrome);font:var(--fs-11)/1 var(--mono);color:var(--muted2);white-space:nowrap;overflow:hidden}
-.foot>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
-.foot .cmdline{color:var(--muted);max-width:34vw}
-.foot .gap{flex:1;overflow:visible}
-/* 底栏的背景音乐入口：只显示当前曲名，**不做任何动画** —— 常驻区域对动画最不宽容，
+.statusbar>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.statusbar .sb-task{color:var(--muted)}
+.statusbar .sb-save{color:var(--sig)}
+.statusbar .sb-save.bad{color:var(--rose-ink)}
+.statusbar .gap{flex:1;overflow:visible}
+.statusbar .sb-life{flex:0 0 auto;display:flex;align-items:center;gap:var(--s2)}
+/* 状态栏的背景音乐入口：只显示当前曲名，**不做任何动画** —— 常驻区域对动画最不宽容，
    而且它每 700ms 会跟着状态刷新一次，动画会让这条底线变得很难守。 */
 #bgmName{display:inline-block;max-width:22vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
 
@@ -926,19 +988,33 @@ main{display:grid;grid-template-columns:340px minmax(0,1fr);gap:var(--s4);
   *{transition:none !important}
   :root{--vfx-fade:0s}
 }
-@media (max-width:960px){main{grid-template-columns:1fr}.rail{max-height:340px}}
-/* 窗口被拖窄时，最先让位的是那条进度链：它是"现在走到哪一段"的提示，
-   而同样的信息在状态胶囊里也有一份。不让位的话，右上角那几个按钮会被挤出去。 */
+/* 窗口被拖窄时，让位的顺序是按"信息是否还有别处"排的：
+   进度链最先走（同样的信息在状态胶囊里也有一份），然后是导航的文字内边距，
+   最后侧栏从"左边一列"改成"上面一块"。身份与状态栏的动作永远留着。 */
 @media (max-width:1040px){.linkbar{display:none}}
+@media (max-width:900px){.nav .navi{padding:5px 9px}}
+@media (max-width:960px){
+  .page{grid-template-columns:1fr;grid-auto-rows:min-content}
+  .side{max-height:46vh}
+  .side>.panel.grow{min-height:200px}
+}
 </style>
 </head>
 <body>
 <div class="bg"><div class="wall"></div><div class="scrim"></div><div class="aurora"></div><div class="grid"></div></div>
 
-<div class="app" id="app">
-  <header class="top">
+<div class="shell" id="app">
+  <!-- 顶栏 = 身份 + 页面导航 + 连接进展 + 当前状态。
+       四件事各占一段，顺序固定；窗口变窄时先让位的依次是进度链、导航说明，
+       身份与状态永远留着（它们是"这是哪个工具、现在在干什么"的答案）。 -->
+  <header class="topbar">
     <span class="glyph"></span>
-    <div class="brand"><b>mclbx</b><span class="sub">联机工具</span><span class="ver" id="ver"></span></div>
+    <div class="brand"><b>mclbx</b><span class="sub">联机工具</span></div>
+    <nav class="nav" id="nav">
+      <button class="navi on" id="btnWork" data-page="work">工作台</button>
+      <button class="navi" id="btnSettings" data-page="settings" title="主题外观、辅助工具与程序状态">设置</button>
+      <button class="navi" id="btnManual" data-page="manual">说明书</button>
+    </nav>
     <div class="spacer"></div>
     <div class="linkbar" id="linkbar" title="当前连接进展">
       <span class="n on">本机</span><span class="s on"></span>
@@ -947,47 +1023,33 @@ main{display:grid;grid-template-columns:340px minmax(0,1fr);gap:var(--s4);
       <span class="n" id="lnkPeer">玩家</span>
     </div>
     <div class="stat"><span class="dot" id="pulse"></span><span id="status">空闲</span></div>
-    <button class="btn sm" id="btnSettings" title="外观、默认值与数据">设置</button>
-    <button class="btn" id="btnManual">说明书</button>
-    <button class="btn danger" id="btnStop" disabled>停止</button>
-    <button class="btn" id="btnQuit">退出</button>
   </header>
+
   <div class="notice" id="notice"><i></i><span id="noticeText"></span></div>
 
-  <!-- 说明书覆盖层：内容由 /manual 提供，与程序同在一个 exe 内。
-       首次点开才设置 iframe 的地址 —— 不打开就不加载，空闲时不占资源。 -->
-  <div class="manual" id="manual" hidden>
-    <div class="manual-h">
-      <span>使用说明书</span>
-      <button class="btn sm" id="manualClose">关闭</button>
-    </div>
-    <iframe id="manualFrame" title="使用说明书"></iframe>
-  </div>
-
-  <main>
-    <aside class="rail">
-      <div class="cap" id="cap"></div>
-      <!-- 操作列表默认收起。分享出去之后反馈最多的一句话是"不知道点哪个" ——
-           所以默认只留环境结论，十来个低频操作收进这里，一个都没删。 -->
-      <button class="linkbtn morebtn" id="btnMore" hidden>更多功能</button>
-      <div id="railmore" hidden>
-        <div class="rowline">
-          <div class="search"><span class="ic"></span><input id="q" placeholder="搜索操作"></div>
-          <button class="btn sm" id="btnProbe" title="重新执行环境检测">重新检测</button>
-        </div>
-        <div class="rowline">
-          <span class="railcount" id="cnt"></span>
-          <div class="spacer"></div>
-          <span class="railcount">Esc 取消选择</span>
-        </div>
+  <!-- ── 页一：工作台 ────────────────────────────────────────────────── -->
+  <main class="page" id="pageWork">
+    <aside class="side">
+      <section class="panel panel-flat">
+        <div class="ph"><h2>本机环境</h2></div>
+        <div class="cap" id="cap"></div>
+      </section>
+      <!-- 操作列表常驻。它以前收在「更多功能」后面，于是这一列平时只剩一张环境表，
+           而"操作在哪"又变成一个新问题（分享出去后最多的一句反馈就是不知道点哪个）。
+           现在列表本身就是这一列的用途：按用途分组、带搜索，快速开始那两张卡仍是默认动线。 -->
+      <section class="panel panel-flat grow">
+        <div class="ph"><h2>操作</h2>
+          <button class="linkbtn" id="btnProbe" title="重新执行环境检测">重新检测</button></div>
+        <div class="search"><span class="ic"></span><input id="q" placeholder="搜索操作" autocomplete="off"></div>
+        <div class="sidecount" id="cnt"></div>
         <div class="tasks" id="tasks"></div>
-      </div>
+      </section>
     </aside>
 
-    <section class="col">
+    <div class="stage">
       <!-- 一步开局：默认入口。房主要给的就一个房间码，玩家要做的就一次粘贴；
-           其余参数与说明都后置到「更多功能」和悬浮提示里。 -->
-      <section class="card quick" id="quick">
+           其余参数与说明都后置到侧栏操作列表与悬浮提示里。 -->
+      <section class="panel quick" id="quick">
         <div class="qhead">
           <span class="qt">快速开始</span>
           <span class="qs" id="qHint">选择一项操作开始</span>
@@ -1032,7 +1094,9 @@ main{display:grid;grid-template-columns:340px minmax(0,1fr);gap:var(--s4);
         <button class="btn sm amber" id="fwFix">放行入站</button>
         <button class="linkbtn" id="fwSkip">忽略</button>
       </div>
-      <div class="card hero" id="cardAddr" hidden>
+
+      <!-- 入口地址卡：本工具唯一要交付给用户的东西，所以字号最大、位置最靠前 -->
+      <section class="panel hero" id="cardAddr" hidden>
         <span class="shine" id="sheen"></span>
         <div class="k">玩家入口地址</div>
         <div class="plate"><div class="addr" id="addr">-</div></div>
@@ -1040,10 +1104,8 @@ main{display:grid;grid-template-columns:340px minmax(0,1fr);gap:var(--s4);
           <button class="btn sm" id="btnCopyAddr">复制地址</button>
           <span class="chip grp" id="roomChip" hidden></span>
         </div>
-        <!-- 邀请卡片：房主唯一需要"转发出去"的东西 —— 地址、房间码、没装工具的连法、
-             装了工具的命令，全在这一段里。以前这里是三块（地址、命令、步骤），
-             每块配一个复制按钮，分享之后被问得最多的一句是"我该复制哪个"。
-             现在只留这一段、只留一个复制按钮，整段发出去就完事。 -->
+        <!-- 邀请卡：房主唯一需要"转发出去"的东西 —— 地址、房间码、没装工具的连法、
+             装了工具的命令，全在这一段里，只配一个复制按钮。 -->
         <div class="invite" id="inviteWrap" hidden>
           <div class="invhead">
             <span>发送给玩家的邀请</span>
@@ -1057,11 +1119,11 @@ main{display:grid;grid-template-columns:340px minmax(0,1fr);gap:var(--s4);
           <div class="ghead">在场玩家 <span id="guestN">0</span> 人</div>
           <ul id="guestList"></ul>
         </div>
-      </div>
+      </section>
 
-      <div class="card" id="workCard"></div>
+      <section class="panel" id="workCard"></section>
 
-      <div class="card logcard">
+      <section class="panel logpanel">
         <div class="loghead">
           <div class="k">日志</div>
           <div class="segs" id="segs">
@@ -1076,19 +1138,34 @@ main{display:grid;grid-template-columns:340px minmax(0,1fr);gap:var(--s4);
         </div>
         <div class="log" id="logUser"></div>
         <div class="log" id="logRaw" hidden></div>
-      </div>
-    </section>
+      </section>
+    </div>
   </main>
 
-  <footer class="foot">
-    <span id="ftTask">未选择操作</span>
-    <span class="cmdline" id="ftCmd"></span>
+  <!-- ── 页二：设置（主题外观 / 辅助工具 / 关于与状态） ──────────────── -->
+  <main class="page setpage" id="pageSettings" hidden>
+    <div class="mset" id="settingsBody"></div>
+  </main>
+
+  <!-- ── 页三：说明书。它是一份独立文档（iframe 内自带排版），
+       以前是个整屏覆盖层，现在是一页 —— 少一层弹窗叠加，返回也交给顶栏导航。 -->
+  <main class="page" id="pageManual" hidden>
+    <iframe id="manualFrame" title="使用说明书"></iframe>
+  </main>
+
+  <!-- 状态栏 = 当前任务 + 保存状态 + 常驻小工具 + 快捷键 + 生命周期动作。
+       停止/退出从顶栏挪到这里：它们作用于"当前这次运行"，和上面那行状态是同一件事，
+       顶栏则专管"我是谁、在哪个页、连到哪一步"。 -->
+  <footer class="statusbar">
+    <span class="sb-task" id="ftTask">未选择操作</span>
+    <span class="sb-save" id="saveState"></span>
     <span class="gap"></span>
     <span class="bgm"><button class="btn sm" id="bgmToggle" title="背景音乐：点一下播放或暂停">♪ <span id="bgmName">未播放</span></button></span>
-    <span class="gap"></span>
-    <span>Enter 执行 · Esc 取消</span>
-    <span class="gap"></span>
-    <span id="ftVer"></span>
+    <span class="sb-keys">Enter 执行 · Esc 取消</span>
+    <span class="sb-life">
+      <button class="btn sm danger" id="btnStop" disabled>停止</button>
+      <button class="btn sm" id="btnQuit">退出</button>
+    </span>
   </footer>
 </div>
 
@@ -1096,6 +1173,7 @@ main{display:grid;grid-template-columns:340px minmax(0,1fr);gap:var(--s4);
      preload=none 是有意的：不点播放就不去碰磁盘，空闲时这条路径的开销是零。 -->
 <audio id="bgm" preload="none"></audio>
 
+<!-- 唯一的浮层：操作原理性说明（点开看完就关）。设置不再是浮层，说明书也已经是页。 -->
 <div class="modal" id="modal" hidden>
   <div class="mbox">
     <div class="mhead"><span class="mt" id="modalTitle"></span><span class="spacer"></span>
@@ -1418,13 +1496,13 @@ function renderTasks(){
   groups = order;
   var html = '';
   order.forEach(function(g, gi){
-    html += '<div class="grp g' + ((gi % 6) + 1) + '" data-g="' + esc(g) + '">'
-          +   '<span class="tag"></span><span class="t">' + esc(g) + '</span><span class="rule"></span></div>';
+    html += '<div class="opgrp g' + ((gi % 6) + 1) + '" data-g="' + esc(g) + '">'
+          +   '<span class="tag"></span><span class="gl">' + esc(g) + '</span><span class="rule"></span></div>';
     byGroup[g].forEach(function(t){
       var l = lim[t.key] || null;
       var attrs = ' data-key="' + esc(t.key) + '"';
       if(l && l.hard){ attrs += ' data-off="1" title="不可用：' + esc(l.why) + '"'; }
-      html += '<button class="t' + (l && l.hard ? ' off' : '') + '"' + attrs + '>'
+      html += '<button class="op' + (l && l.hard ? ' off' : '') + '"' + attrs + '>'
             +   '<div class="nm">' + esc(t.name)
             +     (t['long'] ? '<span class="lg">长时</span>' : '')
             +     (l && !l.hard ? '<span class="lim" title="' + esc(l.why) + '">注意</span>' : '')
@@ -1434,8 +1512,8 @@ function renderTasks(){
     });
   });
   var box = $('tasks');
-  box.innerHTML = html || '<div class="tempty">没有可用的操作</div>';
-  Array.prototype.forEach.call(box.querySelectorAll('.t'), function(b){
+  box.innerHTML = html || '<div class="opempty">没有可用的操作</div>';
+  Array.prototype.forEach.call(box.querySelectorAll('.op'), function(b){
     b.onclick = function(){
       if(b.getAttribute('data-off')){
         toast(b.getAttribute('title').replace(/^不可用：/, ''), true);
@@ -1444,20 +1522,17 @@ function renderTasks(){
       pick(b.getAttribute('data-key'));
     };
   });
-  // 操作列表默认收起，这里顺手把入口按钮上的项数补上
-  setText($('btnMore'), '更多功能 · ' + tasks.length + ' 项');
-  setHidden($('btnMore'), false);
   filterTasks();
 }
 function filterTasks(){
   var q = ($('q').value || '').trim().toLowerCase();
   var box = $('tasks'), shown = 0;
   Array.prototype.forEach.call(box.children, function(grp){
-    if(!grp.classList || !grp.classList.contains('grp')){ return; }
+    if(!grp.classList || !grp.classList.contains('opgrp')){ return; }
     var g = (grp.getAttribute('data-g') || '').toLowerCase();
     var n = 0, hitGroup = !q || g.indexOf(q) >= 0;
     var next = grp.nextElementSibling;
-    while(next && next.classList && next.classList.contains('t')){
+    while(next && next.classList && next.classList.contains('op')){
       var t = taskByKey(next.getAttribute('data-key'));
       var hit = !q || hitGroup || ((t.name + ' ' + t.desc + ' ' + t.key).toLowerCase().indexOf(q) >= 0);
       next.classList.toggle('hide', !hit);
@@ -1479,14 +1554,14 @@ function pick(key, force){
   var l = t ? limit(t) : null;
   if(l && l.hard && !force){ toast('不可用：' + l.why, true); return; }
   sel = t;
-  Array.prototype.forEach.call($('tasks').querySelectorAll('.t'), function(b){
+  Array.prototype.forEach.call($('tasks').querySelectorAll('.op'), function(b){
     b.classList.toggle('on', !!sel && b.getAttribute('data-key') === sel.key);
   });
   renderWork();
 }
 function clearSel(){
   sel = null;
-  Array.prototype.forEach.call($('tasks').querySelectorAll('.t'), function(b){ b.classList.remove('on'); });
+  Array.prototype.forEach.call($('tasks').querySelectorAll('.op'), function(b){ b.classList.remove('on'); });
   renderWork();
 }
 function startProbe(){
@@ -1501,12 +1576,12 @@ function startProbe(){
 // 没选操作时的空缺：这里以前是第二份"创建房间 / 加入房间 / 环境检测"三选一，
 // 和上面那两张卡长得几乎一样。分享出去之后最常收到的一句话就是
 // "两个地方都能点，我该点哪个" —— 所以重复的那份删掉，只留一句话指路。
+// 现在指的路是"侧栏那一列"，不再需要先点开一个「更多功能」才看得到。
 function renderIdle(){
   var w = $('workCard');
-  w.className = 'card';
-  var n = tasks.length ? ('其余 ' + tasks.length + ' 项操作位于') : '其余操作位于';
-  setHTML(w, '<div class="idle">请选择上方的一项操作。' + esc(n)
-    + '左侧「<b>更多功能</b>」中。</div>');
+  w.className = 'panel';
+  setHTML(w, '<div class="idle">请选择左侧的一项操作，' +
+    '或者用上面的<b>快速开始</b>直接创建 / 加入房间。</div>');
   syncFoot();
 }
 function fieldHTML(f){
@@ -1528,7 +1603,7 @@ function fieldHTML(f){
 function renderWork(){
   if(!sel){ renderIdle(); return; }
   var w = $('workCard');
-  w.className = 'card formcard';
+  w.className = 'panel formpanel';
   var l = limit(sel);
   var fs = (sel.fields || []).map(fieldHTML).join('');
   w.innerHTML =
@@ -1578,11 +1653,11 @@ function buildArgs(t){
   });
   return parts.join(' ');
 }
+/* 状态栏左侧那句"现在在跑什么"。它和顶栏的状态胶囊是**两件事**，不是同一件事的两处：
+   胶囊说的是"程序此刻的状态"（空闲 / 执行中 / 已结束），这里说的是"这一次跑的是哪个操作"。
+   命令行不再挂在这一行（它是给写脚本的人看的），要看等价命令时点开表单右上角的「命令」。 */
 function syncFoot(){
-  setText($('ftTask'), sel ? ('操作：' + sel.name) : '未选择操作');
-  // 页脚不挂命令行：它是给写脚本的人看的，普通使用者只需要知道执行结果；
-  // 需要核对时，表单右上角的「命令」可展开显示等价命令行。
-  setHidden($('ftCmd'), true);
+  setText($('ftTask'), sel ? ('本次操作：' + sel.name) : '未选择操作');
 }
 function setRunningUI(on){
   var b = $('btnRun'); if(b){ b.disabled = on; }
@@ -1637,8 +1712,8 @@ function setStatus(s){
   }
   setCls($('pulse'), cls);
   setText($('status'), txt);
-  if(s.ver){ setText($('ver'), s.ver); }
-  if(!$('ftVer').textContent && s.ver){ setText($('ftVer'), s.ver + ' · 网页版'); }
+  // 版本号不在这里写：它只在「设置 → 关于与状态」里出现一次。
+  // 之前顶栏、状态栏、设置里各有一份，三处不一致时没人知道该信哪一个。
 }
 function setLink(entry, room, peer){
   setCls($('lnkEntry'), 'n' + (entry ? ' on' : ''));
@@ -1956,12 +2031,6 @@ function showQuickForm(role){
   if(quickRole === 'host'){ $('qRoom').focus(); }
   if(quickRole === 'guest'){ $('qInvite').focus(); }
 }
-function toggleMore(force){
-  var open = (typeof force === 'boolean') ? force : $('railmore').hidden;
-  setHidden($('railmore'), !open);
-  setText($('btnMore'), open ? '收起更多功能' : ('更多功能 · ' + tasks.length + ' 项操作'));
-}
-
 /* ------------------------------------------------------------ 状态轮询 ---- */
 async function tick(){
   if(polling || quitting){ return; }
@@ -2028,7 +2097,6 @@ $('qHost').onclick = function(){ showQuickForm('host'); };
 $('qGuest').onclick = function(){ showQuickForm('guest'); };
 $('qHostCancel').onclick = function(){ showQuickForm(''); };
 $('qGuestCancel').onclick = function(){ showQuickForm(''); };
-$('btnMore').onclick = function(){ toggleMore(); };
 $('btnCopyInvite').onclick = function(){ copy($('inviteText').textContent || ''); };
 $('qHostGo').onclick = async function(){
   await startWith('room', {
@@ -2041,7 +2109,7 @@ $('qGuestGo').onclick = async function(){
   if(!raw){ toast('请先粘贴房主提供的邀请', true); return; }
   var p = parseInvite(raw);
   if(!p.host && !p.room){
-    toast('无法识别邀请内容，可在「更多功能 → 加入房间」中手动填写地址', true);
+    toast('无法识别邀请内容，可在左侧操作列表里选「加入房间」手动填写地址', true);
     return;
   }
   var ok = await startWith('join', { host: p.host, room: p.room });
@@ -2049,23 +2117,43 @@ $('qGuestGo').onclick = async function(){
     setText($('qGuestNote'), '正在连接 ' + (p.host || '') + (p.room ? ('（房间码 ' + p.room + '）') : ''));
   }
 };
-$('btnManual').onclick = function(){ showManual(true); };
-$('manualClose').onclick = function(){ showManual(false); };
+/* ==================== 页面路由 ====================
+   三个平级页面：工作台 / 设置 / 说明书。导航在顶栏，地址栏的 hash 跟着走。
+   hash 不是"为了做成单页应用"—— 它只解决两件具体的事：刷新后还停在原页，
+   以及浏览器后退能退回上一步。以前这里散着四个查询参数（?settings=1 / ?manual=1 /
+   ?quick=host / ?more=1），每个都只服务于当时的一次截图核对；现在它们全部删掉，
+   只留这一个**真正的**路由。 */
+var PAGES = {work:'pageWork', settings:'pageSettings', manual:'pageManual'};
+var page = 'work';
+function go(next){
+  if(!PAGES[next]){ next = 'work'; }
+  if(next === page && next !== 'settings'){ return; }
+  page = next;
+  for(var k in PAGES){ setHidden($(PAGES[k]), k !== next); }
+  Array.prototype.forEach.call($('nav').children, function(b){
+    b.classList.toggle('on', b.getAttribute('data-page') === next);
+  });
+  if(next === 'settings'){ renderSettings(); }
+  if(next === 'manual'){ loadManual(); }
+  if(location.hash !== '#/' + next){ location.hash = '#/' + next; }
+}
+function loadManual(){
+  var f = $('manualFrame');
+  // 说明书是另一个文档（自带一套变量），主题得从查询串带过去：不带的话，
+  // 深色主题下点开会得到一整页白 —— 暗环境里那一下很刺眼。
+  // 只在第一次进入时设地址：不打开就不加载，空闲时不占资源。
+  if(f && !f.getAttribute('src')){
+    f.setAttribute('src', '/manual?theme=' + encodeURIComponent(resolvedTheme()));
+  }
+}
+window.addEventListener('hashchange', function(){
+  var p = (location.hash || '').replace(/^#\//, '');
+  if(PAGES[p] && p !== page){ go(p); }
+});
 /* 当前**解析后**的主题：documentElement 上的那个值就是它 —— "跟随系统"在首屏脚本里
    已经按系统偏好写成了 light 或 dark。 */
 function resolvedTheme(){
   return document.documentElement.getAttribute('data-theme') || 'dark';
-}
-function showManual(on){
-  var m = $('manual');
-  if(!m){ return; }
-  if(on){
-    var f = $('manualFrame');
-    // 说明书是另一个文档（自带一套变量），主题得从查询串带过去：不带的话，
-    // 深色主题下点开会得到一整页白 —— 暗环境里那一下很刺眼。
-    if(f && !f.getAttribute('src')){ f.setAttribute('src', '/manual?theme=' + encodeURIComponent(resolvedTheme())); }
-  }
-  setHidden(m, !on);
 }
 /* 说明书开着的时候换了主题：那是个独立文档，属性要单独跟着改（同源，可以直接改） */
 function syncManualTheme(){
@@ -2084,7 +2172,6 @@ function syncManualTheme(){
    而"默认中转服务器"干脆没有，每个带这个字段的操作各填一遍。现在它们都归到这里，
    同时保留原来的入口（原生界面还在用那个勾），读写的是同一个值。 */
 var ui = null;
-var uiSaveTimer = null;
 
 function uiEsc(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
@@ -2151,20 +2238,21 @@ function uiWallPicker(u){
     // 配置里选的那张已经不在图库里了：仍然列出来并选中，好让用户看见"是它丢了"
     opts += '<option value="' + uiEsc(u.bgImage) + '" selected>' + uiEsc(u.bgImage) + '（已不在图库里）</option>';
   }
-  return '<select class="mtxt" data-in="bgImage">' + opts + '</select> ' +
+  /* 「打开目录」不在这里 —— 整页只有一个「打开数据目录」，放在维护那一块。
+     同一件事在三个地方各留一个按钮的时候，用户得先猜它们是不是同一个目录。 */
+  return '<select class="mtxt" data-in="bgImage">' + opts + '</select>' +
     '<input type="file" id="wallFile" accept="image/*" style="display:none">' +
-    '<button type="button" class="btn sm" data-act="wallImport">导入图片…</button> ' +
-    '<button type="button" class="btn sm" data-act="wallFolder">打开存档目录</button> ' +
+    '<button type="button" class="btn sm" data-act="wallImport">导入图片…</button>' +
     '<button type="button" class="btn sm" data-act="wallRefresh">刷新</button>';
 }
-/* 曲库那一行。曲库的真相在磁盘上，所以这里只报数量 + 给「打开文件夹」「刷新」两个动作，
-   不做内嵌的播放列表管理 —— 用户用资源管理器管理自己的文件，比在设置里做一套增删更省心。 */
+/* 曲库那一行。曲库的真相在磁盘上，所以这里只报数量 + 一个「刷新」，
+   不做内嵌的播放列表管理 —— 用户用资源管理器管理自己的文件，比在设置里做一套增删更省心。
+   「打开目录」同样交给维护那一块，不在这里再放一个。 */
 function uiMusicList(u){
   var list = u.musicList || [];
   var n = list.length;
   var txt = n ? ('共 ' + n + ' 首') : '（还没有音乐）';
-  return '<span class="mnote">' + txt + '</span> ' +
-    '<button type="button" class="btn sm" data-act="musicFolder">打开文件夹</button> ' +
+  return '<span class="mi-out">' + txt + '</span>' +
     '<button type="button" class="btn sm" data-act="musicRefresh">刷新</button>';
 }
 function musicHintText(u){
@@ -2173,19 +2261,21 @@ function musicHintText(u){
   }
   return '曲库就是存档里的 music 文件夹，你可以自己往里放、改名、删除，点「刷新」后生效。播放时不另占 CPU —— 音频由界面内核直接解码；关掉窗口就停。某个文件放不了会被标出来，不会静默跳过。';
 }
-/* ==================== 设置面板 ====================
-   面板只放**真正会生效**的设置，分两个板块：
-     · 主题外观   —— 配色、背景、特效、排版
-     · 辅助小工具 —— 背景音乐，以及填表与日志的少量便捷项
-   另有两块不参与编辑的内容：只读信息（版本、运行环境、占用）与维护操作（重置、导出、导入、记录）。
+/* ==================== 设置页 ====================
+   设置**不是浮层，是一页**（顶栏第二个导航项）。这一页只放真正会生效的设置，三个一级分类：
+     · 主题外观   —— 配色、背景、特效、排版，全部即时生效
+     · 辅助工具   —— 背景音乐，以及填表与日志的少量便捷项（附加能力）
+     · 关于与状态 —— 只读信息集中在这里（版本、环境、目录、占用），加上变更记录
+   维护动作（恢复默认、导出、导入、打开目录、复制版本、诊断包）集中在这一页的最后一块，
+   不散落在各分类旁边。
 
    这里有一条硬规矩：**面板上出现的每一项，服务端都必须有对应字段与归一化逻辑**。
-   做不到的东西不进这个面板 —— 宁可少一行，也不摆改了没反应的开关。
+   做不到的东西不进这一页 —— 宁可少一行，也不摆改了没反应的开关。
    用例 TestPanelOnlyShowsRealSettings 会拿 uiFieldLabels 逐项核对这条规矩。
 
-   保存是即时的：改一下就写盘，面板里没有「未保存」这个状态。
+   保存是即时的：改一下就写盘，这一页里没有「保存」按钮，
+   最近一次写盘的时间写在状态栏上（见 uiSaveState）。
    取值不合法时由服务端回退，并把被改掉的项回给界面（见 uiSave 里的提示）。 */
-var uiView = 'main';        // main / changes
 var uiCorrections = [];     // 上一次保存里被回退的取值，用来提示
 
 /* 板块与卡片的小图标。内联 SVG，只跟着 currentColor 走 ——
@@ -2201,6 +2291,9 @@ function uiIcon(name){
     return '<svg ' + a + '><path d="M3 13l6.6-6.6"/><circle cx="11.2" cy="4.8" r="2.5"/>' +
       '<path d="M3.4 8.4l4.2 4.2"/></svg>';
   }
+  if(name === 'wrench'){
+    return '<svg ' + a + '><path d="M12.4 2.6 9.8 5.2l1 1 2.6-2.6a3.2 3.2 0 0 1-4 4l-4 4a1.6 1.6 0 1 1-2.2-2.2l4-4a3.2 3.2 0 0 1 4-4z"/></svg>';
+  }
   return '<svg ' + a + '><circle cx="8" cy="8" r="5.6"/><path d="M8 7.3v3.9"/>' +
     '<path d="M8 5v.1"/></svg>';
 }
@@ -2214,23 +2307,63 @@ function uiAccentDots(u){
       '" style="background:' + a[2] + '"></button>';
   }).join('');
 }
-/* 一行设置：左边选项名，右边控件，下面一行小字说明。
-   detail 放进 title —— 鼠标停上去能看更完整的解释，但不占版面。 */
-function uiRow(label, control, short, detail){
-  return '<div class="mrow"' + (detail ? ' title="' + uiEsc(detail) + '"' : '') + '>' +
-    '<span class="ml">' + label + '</span><div class="md">' + control +
-    (short ? '<span class="mhint">' + short + '</span>' : '') + '</div></div>';
+/* 一个设置项。结构固定为四件：
+     标题 + 状态标签 / 说明 / 控件 / 悬停可见的更细提示。
+   tip 走 title 而不另铺一行字：面板已经有一行说明了，第二行会把一屏能看到的项数砍掉三分之一。
+   key 是服务端字段名：标签由 uiTag() 按它算，而 data-k 让"改完一项"能就地刷新标签，
+   不必重渲染整页（重渲染会把焦点和光标位置一起弄丢）。 */
+function uiItem(key, title, control, desc, tip){
+  var tag = uiTag(ui, key);
+  return '<div class="mitem" data-k="' + key + '"' + (tip ? ' title="' + uiEsc(tip) + '"' : '') + '>' +
+    '<div><div class="mi-h"><span class="mi-t">' + title + '</span>' +
+    '<span class="mi-tag' + (tag ? ' chg' : '') + '"' + (tag ? '' : ' hidden') + '>已改动</span>' +
+    '</div><div class="mi-d">' + desc + '</div></div>' +
+    '<div class="mi-c">' + control + '</div></div>';
 }
-function uiCard(title, rows){
-  return '<div class="mcard"><div class="mcardh">' + title + '</div>' + rows + '</div>';
+/* 保存之后就地刷「已改动」标签：不重建节点，所以输入框的焦点与光标都留着。 */
+function uiRefreshTags(){
+  var body = $('settingsBody');
+  if(!body || !ui){ return; }
+  Array.prototype.forEach.call(body.querySelectorAll('.mitem[data-k]'), function(el){
+    var tag = uiTag(ui, el.getAttribute('data-k'));
+    var span = el.querySelector('.mi-tag');
+    if(!span){ return; }
+    span.hidden = !tag;
+    span.className = 'mi-tag' + (tag ? ' chg' : '');
+  });
 }
-/* 板块标题。board 非空时右上角带「恢复本板块默认」——
-   它和底部的「重置全部设置」是两级：一个只管这一块，一个管全部。 */
-function uiFaceHead(icon, title, sub, board){
-  return '<div class="mfaceh"><span class="ic">' + uiIcon(icon) + '</span>' +
-    '<span class="tt">' + title + '</span><span class="sub">' + sub + '</span>' +
-    (board ? '<button type="button" class="btn sm" data-act="resetBoard" data-board="' +
-      uiEsc(board) + '">恢复本板块默认</button>' : '') + '</div>';
+/* 一级分类。整页只有这一种分类容器，圆角与标题样式统一 ——
+   以前是"板块 + 卡片"两层，每层各写一套标题样式，读代码时看不出它们是一回事。 */
+function uiCat(icon, title, sub, body){
+  return '<section class="mcat"><div class="mcathead">' +
+    '<span class="ic">' + uiIcon(icon) + '</span>' +
+    '<span class="tt">' + title + '</span><span class="sub">' + sub + '</span></div>' +
+    body + '</section>';
+}
+/* 分类内部的小标题：只用于把只读信息与变更记录分开，不再承载分组语义。 */
+function uiSub(title, extra){
+  return '<div class="msub"><span class="tt">' + title + '</span>' +
+    (extra ? '<span class="mi-d">' + extra + '</span>' : '') + '<span class="sp"></span></div>';
+}
+/* 「已改动」标签的判据。默认值这份表与 uiCollect() 里那份是同一个口径 ——
+   两边不一致的症状是"某一项明明是默认值却挂着已改动"，而那种错没人会去查。
+   noDegrade / remember 存的是"关掉"的反面，logKeep 服务端给的是生效值，都要先还原成同一个口径再比。 */
+var UI_DEF = {
+  theme:'auto', accent:'mint', flat:'off', radii:'std', backdrop:'on', bgImage:'',
+  vfx:'on', glass:'mid', glow:'on', fade:'on', noDegrade:'', scale:'std', motion:'full',
+  rail:'std', musicMode:'order', musicLoop:'all', musicVol:'70', remember:'',
+  logKeep:'2000', defPort:'', defRelay:''
+};
+function uiTag(u, key){
+  // 纯动作行（帧率实测、曲库、播放控制、清除…）没有对应的设置字段，key 传空串。
+  // 不加这一句的话它们会全部挂上「已改动」—— 因为空键在两张表里都取不到值，比出来就是"不同"。
+  if(!key){ return null; }
+  var v = u ? u[key] : '';
+  if(key === 'noDegrade'){ v = u.noDegrade ? '1' : ''; }
+  if(key === 'remember'){ v = (u.remember === '0') ? '0' : ''; }
+  if(key === 'logKeep'){ v = String((u && u.logKeep) || '2000'); }
+  if(v === undefined || v === null){ v = ''; }
+  return (String(v) === UI_DEF[key]) ? null : {text:'已改动', chg:true};
 }
 /* 只读信息：值全部来自服务端，界面上只有文本，没有任何可编辑控件。 */
 function uiInfoRow(k, v, mono){
@@ -2246,12 +2379,101 @@ function uiStat(k, bytes, files){
   return '<div class="mstat"><div class="k">' + k + '</div><div class="v">' + uiBytes(bytes) +
     '</div><div class="n">' + (files || 0) + ' 个文件</div></div>';
 }
-function uiReadonlyHTML(u){
+
+/* ---- 分类一：主题外观 ---- */
+function uiThemeHTML(u){
+  return uiItem('theme', '主题', uiSeg('theme', u.theme, uiThemes()),
+      '浅色与高对比只换底色与字色，版式与按钮位置都不动。',
+      '高对比是给「看不清」的处境用的（低端屏、白天反光、投屏），不是另一种口味。') +
+    uiItem('accent', '强调色', uiAccentDots(u), '界面里「这条路通了」用的就是这个颜色。',
+      '警告与错误始终是琥珀与红，不随强调色变。') +
+    uiItem('flat', '材质', uiSeg('flat', u.flat, [['off','立体'],['on','扁平']]),
+      '扁平去掉圆角、外阴影、渐变与光晕，只留颜色与 1px 线条。',
+      '它是纯减法，绘制只会更省；焦点框会换成描边，键盘操作一样看得见。') +
+    uiItem('radii', '圆角大小', uiSeg('radii', u.radii, [['sharp','利落'],['std','标准'],['round','圆润']]),
+      '统一调整面板、卡片与按钮的圆角。',
+      '它改的是三个圆角令牌。选「材质：扁平」时圆角一律归零 —— 两者冲突时以扁平为准。') +
+    uiItem('backdrop', '背景光效', uiSw('backdrop', u.backdrop !== 'off', '显示极光与网格'),
+      '两层装饰渐变，关掉它不影响你自选的背景图片。',
+      '它与背景图片各自独立：关掉光效，照片还在。') +
+    uiItem('bgImage', '背景图片', uiWallPicker(u), wallHintText(u),
+      '图片按比例铺满窗口，上面压一层与主题同色的暗化层，保证任意照片上文字都读得清。') +
+    uiItem('vfx', '视觉美化', uiSw('vfx', u.vfx !== 'off', '科幻外观总开关'),
+      '关掉等于面板实心、去掉光晕与淡入，回到基础扁平外观。',
+      '它只影响观感：开关前后工具的功能、输入输出、计算逻辑完全一致。') +
+    uiItem('glass', '毛玻璃', uiSeg('glass', u.glass, [['off','关闭'],['low','低'],['mid','中'],['high','高']]),
+      glassHintText(u),
+      '层次分两档：主容器（顶栏、状态栏、主区面板、设置页外壳）用一档，浮层再强一档；' +
+      '次级卡片只做半透明不加模糊 —— 两层模糊相加看到的是糊。') +
+    uiItem('glow', '科幻轮廓微光', uiSw('glow', u.glow !== 'off', '面板描边与四角微光'),
+      '静态的一次性光晕，画好一次就不再重绘。',
+      '它不挂过渡 —— 给阴影挂过渡等于每次过渡都逐帧重新光栅化。') +
+    uiItem('fade', '面板淡入', uiSw('fade', u.fade !== 'off', '浮层出现时淡入'),
+      '只动透明度、不动位置。',
+      '玻璃面板一旦位移，背后那块模糊就得每帧重新采样。选「动效：精简」或系统开了「减少动态效果」时自动不生效。') +
+    uiItem('noDegrade', '帧率自动降级', uiSw('noDegrade', !u.noDegrade, '帧率过低时询问我'),
+      '连续两次量到偏低就问你一次要不要降到「低」档。',
+      '每 20 秒量一次，每次只抓约一秒，且在任务执行期间不量。想强制维持高特效就取消勾选。') +
+    uiItem('scale', '界面字号', uiSeg('scale', u.scale, [['std','标准'],['big','大']]),
+      '只把字放大一号，控件位置与版式都不动。',
+      '主题解决「颜色读不读得清」，字号解决「字够不够大」。') +
+    uiItem('motion', '动画效果', uiSeg('motion', u.motion, [['full','完整'],['lite','精简']]),
+      '精简去掉所有过渡与运行点的呼吸动画（点本身还在）。',
+      '系统设置里的「减少动态效果」始终优先，与这个开关是同一套规则。') +
+    uiItem('rail', '侧边栏样式', uiSeg('rail', u.rail, [['std','标准'],['compact','紧凑']]),
+      '紧凑去掉操作行里的说明行、收紧行距，一屏能多看几项。',
+      '只影响侧栏排版，操作的名称、顺序与行为都不变。') +
+    uiItem('', '帧率实测',
+      '<button type="button" class="btn sm" data-act="vfxMeasure">在当前档位测一秒</button>' +
+      '<span class="mi-out" id="vfxStats">尚未测过</span>',
+      '哪个档位合适由你的机器说了算：换一档点一次。',
+      '它不落盘，也不会改变任何设置。低于 45 帧就说明这一档对你的机器偏重。');
+}
+
+/* ---- 分类二：辅助工具 ---- */
+function uiAuxHTML(u){
+  return '<div class="mbenefit">' + uiIcon('aux') +
+    '<span>本板块是附加能力，不影响软件主体的基础功能。关掉其中任何一项，联机本身照常工作。</span></div>' +
+    uiItem('', '曲库', uiMusicList(u), musicHintText(u),
+      '曲库就是存档里的 music 文件夹：自己往里放、改名、删除，点「刷新」后生效。') +
+    uiItem('musicMode', '播放顺序', uiSeg('musicMode', u.musicMode, [['order','顺序'],['shuffle','随机']]),
+      '随机播放不会连续两首抽到同一首。',
+      '曲库里只有一首时，随机没有意义，此时与顺序播放等价。') +
+    uiItem('musicLoop', '循环', uiSeg('musicLoop', u.musicLoop, [['off','不循环'],['all','列表循环'],['one','单曲循环']]),
+      '选「不循环」时，顺序播到最后一首就停下。',
+      '随机模式下会一直播下去，不受「不循环」影响。') +
+    uiItem('musicVol', '音量', uiField('musicVol', 'small', u.musicVol, '70', ''),
+      '0 到 100，与系统音量是叠乘关系。',
+      '听不见时先看系统音量，再看这里是不是被调成了 0。') +
+    uiItem('', '播放控制',
+      '<button type="button" class="btn sm" data-act="bgmPrev">上一首</button>' +
+      '<button type="button" class="btn sm" data-act="bgmPlay">播放 / 暂停</button>' +
+      '<button type="button" class="btn sm" data-act="bgmNext">下一首</button>',
+      '状态栏那个音符按钮也能播放与暂停，不用每次打开设置。',
+      '它默认不自动播放 —— 这是个会长时间开着的工具，不该在没人点的时候出声。') +
+    uiItem('remember', '记住上次填过的值', uiSw('remember', u.remember !== '0', '记住上次填过的值'),
+      '按「任务 + 字段」记住填写内容，下次自动带出。',
+      '关掉只是不再记新的；已经记下的用下面「清除」处理。') +
+    uiItem('', '清除记住的填写内容',
+      '<button type="button" class="btn sm" data-act="forgetInputs">清除</button>',
+      '把已记住的填写值一次清空，界面设置不受影响。',
+      '它只清填写过的表单值，不动面板上的任何设置。') +
+    uiItem('logKeep', '日志保留行数', uiField('logKeep', 'small', u.logKeep, '2000', '行'),
+      '两层（结论 / 原始输出）各留多少行，范围 200 ~ 20000。',
+      '超出范围的取值会被回退到默认，并当场告诉你。') +
+    uiItem('defPort', '默认游戏端口', uiField('defPort', 'small', u.defPort, '25565', ''),
+      '填了它，所有「游戏端口」留空的表单都用这个值。',
+      '单个任务里自己填过的以它为准，不受这里影响。') +
+    uiItem('defRelay', '默认中转服务器', uiField('defRelay', '', u.defRelay, 'turn:主机:3478 或 mclbx://…', ''),
+      '填了它，所有「中转服务器」留空的表单都用这个值。',
+      '它只是省去重复填写，不会自动启用中继 —— 用不用中继仍由每个任务自己决定。');
+}
+
+/* ---- 分类三：关于与状态（整块只读 + 变更记录） ---- */
+function uiAboutHTML(u){
   var st = u.storage || {}, it = st.items || {}, cf = u.configFile || {};
   var music = (u.musicList || []).length;
-  var h = '<section class="mface">';
-  h += uiFaceHead('info', '只读信息', '以下内容仅供查看，面板里不提供修改入口', '');
-  h += '<div class="mcard"><dl class="minfo">';
+  var h = '<dl class="mabout">';
   h += uiInfoRow('程序版本', uiEsc(u.version || ''), true);
   h += uiInfoRow('运行环境', uiEsc(u.platform || ''), false);
   h += uiInfoRow('数据目录', uiEsc(u.dataDir || ''), true);
@@ -2268,6 +2490,7 @@ function uiReadonlyHTML(u){
       '上次读取配置文件时出错，已丢弃损坏内容并回到默认设置；原文件没有被改写，' +
       '需要的话可以从数据目录里取出来看。<br>原因：' + uiEsc(u.configFault) + '</span></div>';
   }
+  h += uiSub('占用', '存档目录里各部分的实际体积与文件数');
   h += '<div class="mstats">' +
     uiStat('背景图缓存', it.cache && it.cache.bytes, it.cache && it.cache.files) +
     uiStat('壁纸原图', it.wall && it.wall.bytes, it.wall && it.wall.files) +
@@ -2275,19 +2498,22 @@ function uiReadonlyHTML(u){
     uiStat('配置与日志',
       ((it.config && it.config.bytes) || 0) + ((it.changes && it.changes.bytes) || 0),
       ((it.config && it.config.files) || 0) + ((it.changes && it.changes.files) || 0)) +
-    '</div></div></section>';
+    '</div>';
+  h += uiChangesHTML(u);
   return h;
 }
+/* 变更记录。它以前是设置面板里的"第二页"（点「变更记录」整块换掉）——
+   那是同一件事的两半：这份配置被谁改过，属于状态，不属于另一个设置页。
+   现在它就是「关于与状态」里的一段，少一个视图状态、少两个按钮。 */
 function uiChangesHTML(u){
   var list = (u && u.changes) || [];
-  var h = '<section class="mface">';
-  h += uiFaceHead('info', '设置变更记录',
-    '共 ' + list.length + ' 条，上限 ' + (u.changeMax || 500) + ' 条', '');
+  var h = uiSub('设置变更记录', '共 ' + list.length + ' 条，上限 ' + (u.changeMax || 500) + ' 条' +
+    (list.length ? '　·　记录只存取值本身，不含与网络环境或个人身份有关的内容' : ''));
   if(!list.length){
-    return h + '<div class="mcard">还没有改动记录。改过设置之后，这里会逐条记下时间、板块、' +
-      '选项名与前后取值；记录只存取值本身，不含任何与网络环境或个人身份有关的内容。</div></section>';
+    return h + '<div class="mchgempty">还没有改动记录。改过设置之后，这里会逐条记下时间、分类、' +
+      '选项名与前后取值。</div>';
   }
-  h += '<div class="mcard"><div class="mchg">';
+  h += '<div class="mchg">';
   for(var i = list.length - 1; i >= 0; i--){   // 倒序：最近改的排在最上面
     var c = list[i];
     h += '<div class="mchgr"><span class="t">' + uiEsc(c.at) + '</span>' +
@@ -2295,146 +2521,64 @@ function uiChangesHTML(u){
       '<span class="i">' + uiEsc(c.item) + '</span>' +
       '<span class="v">' + uiEsc(c.from) + ' → ' + uiEsc(c.to) + '</span></div>';
   }
-  h += '</div></div></section>';
+  h += '</div>';
   return h;
 }
-function uiSettingsHTML(u){
-  if(uiView === 'changes'){
-    return '<div class="mset">' + uiChangesHTML(u) +
-      '<div class="mfoot"><button type="button" class="btn sm" data-act="changesBack">返回设置</button>' +
-      '<button type="button" class="btn sm" data-act="changesClear">清空记录</button></div></div>';
-  }
-  var h = '<div class="mset">';
-
-  /* —— 板块一：主题外观。全部实时生效，所以没有任何「重启生效」标注 —— */
-  h += '<section class="mface">';
-  h += uiFaceHead('theme', '主题外观', '配色、背景、特效与排版，改完立刻生效', '主题外观');
-  h += uiCard('配色',
-    uiRow('主题', uiSeg('theme', u.theme, uiThemes()),
-      '浅色与高对比只换底色与字色，版式与按钮位置都不动。',
-      '高对比是给「看不清」的处境用的（低端屏、白天反光、投屏），不是另一种口味。') +
-    uiRow('强调色', uiAccentDots(u), '界面里「这条路通了」用的就是这个颜色。',
-      '警告与错误始终是琥珀与红，不随强调色变。') +
-    uiRow('材质', uiSeg('flat', u.flat, [['off','立体'],['on','扁平']]),
-      '扁平去掉圆角、外阴影、渐变与光晕，只留颜色与 1px 线条。',
-      '它是纯减法，绘制只会更省；焦点框会换成描边，键盘操作一样看得见。') +
-    uiRow('圆角大小', uiSeg('radii', u.radii, [['sharp','利落'],['std','标准'],['round','圆润']]),
-      '统一调整面板、卡片与按钮的圆角。',
-      '它改的是三个圆角令牌（6 / 9 / 13px 那一组）。选「材质：扁平」时圆角一律归零 —— 两者冲突时以扁平为准。'));
-  h += uiCard('背景',
-    uiRow('背景光效', uiSw('backdrop', u.backdrop !== 'off', '显示极光与网格'),
-      '两层装饰渐变，关掉它不影响你自选的背景图片。',
-      '它与背景图片各自独立：关掉光效，照片还在。') +
-    uiRow('背景图片', uiWallPicker(u), wallHintText(u),
-      '图片按比例铺满窗口，上面压一层与主题同色的暗化层，保证任意照片上文字都读得清。'));
-  h += uiCard('特效',
-    uiRow('视觉美化', uiSw('vfx', u.vfx !== 'off', '科幻外观总开关'),
-      '关掉等于面板实心、去掉光晕与淡入，回到基础扁平外观。',
-      '它只影响观感：开关前后工具的功能、输入输出、计算逻辑完全一致。') +
-    uiRow('毛玻璃', uiSeg('glass', u.glass, [['off','关闭'],['low','低'],['mid','中'],['high','高']]),
-      glassHintText(u), '模糊只加在局部面板上，不会铺到整页。') +
-    uiRow('科幻轮廓微光', uiSw('glow', u.glow !== 'off', '面板描边与四角微光'),
-      '静态的一次性光晕，画好一次就不再重绘。',
-      '它不挂过渡 —— 给阴影挂过渡等于每次过渡都逐帧重新光栅化。') +
-    uiRow('面板淡入', uiSw('fade', u.fade !== 'off', '设置面板出现时淡入'),
-      '只动透明度、不动位置。',
-      '玻璃面板一旦位移，背后那块模糊就得每帧重新采样。选「动效：精简」或系统开了「减少动态效果」时自动不生效。') +
-    uiRow('帧率自动降级', uiSw('noDegrade', !u.noDegrade, '帧率过低时询问我'),
-      '连续两次量到偏低就问你一次要不要降到「低」档。',
-      '每 20 秒量一次，每次只抓约一秒，且在任务执行期间不量。想强制维持高特效就取消勾选。') +
-    uiRow('帧率实测',
-      '<button type="button" class="btn sm" data-act="vfxMeasure">在当前档位测一秒</button> ' +
-      '<span class="mnote" id="vfxStats">尚未测过</span>',
-      '哪个档位合适由你的机器说了算：换一档点一次。',
-      '它不落盘，也不会改变任何设置。低于 45 帧就说明这一档对你的机器偏重。'));
-  h += uiCard('排版',
-    uiRow('界面字号', uiSeg('scale', u.scale, [['std','标准'],['big','大']]),
-      '只把字放大一号，控件位置与版式都不动。',
-      '主题解决「颜色读不读得清」，字号解决「字够不够大」。') +
-    uiRow('动画效果', uiSeg('motion', u.motion, [['full','完整'],['lite','精简']]),
-      '精简去掉所有过渡与运行点的呼吸动画（点本身还在）。',
-      '系统设置里的「减少动态效果」始终优先，与这个开关是同一套规则。') +
-    uiRow('侧边栏样式', uiSeg('rail', u.rail, [['std','标准'],['compact','紧凑']]),
-      '紧凑去掉任务列表里的说明行、收紧行距，一屏能多看几项。',
-      '只影响左栏任务列表的排版，任务的名称、顺序与行为都不变。'));
-  h += '</section>';
-
-  /* —— 板块二：辅助小工具。这一段是可选的附加项 —— */
-  h += '<section class="mface">';
-  h += uiFaceHead('aux', '辅助小工具', '软件附带的附加功能，可按需开关', '辅助小工具');
-  h += '<div class="mbenefit">' + uiIcon('aux') +
-    '<span>本板块为附加辅助选项，不影响软件主体基础功能运行。关掉其中任何一项，联机本身照常工作。</span></div>';
-  h += uiCard('背景音乐',
-    uiRow('曲库', uiMusicList(u), musicHintText(u),
-      '曲库就是存档里的 music 文件夹：你可以自己往里放、改名、删除，点「刷新」后生效。') +
-    uiRow('播放顺序', uiSeg('musicMode', u.musicMode, [['order','顺序'],['shuffle','随机']]),
-      '随机播放不会连续两首抽到同一首。',
-      '曲库里只有一首时，随机没有意义，此时与顺序播放等价。') +
-    uiRow('循环', uiSeg('musicLoop', u.musicLoop, [['off','不循环'],['all','列表循环'],['one','单曲循环']]),
-      '选「不循环」时，顺序播到最后一首就停下。',
-      '随机模式下会一直播下去，不受「不循环」影响。') +
-    uiRow('音量', uiField('musicVol', 'small', u.musicVol, '70', ''),
-      '0 到 100，与系统音量是叠乘关系。',
-      '听不见时先看系统音量，再看这里是不是被调成了 0。') +
-    uiRow('播放控制',
-      '<button type="button" class="btn sm" data-act="bgmPrev">上一首</button> ' +
-      '<button type="button" class="btn sm" data-act="bgmPlay">播放 / 暂停</button> ' +
-      '<button type="button" class="btn sm" data-act="bgmNext">下一首</button>',
-      '底栏那个音符按钮也能播放与暂停，不用每次打开设置。',
-      '它默认不自动播放 —— 这是个会长时间开着的工具，不该在没人点的时候出声。'));
-  h += uiCard('填表与日志',
-    uiRow('记住上次填过的值', uiSw('remember', u.remember !== '0', '记住上次填过的值'),
-      '按「任务 + 字段」记住填写内容，下次自动带出。',
-      '关掉只是不再记新的；已经记下的用下面「清除」处理。') +
-    uiRow('清除记住的填写内容',
-      '<button type="button" class="btn sm" data-act="forgetInputs">清除记住的填写内容</button>',
-      '把已记住的填写值一次清空，界面设置不受影响。',
-      '它只清填写过的表单值，不动面板上的任何设置。') +
-    uiRow('日志保留行数', uiField('logKeep', 'small', u.logKeep, '2000', '行'),
-      '两层（结论 / 原始输出）各留多少行，范围 200 ~ 20000。',
-      '超出范围的取值会被回退到默认。') +
-    uiRow('默认游戏端口', uiField('defPort', 'small', u.defPort, '25565', ''),
-      '填了它，所有「游戏端口」留空的表单都用这个值。',
-      '单个任务里自己填过的以它为准，不受这里影响。') +
-    uiRow('默认中转服务器', uiField('defRelay', '', u.defRelay, 'turn:主机:3478 或 mclbx://…', ''),
-      '填了它，所有「中转服务器」留空的表单都用这个值。',
-      '它只是省去重复填写，不会自动启用中继 —— 用不用中继仍由每个任务自己决定。'));
-  h += '</section>';
-
-  /* —— 只读信息 —— */
-  h += uiReadonlyHTML(u);
-
-  /* —— 维护操作：作用于整份配置或整个存档目录，本身不是设置项 —— */
-  h += '<div class="mfoot">' +
-    '<button type="button" class="btn sm" data-act="resetAll">重置全部设置</button>' +
+/* ---- 维护：所有"动作"集中在这一块 ----
+   恢复默认 / 导出 / 导入 / 打开目录 / 复制版本 / 诊断包。
+   它们不是设置项，所以不在上面三个分类里；也不散落在各分类标题旁边 ——
+   这一条是"重要操作集中放置"的可执行版本。
+   恢复默认仍然保留两个范围，但入口只有一个：点开它之后才选"仅某一类"还是"全部"。 */
+function uiMaintHTML(){
+  return '<section class="mmaint">' +
+    '<div class="mcathead"><span class="ic">' + uiIcon('wrench') + '</span>' +
+    '<span class="tt">维护</span><span class="sub">以下是动作而不是设置：作用于整份配置或整个存档目录。</span></div>' +
+    '<div class="acts">' +
+    '<button type="button" class="btn sm" data-act="resetAsk">恢复默认…</button>' +
     '<button type="button" class="btn sm" data-act="exportCfg">导出全部配置</button>' +
     '<button type="button" class="btn sm" data-act="importCfg">导入配置…</button>' +
-    '<button type="button" class="btn sm" data-act="changes">变更记录</button>' +
-    '<button type="button" class="btn sm" data-act="openData">打开存档目录</button>' +
+    '<button type="button" class="btn sm" data-act="changesClear">清空变更记录</button>' +
+    '<button type="button" class="btn sm" data-act="openData">打开数据目录</button>' +
     '<button type="button" class="btn sm" data-act="copyVersion">复制版本信息</button>' +
     '<button type="button" class="btn sm" data-act="diag">导出诊断包</button>' +
-    '<span class="msaved" id="mSaved" hidden>已保存</span>' +
-    '<span class="mnote">改动即时生效也即时落盘，面板里没有「未保存」这个状态。' +
+    '</div>' +
+    '<div class="mnote">改动即时生效也即时落盘，所以没有「保存」这一步；' +
+    '状态栏上那句「已保存 时:分:秒」就是最近一次写盘的时间。' +
     '导出的配置文件里含中转凭据，发给别人之前先自己看一眼。' +
-    '「导出诊断包」会把日志、环境信息与设置（不含任何凭据以外的个人内容）打成一个文件，' +
-    '排查问题时用它比截图准。</span></div>';
-
-  h += '</div><input type="file" id="cfgFile" accept=".json,application/json" style="display:none">';
-  return h;
+    '「导出诊断包」会把日志、环境信息与设置打成一个文件，排查问题时比截图准。</div>' +
+    '</section>';
+}
+function uiSettingsHTML(u){
+  return '<p class="mintro">本页所有选项<b>改完即时生效</b>，不需要重启，也没有「保存」这一步。' +
+    '带<b>已改动</b>标记的是与默认值不同的项；把鼠标停在一行上可以看到更细的说明。</p>' +
+    uiCat('theme', '主题外观', '配色、背景、特效与排版。改完立刻看到。', uiThemeHTML(u)) +
+    uiCat('aux', '辅助工具', '软件附带的附加能力，可按需开关。', uiAuxHTML(u)) +
+    uiCat('info', '关于与状态', '只读信息集中在这里，不重复出现在别处。', uiAboutHTML(u)) +
+    uiMaintHTML() +
+    '<input type="file" id="wallFile" accept="image/*" style="display:none">' +
+    '<input type="file" id="cfgFile" accept=".json,application/json" style="display:none">';
 }
 
-async function openSettings(){
-  if(!ui){
-    try{ ui = await (await fetch('/api/settings')).json(); }catch(e){ ui = null; }
-    if(!ui || !ui.ok){ toast('读不到设置', true); return; }
+/* 进设置页：取一次设置、渲染、绑定。
+   重渲染时保留滚动位置 —— 改完一项会被重画（例如取值被回退），
+   滚回顶部会让人以为"刚才那一步跳走了"。 */
+async function renderSettings(){
+  var body = $('settingsBody');
+  if(!body){ return; }
+  try{ ui = await (await fetch('/api/settings')).json(); }catch(e){ ui = null; }
+  if(!ui || !ui.ok){
+    body.innerHTML = '<p class="mintro">读不到设置：界面服务没有响应。' +
+      '刷新页面再试一次；如果一直这样，用「导出诊断包」把日志发出去。</p>';
+    return;
   }
-  setText($('modalTitle'), '设置');
-  $('modalBody').innerHTML = uiSettingsHTML(ui);
+  var keep = body.scrollTop;
+  body.innerHTML = uiSettingsHTML(ui);
   uiBind();
-  setHidden($('modal'), false);
+  body.scrollTop = keep;
 }
+function openSettings(){ go('settings'); }
 function uiBind(){
-  var body = $('modalBody');
+  var body = $('settingsBody');
   body.onclick = function(e){
     var b = e.target && e.target.closest ? e.target.closest('button') : null;
     if(!b || !body.contains(b)){ return; }
@@ -2451,17 +2595,7 @@ function uiBind(){
       uiSave();
       return;
     }
-    if(b.hasAttribute('data-act')){
-      var act = b.getAttribute('data-act');
-      // 「恢复本板块默认」的范围写在按钮上：板块名不经过 uiAction 的参数，
-      // 免得在两个地方各拼一次字符串。
-      if(act === 'resetBoard'){
-        var board = b.getAttribute('data-board') || '';
-        uiAskReset(board, '「' + board + '」这一组');
-        return;
-      }
-      uiAction(act);
-    }
+    if(b.hasAttribute('data-act')){ uiAction(b.getAttribute('data-act'), b); }
   };
   body.onchange = function(e){
     if(e.target && e.target.getAttribute && e.target.getAttribute('data-sw')){ uiSave(); }
@@ -2476,10 +2610,10 @@ function uiBind(){
   if(cf){ cf.onchange = function(){ if(cf.files && cf.files[0]){ uiImportCfg(cf.files[0]); } }; }
 }
 /* 收集面板上的全部设置，提交给服务端。
-   **起点必须是服务端那份 ui，不能是写死的默认值。** 面板一次只渲染一个模块，
-   没渲染的那些字段在 DOM 里根本不存在 —— 如果从这里开始是一串硬编码默认值，
-   那么在任何一个模块里改一项、保存，都会把其它模块的设置一起打回默认。
-   这条以前不会发作（老面板一次渲染全部），改成分模块之后它就变成一个静默的重置按钮。 */
+   **起点必须是服务端那份 ui，不能是写死的默认值。** 现在整页一次渲染全部条目，
+   所以"没渲染的字段不存在"这个坑暂时不会发作 —— 但它随时会：只要有人给设置加一屏、
+   或者把某一类折叠起来，从硬编码默认值起步就会变成"在 A 处改一项、顺手把 B 处打回默认"。
+   这条以前真的发作过（分模块渲染的那一版），所以起点写死成 ui 并留着这条注释。 */
 function uiCollect(){
   var u = ui || {};
   var out = {
@@ -2491,13 +2625,13 @@ function uiCollect(){
     defPort:u.defPort || '', defRelay:u.defRelay || '',
     autoProbe:!!u.autoProbe, noDegrade:u.noDegrade ? '1' : ''
   };
-  Array.prototype.forEach.call(document.querySelectorAll('#modalBody [data-seg]'), function(seg){
+  Array.prototype.forEach.call(document.querySelectorAll('#settingsBody [data-seg]'), function(seg){
     var on = seg.querySelector('button.on');
     if(on){ out[seg.getAttribute('data-seg')] = on.getAttribute('data-v'); }
   });
-  var acc = document.querySelector('#modalBody .mdot.on');
+  var acc = document.querySelector('#settingsBody .mdot.on');
   if(acc){ out.accent = acc.getAttribute('data-accent'); }
-  Array.prototype.forEach.call(document.querySelectorAll('#modalBody [data-sw]'), function(c){
+  Array.prototype.forEach.call(document.querySelectorAll('#settingsBody [data-sw]'), function(c){
     var k = c.getAttribute('data-sw');
     if(k === 'autoProbe'){ out.autoProbe = c.checked; }
     if(k === 'remember'){ out.remember = c.checked ? '' : '0'; }
@@ -2515,7 +2649,7 @@ function uiCollect(){
     // 注意发出去必须是字符串（服务端那个字段是 string，布尔会直接解不出来）
     if(k === 'noDegrade'){ out.noDegrade = c.checked ? '' : '1'; }
   });
-  Array.prototype.forEach.call(document.querySelectorAll('#modalBody [data-in]'), function(i){
+  Array.prototype.forEach.call(document.querySelectorAll('#settingsBody [data-in]'), function(i){
     out[i.getAttribute('data-in')] = (i.value || '').trim();
   });
   return out;
@@ -2528,6 +2662,10 @@ function uiApply(u){
   el.setAttribute('data-backdrop', u.backdrop === 'off' ? 'off' : 'on');
   el.setAttribute('data-scale', u.scale === 'big' ? 'big' : 'std');
   el.setAttribute('data-flat', u.flat === 'on' ? 'on' : 'off');
+  // 圆角与侧边栏这两个是"改了要立刻看见"的项：不写在这里的话，
+  // 面板上选了新档位，界面要等下次刷新才变 —— 看起来就像没保存成功。
+  el.setAttribute('data-radii', u.radii || 'std');
+  el.setAttribute('data-rail', u.rail || 'std');
   // 【视觉美化，非核心功能】data-vfx / data-glass / data-glow / data-fade 四项交给 VFX 去写。
   // 集中在那里的原因：档位要先过一遍"浏览器认不认 backdrop-filter"，不支持时降级；
   // 业务侧只把设置递过去，不参与任何渲染决策，也**不看它的返回值**。
@@ -2545,26 +2683,46 @@ function uiApply(u){
   else{ el.setAttribute('data-theme', u.theme || 'auto'); }
   syncManualTheme();
 }
-/* 保存之后就地把这两行的说明重刷一遍。
-   只改文字、不重渲染整个面板 —— 重渲染会把焦点和光标位置一起弄丢，
+/* 保存之后就地把会随别的设置变的那两行说明重刷一遍。
+   只改文字、不重渲染整页 —— 重渲染会把焦点和光标位置一起弄丢，
    而用户往往正是在输入框里改完直接回车保存的。 */
 function uiRefreshHints(u){
-  var body = $('modalBody');
+  var body = $('settingsBody');
   if(!body || !u){ return; }
-  // 毛玻璃那一行从勾选框改成了四档，选择器跟着换 —— 换漏的症状是"改完档位说明还挂着上一档的话"
   [['[data-in="bgImage"]', wallHintText(u)], ['[data-seg="glass"]', glassHintText(u)]].forEach(function(pr){
     var el = body.querySelector(pr[0]);
-    var row = el && el.closest ? el.closest('.mrow') : null;
-    var hint = row ? row.querySelector('.mhint') : null;
+    var row = el && el.closest ? el.closest('.mitem') : null;
+    var hint = row ? row.querySelector('.mi-d') : null;
     if(hint){ hint.textContent = pr[1]; }
   });
 }
+/* 状态栏上那句保存状态。它是"改动有没有落盘"的唯一答复 ——
+   面板里没有保存按钮，那就得有一句话随时说明此刻的状态，否则「我改了到底存上没」只能靠猜。
+   常驻显示时间戳而不是几秒后消失：这是个会长时间开着的工具，事后回看一眼也知道最后写盘在什么时候。 */
+function uiSaveState(txt, bad){
+  var s = $('saveState');
+  if(!s){ return; }
+  setText(s, txt || '');
+  setCls(s, 'sb-save' + (bad ? ' bad' : ''));
+}
+function clockNow(){
+  var d = new Date();
+  function p(n){ return (n < 10 ? '0' : '') + n; }
+  return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+}
 async function uiSave(){
-  var r = await api('/api/settings', uiCollect());
-  if(!r || !r.ok){ toast((r && r.err) || '设置没能保存', true); return; }
+  uiSaveState('正在保存…');
+  var r = null;
+  try{ r = await api('/api/settings', uiCollect()); }catch(e){ r = null; }
+  if(!r || !r.ok){
+    uiSaveState('保存失败：改动没有生效', true);
+    toast((r && r.err) || '设置没能保存', true);
+    return;
+  }
   ui = r.ui;
   uiApply(ui);
   uiRefreshHints(ui);
+  uiRefreshTags();
   // 音量属于"改完立刻生效"那一类：不用等下一首
   if(bgmEl){ bgmEl.volume = bgmGain(); }
   // logKeep 按十进制字符串收：服务端两条路（读设置 / 保存）给的是同一种形态，客户端不再猜类型
@@ -2578,17 +2736,15 @@ async function uiSave(){
     var parts = cor.slice(0, 3).map(function(c){
       return c.name + '（' + c.sent + ' → ' + c.used + '）';
     });
+    uiSaveState('已回退 ' + cor.length + ' 项非法取值 ' + clockNow(), true);
     toast('有 ' + cor.length + ' 项取值不合法，已回退：' + parts.join('、') +
       (cor.length > 3 ? ' 等' : ''), true);
-    // 重画一次，让控件上显示的是真正生效的值，而不是用户刚敲进去的那个
-    openSettings();
+    // 重画一次，让控件上显示的是真正生效的值，而不是用户刚敲进去的那个。
+    // 同时把「已改动」标签一起刷新 —— 值是服务端归一化之后的，标签得跟着它走。
+    renderSettings();
+    return;
   }
-  var s = $('mSaved');
-  if(s){
-    setHidden(s, false);
-    if(uiSaveTimer){ clearTimeout(uiSaveTimer); }
-    uiSaveTimer = setTimeout(function(){ setHidden(s, true); }, 1600);
-  }
+  uiSaveState('已保存 ' + clockNow());
 }
 /* 导入一张图片。走上传而不是把路径交给服务端去读 —— 导入的意义就是把图复制进存档，
    存完之后原文件改名、移走、删掉都不影响。 */
@@ -2603,7 +2759,7 @@ async function uiImportWall(file){
   if(!r || !r.ok){ toast((r && r.err) || '导入失败', true); return; }
   ui = r;
   uiApply(ui);
-  openSettings(); // 图库列表变了，重渲染面板
+  renderSettings(); // 图库列表变了，重渲染这一页
   toast('已导入并设为背景图');
 }
 /* ---- 背景音乐 ----
@@ -2729,25 +2885,27 @@ async function bgmStep(delta){
   if(!bgmList.length){ toast('曲库里还没有音乐', true); return; }
   bgmPlayAt(delta > 0 ? bgmNextIndex() : bgmPrevIndex());
 }
-var uiPendingReset = null;   // 待确认的重置范围
 var uiImportNote = '';       // 上一次导入的结果说明（跳过项要逐条讲清）
 
-/* 重置前的确认条。就地在面板里插一条，不弹窗 ——
-   弹窗在 WebView 里的行为各平台不一致，而且这里恰恰需要让用户看清"影响范围"这句话。 */
-function uiAskReset(scope, label){
+/* 恢复默认前的确认条。就地插在维护那一块里，不弹系统对话框 ——
+   那几个框在 WebView 里的行为各平台不一致，而这里恰恰需要让用户看清"影响范围"这句话。
+   范围写在按钮的 data-board 上：三个范围共用同一个动作名，uiAction 只认那个属性。 */
+function uiAskReset(){
   var old = $('mConfirm');
   if(old && old.parentNode){ old.parentNode.removeChild(old); }
-  uiPendingReset = {scope:scope, label:label};
   var d = document.createElement('div');
   d.id = 'mConfirm';
-  d.className = 'mbar';
-  d.innerHTML = '重置' + label + '会把它下面的设置项恢复成出厂值；' +
-    '存档里的文件、记住的填写内容都不受影响。' +
-    '<button type="button" class="btn sm" data-act="resetDo">确认重置</button> ' +
-    '<button type="button" class="btn sm" data-act="resetCancel">取消</button>';
-  var foot = document.querySelector('#modalBody .mfoot');
-  if(foot && foot.parentNode){ foot.parentNode.insertBefore(d, foot); }
-  else { $('modalBody').appendChild(d); }
+  d.className = 'mconfirm';
+  d.innerHTML = '<span class="q">把设置项恢复成出厂值；存档里的文件与「记住的填写内容」都不受影响。' +
+    '选择范围：</span>' +
+    '<button type="button" class="btn sm" data-act="resetDo" data-board="主题外观">仅主题外观</button>' +
+    '<button type="button" class="btn sm" data-act="resetDo" data-board="辅助工具">仅辅助工具</button>' +
+    '<button type="button" class="btn sm danger" data-act="resetDo" data-board="all">全部设置</button>' +
+    '<span class="sp"></span>' +
+    '<button type="button" class="linkbtn" data-act="resetCancel">取消</button>';
+  var acts = document.querySelector('#settingsBody .mmaint .acts');
+  if(acts && acts.parentNode){ acts.parentNode.insertBefore(d, acts.nextSibling); }
+  else { $('settingsBody').appendChild(d); }
 }
 function uiReadFile(file, cb){
   var fr = new FileReader();
@@ -2778,11 +2936,13 @@ async function uiImportCfgSend(text){
   }else{
     uiImportNote = '<b>已导入，生效 ' + r.applied + ' 项</b>，没有跳过的条目。';
   }
-  uiView = 'main';
-  openSettings();
+  renderSettings();
   toast('已导入，生效 ' + r.applied + ' 项');
 }
-async function uiAction(a){
+/* 设置页上的按钮都从这里走。第二个参数是按钮本身 ——
+   有几个动作的范围/目标写在按钮的属性上（例如"恢复哪一类"），
+   那样比在 JS 里按动作名再拼一次字符串更不容易走偏。 */
+async function uiAction(a, btn){
   // 【视觉美化，非核心功能】就地量一秒帧率。不落盘、不改设置，只为回答"这一档配不配这台机器"
   if(a === 'vfxMeasure'){
     var span = $('vfxStats');
@@ -2795,14 +2955,14 @@ async function uiAction(a){
     }
     return;
   }
-  /* ---- 配置管理：导出 / 导入 / 重置 / 变更记录 / 复制版本 ----
+  /* ---- 配置管理：导出 / 导入 / 恢复默认 / 变更记录 / 复制版本 ----
      导出与导入都走服务端的专用接口，而不是拼一个下载链接 ——
      写成文件再告诉用户在哪，与导出诊断包是同一套做法，也避开了各平台 WebView 下载行为不一的问题。 */
   if(a === 'exportCfg'){
     var er = await api('/api/settings/export', {});
     if(!er || !er.ok){ toast((er && er.err) || '导出失败', true); return; }
     ui = er.ui;
-    openSettings();
+    renderSettings();
     toast('已导出到 ' + er.path);
     return;
   }
@@ -2812,69 +2972,56 @@ async function uiAction(a){
     if(cf){ cf.value = ''; cf.click(); }
     return;
   }
-  if(a === 'changes'){
-    var cr = await api('/api/settings/changes', null);
-    if(cr && cr.changes && ui){ ui.changes = cr.changes; }
-    uiView = 'changes';
-    openSettings();
-    return;
-  }
-  if(a === 'changesBack'){ uiView = 'main'; openSettings(); return; }
   if(a === 'changesClear'){
     var cl = await api('/api/settings/changes', { clear:true });
     if(cl && cl.changes && ui){ ui.changes = cl.changes; }
-    openSettings();
+    renderSettings();
     toast('已清空 ' + ((cl && cl.cleared) || 0) + ' 条记录');
     return;
   }
-  if(a === 'resetAll'){
-    // 先问一句再动手：重置是"会连改好几项"的操作，不能点一下就生效
-    uiAskReset('all', '全部设置');
-    return;
-  }
+  /* 恢复默认只有一个入口，范围在这里选。
+     以前每个板块标题旁边各挂一个"恢复本板块默认"，加底部一个"重置全部设置" ——
+     同一个动作三个按钮，还得先分清它们的范围差在哪。 */
+  if(a === 'resetAsk'){ uiAskReset(); return; }
   if(a === 'resetCancel'){
-    uiPendingReset = null;
     var cd = $('mConfirm');
     if(cd && cd.parentNode){ cd.parentNode.removeChild(cd); }
     return;
   }
   if(a === 'resetDo'){
-    var pr = uiPendingReset || {};
-    uiPendingReset = null;
+    var board = (btn && btn.getAttribute('data-board')) || 'all';
+    var label = (board === 'all') ? '全部设置' : ('「' + board + '」这一类');
+    var rr = await api('/api/settings/reset', { scope: board });
+    if(!rr || !rr.ok){ toast((rr && rr.err) || '恢复默认失败', true); return; }
     var cd2 = $('mConfirm');
     if(cd2 && cd2.parentNode){ cd2.parentNode.removeChild(cd2); }
-    if(!pr.scope){ return; }
-    var rr = await api('/api/settings/reset', { scope:pr.scope });
-    if(!rr || !rr.ok){ toast((rr && rr.err) || '重置失败', true); return; }
-    if(!rr.changed){ toast(pr.label + '本来就是默认值'); return; }
+    if(!rr.changed){ toast(label + '本来就是默认值'); return; }
     ui = rr.ui;
     uiApply(ui);
-    openSettings();
-    toast('已把' + pr.label + '恢复默认，共改动 ' + rr.changed + ' 项');
+    renderSettings();
+    uiSaveState('已恢复默认 ' + clockNow());
+    toast('已把' + label + '恢复默认，共改动 ' + rr.changed + ' 项');
     return;
   }
   if(a === 'copyVersion'){ copy(((ui && ui.version) || 'mclbx') + ''); return; }
-  if(a === 'manual'){ setHidden($('modal'), true); showManual(true); return; }
   if(a === 'musicRefresh'){
     try{
       var mr = await (await fetch('/api/settings')).json();
       if(mr && mr.ok){ ui = mr; bgmSetList(mr.musicList); }
     }catch(e){}
-    openSettings();
+    renderSettings();
     return;
   }
-  // 打开的是存档根目录，music 就在它下面 —— 复用已有的「打开数据目录」动作
-  if(a === 'musicFolder'){ a = 'openData'; }
   if(a === 'bgmPrev'){ bgmStep(-1); return; }
   if(a === 'bgmNext'){ bgmStep(1); return; }
   if(a === 'bgmPlay'){ bgmToggle(); return; }
   if(a === 'wallImport'){ var fi = $('wallFile'); if(fi){ fi.value = ''; fi.click(); } return; }
-  if(a === 'wallRefresh'){ openSettings(); return; }
-  // 打开的是存档根目录，wallpapers 就在它下面 —— 复用已有的「打开数据目录」动作
-  if(a === 'wallFolder'){ a = 'openData'; }
+  if(a === 'wallRefresh'){ renderSettings(); return; }
   if(a === 'diag'){
-    // 导出诊断包是个真正的"操作"，所以照操作那条路走（会出现在日志区里）
+    // 导出诊断包是个真正的"操作"，所以照操作那条路走（会出现在日志区里）。
+    // 走之前先回工作台 —— 结果和日志都在那一页，留在设置页会看不到自己刚做了什么。
     setHidden($('modal'), true);
+    go('work');
     var j = await api('/api/start', { key:'diag', inputs:{} });
     if(!j || !j.ok){ toast((j && j.err) || '启动失败', true); return; }
     setRunningUI(true); tick();
@@ -2885,15 +3032,18 @@ async function uiAction(a){
   toast(a === 'forgetInputs' ? '已清除记住的填写内容' : '已打开数据目录');
 }
 
-// 允许用 ?manual=1 直接打开说明书（便于从外部链接进来，也方便自动化核对排版）
-if(location.search.indexOf('manual=1') >= 0){ showManual(true); }
-// 同一类深链，用于核对"一步开局"的两个表单态与"更多功能"展开态（自动化截图用）
-var qsInit = location.search || '';
-if(qsInit.indexOf('quick=host') >= 0){ showQuickForm('host'); }
-else if(qsInit.indexOf('quick=guest') >= 0){ showQuickForm('guest'); }
-else if(qsInit.indexOf('more=1') >= 0){ toggleMore(true); }
-$('fwSkip').onclick = function(){ fwSkipped = true; setHidden($('fwBanner'), true); };
+/* 起手：先按地址栏的 hash 决定落在哪一页，再铺界面、开始轮询。
+   只认 #/work、#/settings、#/manual 三个值，其它（包括空）都落到工作台。
+   这里以前有四条查询串深链（?manual=1 / ?settings=1 / ?quick=host / ?quick=guest / ?more=1），
+   每条都只服务于当时的一次自动化截图核对 —— 它们已随新界面一并删除。 */
+$('btnWork').onclick = function(){ go('work'); };
 $('btnSettings').onclick = openSettings;
+$('btnManual').onclick = function(){ go('manual'); };
+var startPage = (location.hash || '').replace(/^#\//, '');
+if(!PAGES[startPage]){ startPage = 'work'; }
+page = '';            // 先清空，好让第一次 go() 真的把三页的显隐与导航高亮铺一遍
+go(startPage);
+$('fwSkip').onclick = function(){ fwSkipped = true; setHidden($('fwBanner'), true); };
 // 底栏的背景音乐入口。曲库与曲目要等真正用的时候才去取，所以这里只绑事件、不拉数据。
 bgmEl = $('bgm');
 if(bgmEl){
@@ -2903,8 +3053,6 @@ if(bgmEl){
   bgmEl.volume = bgmGain();
 }
 $('bgmToggle').onclick = bgmToggle;
-// 允许用 ?settings=1 直接打开设置面板（自动化截图用，与 ?manual=1 同一套办法）
-if(location.search.indexOf('settings=1') >= 0){ openSettings(); }
 $('btnStop').onclick = stopJob;
 $('btnQuit').onclick = quitApp;
 $('btnClear').onclick = resetLog;
@@ -2931,7 +3079,7 @@ async function vfxSave(patch){
     ui = r.ui;
     uiApply(ui);
     uiRefreshHints(ui);
-    if(!$('modal').hidden){ openSettings(); }  // 面板开着就地重渲染，档位跟着变
+    if(page === 'settings'){ renderSettings(); }  // 设置页开着就地重渲染，档位跟着变
   }catch(e){ /* 降级失败不该影响工具 */ }
 }
 VFX.init(window.MCLBX_UI || null, vfxSave);

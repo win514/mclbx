@@ -131,7 +131,11 @@ func blurRules(t *testing.T) []panelCSSRule {
 
 // 允许加模糊的地方。它们都是**局部**面板，且内容是间歇变化的。
 // 往这份名单里加东西之前先回答两个问题：它背后是谁？那块内容多久变一次？
-var blurAllowedSel = []string{".card:not(.logcard)", ".foot", ".mbox"}
+//
+// 名单的构成即"毛玻璃的层次"：顶栏与状态栏是两条薄边（背后只有静止的背景层）、
+// 主区那些面板内容是静止的（日志区被 :not 排除在外）、设置页外壳自己不滚（滚动在里面的 .mset）、
+// .mbox 是浮层。侧栏、日志面、操作行**不在**名单里 —— 它们会随搜索/追加/滚动重算。
+var blurAllowedSel = []string{".topbar", ".statusbar", ".stage>.panel:not(.logpanel)", ".setpage", ".mbox"}
 
 // 局部：模糊只准落在上面那几个面板上，一个都不许漏到别处（逐条选择器核，不是整串包含）。
 func TestBackdropFilterOnlyOnLocalSurfaces(t *testing.T) {
@@ -164,15 +168,15 @@ func TestBackdropFilterOnlyOnLocalSurfaces(t *testing.T) {
 // 三类地方**永远**不许加模糊。它们对应三条各自成立的代价来源，不是同一件事的三种说法。
 func TestNoBackdropFilterOnChurningSurfaces(t *testing.T) {
 	banned := []struct{ cls, why string }{
-		{".logcard", "日志在任务执行期间持续追加，模糊要跟着一遍遍重算"},
+		{".logpanel", "日志在任务执行期间持续追加，模糊要跟着一遍遍重算"},
 		{".log", "同上，它是流式内容"},
-		{".top", "整条顶栏，且进度链上那个点在运行期间一直在呼吸"},
+		{".tasks", "操作列表会随搜索过滤与滚动重排，模糊要跟着重算"},
+		{".side", "侧栏整体同上；它的两块面板因此只做半透明，不做模糊"},
 		{".modal", "整屏遮罩层：占满视口再配模糊，就是原来那条红线本身"},
 		{".bg", "整屏背景层"},
 		{".aurora", "整屏背景层"},
 		{".grid", "整屏背景层"},
-		{".t", "悬停有 transform:translateX，位移意味着每帧重新取样"},
-		{".gcard", "悬停有 transform:translateY，同上"},
+		{".op", "操作行：一屏二十行，逐行模糊等于把整列都糊上"},
 	}
 	token := regexp.MustCompile(`\.([A-Za-z][\w-]*)`)
 	for _, r := range blurRules(t) {
@@ -511,14 +515,14 @@ func TestFourLevelsChangeNothingButAttributes(t *testing.T) {
 	}
 }
 
-// 外观能力都要在面板上有入口，取值也要与 CSS 的块一一对应。
+// 外观能力都要在设置页上有入口，取值也要与 CSS 的块一一对应。
 //
-// 面板改成「只放真设置」之后判据也变了：面板上每一项都必须有服务端字段，
+// 设置页改成"只放真设置"的三分类之后判据也变了：页上每一项都必须有服务端字段，
 // 那条由 TestPanelOnlyShowsRealSettings 管；这里只管两件它管不到的事：
-// 一是每个能力在面板上真的有控件，二是控件给的取值在样式表里真的有对应规则 ——
+// 一是每个能力在页上真的有控件，二是控件给的取值在样式表里真的有对应规则 ——
 // 少一处就是"选了这个档位什么都不会发生"的死开关。
 func TestAppearanceControlsExistInThePanel(t *testing.T) {
-	panel := bodyBetween(t, "function uiSettingsHTML(u){", "async function openSettings(){")
+	panel := bodyBetween(t, "function uiThemeHTML(u){", "function uiAboutHTML(u){")
 	for _, want := range []string{
 		"uiSeg('theme'", "uiAccentDots(u)", "uiSeg('flat'", "uiSeg('glass'",
 		"uiSw('vfx'", "uiSw('glow'", "uiSw('fade'", "uiSw('noDegrade'", "uiSw('backdrop'",
@@ -526,7 +530,7 @@ func TestAppearanceControlsExistInThePanel(t *testing.T) {
 		"uiWallPicker(", "vfxMeasure",
 	} {
 		if !strings.Contains(panel, want) {
-			t.Errorf("面板里缺少 %s —— 这个外观能力没有入口", want)
+			t.Errorf("设置页里缺少 %s —— 这个外观能力没有入口", want)
 		}
 	}
 	css := cssRegion(t)
@@ -545,9 +549,16 @@ func TestAppearanceControlsExistInThePanel(t *testing.T) {
 	if sharp := strings.Index(css, `:root[data-radii="sharp"]`); sharp > flat {
 		t.Error("圆角档位的规则排在扁平之后 —— 扁平下圆角会重新冒出来，与「扁平 = 去掉圆角」冲突")
 	}
+	// 改了要立刻看见的项，必须都写进 uiApply()：漏一个的症状是"选完没反应，刷新才变"
+	apply := bodyBetween(t, "function uiApply(u){", "function uiRefreshHints(u){")
+	for _, want := range []string{"data-radii", "data-rail", "data-flat", "data-scale"} {
+		if !strings.Contains(apply, want) {
+			t.Errorf("uiApply() 里没写 %s —— 这一项改完要等刷新才生效，看起来像没保存成功", want)
+		}
+	}
 	for _, want := range []string{"uiWallPicker(", "'/api/wall/import'"} {
 		if !strings.Contains(guiPageHTML, want) {
-			t.Errorf("设置面板里缺少 %s —— 背景图导入那一路不见了", want)
+			t.Errorf("设置页里缺少 %s —— 背景图导入那一路不见了", want)
 		}
 	}
 	for _, want := range []string{`<div class="wall"></div>`, `<div class="scrim"></div>`} {
@@ -629,11 +640,12 @@ func TestGlassOverPageKeepsTextReadable(t *testing.T) {
 		name string
 		col  rgba
 	}
-	// 三种承载文字的面，各对应 CSS 里一条玻璃规则
+	// 三档承载文字的面，各对应 CSS 里一层毛玻璃规则：
+	// 主容器（顶栏/状态栏/主区面板/设置页外壳）、次级卡片（操作行、环境格、日志面）、浮层。
 	surfaces := []struct{ name, glassVar string }{
-		{"面板", "--glass"},
-		{"条目悬停/选中", "--glass-2"},
-		{"引导卡悬停", "--glass-3"},
+		{"主容器", "--glass-1"},
+		{"次级卡片", "--glass-2"},
+		{"浮层", "--glass-3"},
 	}
 	texts := []string{"--ink", "--ink2", "--muted", "--muted2"}
 	themes := uniq(append([]string{"dark"}, themeValues...))
