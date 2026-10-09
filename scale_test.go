@@ -10,23 +10,34 @@ import (
 	"testing"
 )
 
-// segOptions 从 `uiSeg('scale', u.scale, [['std','标准'],['big','大']])` 里取出 id 列表。
+// segOptions 从 UI_CTL 里取出某个分段控件的取值列表。
+//
+// 面板改成按设计清单铺出来之后，分段不再写成 uiSeg('scale', …) 这样的调用，
+// 取值集中在 UI_CTL 那张表里（例如 scale:{opts:[['std','标准'],['big','大']]}）。
+// 判据还是同一条：这个列表必须与 normalizeUI 的白名单一致。
 func segOptions(t *testing.T, key string) []string {
 	t.Helper()
-	i := strings.Index(guiPageHTML, "uiSeg('"+key+"'")
+	i := strings.Index(guiPageHTML, "\n  "+key+":{")
 	if i < 0 {
-		t.Fatalf("界面上找不到 uiSeg('%s') —— 那个开关被删了吗？", key)
+		t.Fatalf("UI_CTL 里找不到 %s —— 那个控件被删了吗？", key)
 	}
 	body := guiPageHTML[i:]
-	if j := strings.Index(body, "])"); j > 0 {
+	if j := strings.Index(body, "opts:["); j >= 0 {
+		body = body[j:]
+	} else {
+		t.Fatalf("UI_CTL 里的 %s 没有给出定值 opts —— 它可能改成了函数，解析规则要跟着改", key)
+	}
+	// 截止到 opts 数组的结尾：不切的话会一路读进后面那几个控件，把别人的取值也算进来
+	body = strings.Replace(body, "opts:", "", 1)
+	if j := strings.Index(body, "]]"); j > 0 {
 		body = body[:j]
 	}
 	var out []string
-	for _, m := range regexp.MustCompile(`\[\s*'([a-z]+)'\s*,`).FindAllStringSubmatch(body, -1) {
+	for _, m := range regexp.MustCompile(`'([a-z]+)'\s*,`).FindAllStringSubmatch(body, -1) {
 		out = append(out, m[1])
 	}
 	if len(out) == 0 {
-		t.Fatalf("uiSeg('%s') 里一个选项都没解析出来", key)
+		t.Fatalf("UI_CTL[%s] 里一个选项都没解析出来", key)
 	}
 	return out
 }

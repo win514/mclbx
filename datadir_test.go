@@ -136,6 +136,11 @@ func TestArchiveMigrationBringsLegacySettingsOver(t *testing.T) {
 	// 再把 exe 放到普通目录，让存档切到 exe 同级
 	exePath = func() (string, error) { return filepath.Join(exeDir, "mclbx.exe"), nil }
 	tempRoots = func() []string { return []string{filepath.Join(exeDir, "nope")} }
+	// 换了两个决定结果的条件，就得让缓存失效。
+	// 缓存只按 LOCALAPPDATA 做键（见 datadir.go 里那段说明），认不出 exePath / tempRoots 变了；
+	// 而上面那次 saveUI 已经解析过一次（保存设置时会顺带记一条变更记录，也要知道存档在哪儿），
+	// 不显式清掉的话这里会读到那个已经过时的结果。
+	clearDirCaches()
 
 	archive := filepath.Join(exeDir, archiveDirName)
 	if got := dataDir(); got != archive {

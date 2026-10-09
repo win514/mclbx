@@ -239,13 +239,20 @@ func loadUI() guiUIState {
 }
 
 // saveUI 整份覆盖并落盘；界面提交完整一份，故清空默认值也能生效。
+//
+// 顺带记一条变更记录（见 uicfg_io.go）。记账放在锁外：它写的是另一个文件，
+// 没必要占着配置锁；而且它失败不影响这次保存的结果。
 func saveUI(next guiUIState) (guiUIState, error) {
 	guiCfgMu.Lock()
 	c := loadConfigLocked()
+	prev := normalizeUI(c.UI)
 	c.UI = normalizeUI(next)
 	err := writeConfigLocked(c)
 	out := c.UI
 	guiCfgMu.Unlock()
+	if err == nil {
+		recordUIChanges(prev, out)
+	}
 	return out, err
 }
 

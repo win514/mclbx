@@ -175,6 +175,12 @@ func settingsPayload(ui guiUIState) map[string]any {
 		"autoProbe": autoProbeOn(),
 		"dataDir":   dataDir(),
 		"version":   version,
+		// 设置全集（14 模块 / 287 条）与「其中哪些已经能操作」的对照。
+		// 界面按它铺出导航与条目，可操作的渲染控件、其余置灰。
+		"spec": uiSpecForWeb(),
+		// 变更记录由服务端持有：它是跨会话的，界面刷新不该丢
+		"changes":   loadChanges(),
+		"changeMax": uiChangeMax,
 	}
 }
 
@@ -1182,6 +1188,72 @@ func cmdGui(args []string) error {
 		}
 		_ = json.NewEncoder(w).Encode(settingsPayload(loadUI()))
 	})
+
+	// ---- 配置管理：导出 / 导入 / 重置 / 变更记录 ----
+	// 四个都走同一个 post() 包装：它负责校验 X-MCLBX-GUI 头与 Origin、
+	// 统一错误形状。**不能绕过它** —— 少了那两道校验，本机其它页面上的脚本
+	// 就能直接 POST 过来把设置重置掉（实测过一次：新接口漏了这层，确实能打进来）。
+	mux.HandleFunc("/api/settings/export", post(func(w http.ResponseWriter, r *http.Request) error {
+		path, err := exportUIConfig()
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(w).Encode(map[string]any{
+			"ok": true, "path": path, "ui": settingsPayload(loadUI()),
+		})
+	}))
+
+	mux.HandleFunc("/api/settings/import", post(func(w http.ResponseWriter, r *http.Request) error {
+		// 界面用 <input type=file> 读文件内容再 POST 上来，与服务端按路径去读相比，
+		// 好处是「导入哪一份」完全由用户在系统文件对话框里决定。
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, uiImportMaxLen+4096))
+		if err != nil {
+			return fmt.Errorf("读取上传内容失败：%w", err)
+		}
+		var req struct {
+			Mode    string `json:"mode"`
+			Content string `json:"content"`
+		}
+		if err := json.Unmarshal(body, &req); err != nil {
+			return fmt.Errorf("请求格式不对")
+		}
+		res, err := importUIConfig([]byte(req.Content), req.Mode)
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(w).Encode(map[string]any{
+			"ok": true, "applied": res.Applied, "filled": res.Filled,
+			"skipped": res.Skipped, "ui": settingsPayload(loadUI()),
+		})
+	}))
+
+	mux.HandleFunc("/api/settings/reset", post(func(w http.ResponseWriter, r *http.Request) error {
+		var req struct {
+			Scope string `json:"scope"`
+		}
+		_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req)
+		changed, err := resetUIScope(req.Scope)
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(w).Encode(map[string]any{
+			"ok": true, "changed": changed, "ui": settingsPayload(loadUI()),
+		})
+	}))
+
+	mux.HandleFunc("/api/settings/changes", post(func(w http.ResponseWriter, r *http.Request) error {
+		var req struct {
+			Clear bool `json:"clear"`
+		}
+		_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req)
+		n := 0
+		if req.Clear {
+			n = clearUIChanges()
+		}
+		return json.NewEncoder(w).Encode(map[string]any{
+			"ok": true, "cleared": n, "changes": loadChanges(),
+		})
+	}))
 
 	// 导入背景图：网页界面用 <input type=file> 取到文件再 POST 上来。
 	// 走上传而不是让服务端按路径去读，是因为「导入」的意义就在于把图复制进存档 ——

@@ -24,37 +24,38 @@ func bodyBetween(t *testing.T, from, to string) string {
 }
 
 // TestEverySwitchInThePanelIsCollected 检查面板上每个开关都被 uiCollect() 读到。
+//
+// 面板改成按设计清单铺之后，开关不再写成 uiSw('x', …) 调用，而是集中在 UI_CTL 里
+// （带 on:function 的那些项）。判据不变：拨了没反应、下次保存又被打回默认，就是这里少了一行。
 func TestEverySwitchInThePanelIsCollected(t *testing.T) {
-	panel := bodyBetween(t, "function uiSettingsHTML", "function uiCollect")
+	ctl := bodyBetween(t, "var UI_CTL = {", "/* 动作表")
 	collect := bodyBetween(t, "function uiCollect", "function uiApply")
 
-	seen := map[string]bool{}
-	for _, m := range regexp.MustCompile(`uiSw\('([A-Za-z]+)'`).FindAllStringSubmatch(panel, -1) {
+	seen := 0
+	re := regexp.MustCompile(`(?m)^\s{2}([A-Za-z]+):\{[^}]*\bon:function`)
+	for _, m := range re.FindAllStringSubmatch(ctl, -1) {
 		key := m[1]
-		if seen[key] {
-			continue
-		}
-		seen[key] = true
+		seen++
 		if !strings.Contains(collect, "'"+key+"'") {
-			t.Errorf("设置面板里有开关 %q，但 uiCollect() 从来没读它 —— 拨了不会有任何反应，"+
+			t.Errorf("UI_CTL 里的开关 %q 没有出现在 uiCollect() 里 —— 拨了不会有任何反应，"+
 				"而且下一次任意保存都会把它打回默认", key)
 		}
 	}
-	if len(seen) == 0 {
-		t.Fatal("一个开关都没解析出来 —— 面板生成函数改名了，这条检查等于没做")
+	if seen == 0 {
+		t.Fatal("一个开关都没解析出来 —— UI_CTL 改了结构，这条检查等于没做")
 	}
 }
 
 // 分段器（uiSeg）与输入框（uiField）同理：确认收集端扫了对应的 data 属性。
 func TestSegmentAndFieldAreCollectedGenerically(t *testing.T) {
-	panel := bodyBetween(t, "function uiSettingsHTML", "function uiCollect")
+	ctl := bodyBetween(t, "var UI_CTL = {", "function uiCollect")
 	collect := bodyBetween(t, "function uiCollect", "function uiApply")
 
-	if strings.Contains(panel, "uiSeg('") && !strings.Contains(collect, "[data-seg]") {
-		t.Error("面板里有分段控件，但 uiCollect() 没有扫 [data-seg] —— 所有分段都会白点")
+	if strings.Contains(ctl, "opts:[") && !strings.Contains(collect, "[data-seg]") {
+		t.Error("UI_CTL 里有分段控件，但 uiCollect() 没有扫 [data-seg] —— 所有分段都会白点")
 	}
-	if strings.Contains(panel, "uiField('") && !strings.Contains(collect, "[data-in]") {
-		t.Error("面板里有输入框，但 uiCollect() 没有扫 [data-in] —— 填了不会保存")
+	if strings.Contains(ctl, "ph:'") && !strings.Contains(collect, "[data-in]") {
+		t.Error("UI_CTL 里有输入框，但 uiCollect() 没有扫 [data-in] —— 填了不会保存")
 	}
 }
 

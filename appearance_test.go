@@ -512,11 +512,61 @@ func TestFourLevelsChangeNothingButAttributes(t *testing.T) {
 }
 
 // 三项能力都要在设置面板里有入口，背景层的两个 div 也要真的在页面上。
+//
+// 面板改成按设计清单铺出来之后，「有入口」这件事分成两半：
+//
+//	· 服务端的对照表（uiImplByModule）说明这一条可操作、用哪种控件；
+//	· 界面的 UI_CTL / UI_ACT 说明那个控件怎么渲染。
+//
+// 两半缺任何一半的症状都是一样的：条目显示成"可有"，但点下去是空白。
+// 所以这里同时查两处，且对照表直接按运行时结构查 —— 不是拿文本去猜。
 func TestAppearanceControlsExistInThePanel(t *testing.T) {
-	for _, want := range []string{"uiSeg('flat'", "uiSeg('glass'", "uiWallPicker(", "'/api/wall/import'",
-		"uiSw('vfx'", "uiSw('glow'", "uiSw('fade'", "uiSw('noDegrade'", "vfxMeasure"} {
+	has := func(module, item string) bool {
+		for _, im := range uiImplsFor(module) {
+			if im.Item == item {
+				return true
+			}
+		}
+		return false
+	}
+	for _, c := range []struct{ module, item string }{
+		{"界面与外观设置", "主题"},
+		{"界面与外观设置", "材质"},
+		{"界面与外观设置", "毛玻璃档位"},
+		{"界面与外观设置", "背景图片"},
+		{"界面与外观设置", "帧率实测"},
+		{"界面与外观设置", "视觉美化总开关"},
+		{"软件基础行为与通用偏好", "曲库"}, // 设计文档没收录，属于本工具自有的那几条
+	} {
+		if !has(c.module, c.item) {
+			t.Errorf("对照表里缺少「%s / %s」—— 这个能力在界面上没有入口", c.module, c.item)
+		}
+	}
+
+	// 需要查表才知道怎么渲染的控件：分段要选项、开关要标签与取值函数。
+	// 背景图与曲库不在此列 —— 它们由 uiCtl 里的 wall / music 分支直接渲染，不查这张表。
+	ctl := bodyBetween(t, "var UI_CTL = {", "/* 动作表")
+	for _, want := range []string{"glass:{", "flat:{", "vfx:", "glow:", "fade:", "noDegrade:"} {
+		if !strings.Contains(ctl, want) {
+			t.Errorf("UI_CTL 里缺少 %s —— 那一行会渲染成空白控件", want)
+		}
+	}
+	act := bodyBetween(t, "var UI_ACT = {", "/* 说明文字")
+	for _, want := range []string{"vfxMeasure:", "exportCfg:", "importCfg:", "dataDir:"} {
+		if !strings.Contains(act, want) {
+			t.Errorf("UI_ACT 里缺少 %s —— 那个按钮不会出现", want)
+		}
+	}
+	// 控件的分发必须覆盖对照表里用到的每一种 ctl，否则那种控件会静默渲染成空
+	dispatch := bodyBetween(t, "function uiCtl(item, u){", "function uiLive(")
+	for _, ctl := range []string{"dots", "seg", "sw", "wall", "music", "field", "act"} {
+		if !strings.Contains(dispatch, "case '"+ctl+"'") {
+			t.Errorf("uiCtl 没有处理 ctl=%s —— 用这种控件的条目会渲染成空白", ctl)
+		}
+	}
+	for _, want := range []string{"uiWallPicker(", "'/api/wall/import'"} {
 		if !strings.Contains(guiPageHTML, want) {
-			t.Errorf("设置面板里缺少 %s —— 这个能力在界面上没有入口", want)
+			t.Errorf("设置面板里缺少 %s —— 背景图导入那一路不见了", want)
 		}
 	}
 	for _, want := range []string{`<div class="wall"></div>`, `<div class="scrim"></div>`} {
