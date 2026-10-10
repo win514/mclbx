@@ -454,9 +454,9 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);
 <p>程序会用到三处外部服务，均为免费、匿名、可替换的公共设施，且都不是必需：</p>
 <table class="boxed">
   <tr><th>服务</th><th>用途</th><th>不用它会怎样</th></tr>
-  <tr><td>stun.miwifi.com<br>stun.hitv.com</td><td>探测本机的公网映射，默认开启</td><td>命令行加 <code>--stun=false</code> 即可完全不用；代价是跨网络直连基本不可用。想换成别的服务（含自建的），用环境变量 <code>MCLBX_STUN</code></td></tr>
-  <tr><td>sslip.io</td><td>「公网入口（域名）」使用的公共通配域名后缀</td><td>改用 IPv6 字面量模式就完全不碰它</td></tr>
-  <tr><td>dynv6.com</td><td>把短名称写进公网 DNS（进阶用法，界面里没有入口，需要自备域名）</td><td>默认只打印、不写入；只在本机用短名称的话完全不碰它。该路径按 dynv6 官方接口文档实现，<b>未在真实账号上实测过</b>；目前也只支持这一家。</td></tr>
+  <tr><td>stun.miwifi.com<br>stun.hitv.com</td><td>探测本机的公网映射，默认开启</td><td>命令行加 <code>--stun=false</code> 即可完全不用；代价是跨网络直连基本不可用。如需改用其他服务（含自建的），可设置环境变量 <code>MCLBX_STUN</code></td></tr>
+  <tr><td>sslip.io</td><td>「公网入口（域名）」使用的公共通配域名后缀</td><td>改用 IPv6 字面量模式即可完全避免使用它</td></tr>
+  <tr><td>dynv6.com</td><td>把短名称写进公网 DNS（进阶用法，界面里没有入口，需要自备域名）</td><td>默认只打印、不写入；仅在本机使用短名称时不会用到它。该路径按 dynv6 官方接口文档实现，<b>未在真实账号上实测过</b>；目前也只支持这一家。</td></tr>
 </table>
 <div class="note">「免费」指不需要付费，不等于不依赖外部服务；上表三处都给出了不使用它们的办法。</div>
 
