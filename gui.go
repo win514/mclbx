@@ -1397,7 +1397,7 @@ func cmdGui(args []string) error {
 const guiDefaultPort = 19870
 
 // guiWindowTitle 界面窗口标题，与桌面快捷方式名称一致。
-const guiWindowTitle = "mclbx 联机工具"
+const guiWindowTitle = "我的世界联机工具"
 
 // hasExistingGuiWindow 判断是否已有打开的界面窗口，做成变量以便测试替换。
 var hasExistingGuiWindow = findExistingGuiWindow

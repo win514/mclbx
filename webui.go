@@ -82,7 +82,7 @@ const pageHTML = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>mclbx 联机工具</title>
+<title>我的世界联机工具</title>
 <style>
   :root{--bg:#0d1117;--fg:#e6edf3;--dim:#8b949e;--line:#21262d;--card:#161b22;--ok:#3fb950;--bad:#f85149;--accent:#2f81f7}
   *{box-sizing:border-box}

@@ -15,9 +15,9 @@
 #
 # 用法：
 #   .\build-release.ps1
-#   .\build-release.ps1 -Version 'mclbx 1.73'
+#   .\build-release.ps1 -Version 'mclbx 1.74'
 param(
-  [string]$Version = 'mclbx 1.73'
+  [string]$Version = 'mclbx 1.74'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -33,8 +33,8 @@ if (-not (Test-Path $dist)) { New-Item -ItemType Directory -Path $dist | Out-Nul
 
 $ld = "-s -w -X 'main.version=$Version'"
 
-# 前端不在本仓库：构建前从本机前端目录装入 frontend\，三个文件齐备时产物带界面。
-# 可用 $env:MCLBX_FRONTEND 指定别的前端目录，默认 D:\mclbx-frontend。
+# 构建前把 gui.html、gui.css、gui.js 放入 frontend\（默认从本机目录复制），三者齐备时产物带界面。
+# 界面来源目录可用 $env:MCLBX_FRONTEND 指定，默认 D:\mclbx-frontend。
 $feSrc = if ($env:MCLBX_FRONTEND) { $env:MCLBX_FRONTEND } else { 'D:\mclbx-frontend' }
 $feDst = Join-Path $PSScriptRoot 'frontend'
 $feFiles = @('gui.html', 'gui.css', 'gui.js')
@@ -45,9 +45,9 @@ foreach ($f in $feFiles) {
 if ($feReady) {
   if (-not (Test-Path $feDst)) { New-Item -ItemType Directory -Path $feDst | Out-Null }
   foreach ($f in $feFiles) { Copy-Item (Join-Path $feSrc $f) (Join-Path $feDst $f) -Force }
-  Write-Host "前端已装入 frontend\：本次产物带界面。"
+  Write-Host "界面文件已装入 frontend\：本次产物带界面。"
 } else {
-  Write-Host "未在 $feSrc 找到完整前端（gui.html / gui.css / gui.js）：本次产物只含接口，界面走占位页。"
+  Write-Host "未在 $feSrc 找到 gui.html / gui.css / gui.js：本次产物不带界面。"
 }
 
 $targets = @(
@@ -69,6 +69,6 @@ foreach ($t in $targets) {
 }
 
 Write-Host "全部完成：$Version"
-if ($feReady) { Write-Host "本次产物带界面（前端已装入 frontend\）。" }
-else { Write-Host "本次产物不带界面（未找到前端，界面走占位页）。" }
+if ($feReady) { Write-Host "本次产物带界面（界面文件已装入 frontend\）。" }
+else { Write-Host "本次产物不带界面（未找到界面文件）。" }
 Write-Host "产物目录：$dist"

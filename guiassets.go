@@ -1,13 +1,12 @@
 package main
 
-// guiassets.go 界面资源：骨架、样式与脚本为独立文件，随构建装入后内嵌。
+// guiassets.go 界面资源：骨架、样式与脚本随构建装入后内嵌。
 // Go 侧只做三件事：渲染基础 HTML 模板、托管静态资源、提供业务接口。
-// 它不操作 DOM、不参与动画逻辑；动效、交互、状态过渡、rAF 全在前端文件里由浏览器执行。
-// 服务端只把业务状态（当前设置、任务状态）写进页面属性与首屏 JSON，其界面表现由浏览器决定。
+// 它不操作 DOM、不参与动画逻辑；动效、交互、状态过渡、rAF 全在界面文件里由浏览器执行。
+// 服务端只把业务状态（当前设置、任务状态）写进页面属性与首屏 JSON，其表现由浏览器决定。
 //
-// 前端实现不在本仓库：构建时由 build-release.ps1 从 D:\mclbx-frontend 装入 frontend/，
-// 再经 //go:embed 嵌入。仓库只提交 frontend/说明.txt，故新克隆构建出的程序不含界面，
-// renderGuiPage 会改发占位页（见 guihtml.go）。
+// 界面实现不随本项目提供：构建时把 gui.html、gui.css、gui.js 放入 frontend/ 后经
+// //go:embed 嵌入；未放入时 renderGuiPage 改发说明页（见 guihtml.go）。
 // 骨架里的 <link> / <script src> 是样式与脚本这两份资源的唯一入口。
 
 import (
@@ -21,13 +20,12 @@ const (
 	guiJSPath  = "/assets/gui.js"
 )
 
-// 构建时装入前端资源的目录。仓库只提交 frontend/说明.txt，其余内容由 .gitignore 挡住，
-// 因此新克隆的仓库里只有说明文件，构建时装入 gui.html / gui.css / gui.js 后再嵌入。
+// 构建时装入界面资源的目录；仓库只提交一份说明文件。
 //
 //go:embed frontend
 var guiFrontFS embed.FS
 
-// guiFrontFile 读取 frontend/ 下的前端文件；不存在时返回 false。
+// guiFrontFile 读取 frontend/ 下的界面文件；不存在时返回 false。
 func guiFrontFile(name string) (string, bool) {
 	b, err := guiFrontFS.ReadFile("frontend/" + name)
 	if err != nil {

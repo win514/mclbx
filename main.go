@@ -1,4 +1,4 @@
-// mclbx 是《我的世界》Java 版联机工具。
+// mclbx 是《我的世界》联机工具。
 package main
 
 import (
@@ -15,7 +15,7 @@ func logf(format string, a ...any) {
 }
 
 // usageText 是帮助文本原文。
-const usageText = `mclbx —— 我的世界 Java 版联机工具
+const usageText = `mclbx —— 我的世界联机工具
 
 用法：
   mclbx gui [选项]         打开图形界面；已有实例时将其窗口置于前台
