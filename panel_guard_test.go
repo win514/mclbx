@@ -91,14 +91,14 @@ func declSet(body string) []string {
 	return out
 }
 
-// 「精简」动效与系统的 prefers-reduced-motion 必须逐条相同，且「精简」不许碰背景光效。
+// 「精简」动效与系统的 prefers-reduced-motion 必须逐条相同，且「精简」不许碰背景图那一层。
 func TestLiteMotionMatchesSystemPreference(t *testing.T) {
 	css := cssRegion(t)
 	var lite, sys []string
 	for _, r := range cssRules(css) {
 		if sel := effSel(r.sel); strings.Contains(sel, `:root[data-motion="lite"]`) {
-			if strings.Contains(sel, ".bg") || strings.Contains(sel, ".aurora") || strings.Contains(sel, ".grid") {
-				t.Errorf("「精简」动了背景光效那一层（%s）—— 背景光效只归 data-backdrop 管", sel)
+			if strings.Contains(sel, ".bg") || strings.Contains(sel, ".wall") || strings.Contains(sel, ".scrim") {
+				t.Errorf("「精简」动了背景图那一层（%s）—— 背景归 data-wall 管", sel)
 			}
 			lite = append(lite, declSet(r.body)...)
 		}

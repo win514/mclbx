@@ -1,8 +1,8 @@
 package main
 
-// uicfg_io.go 配置导出 / 导入 / 重置 / 变更记录。
+// uicfg_io.go 配置导出 / 导入 / 重置。
 //
-// 四者共用 uiFieldLabels 这份「字段 → 板块 / 选项名」对照，导出文件、界面、变更记录里的名字因此一致。
+// 三者共用 uiFieldLabels 这份「字段 → 板块 / 选项名」对照，导出文件、界面里的名字因此一致。
 // 导出用带缩进的可读文本；导入对不认识的键跳过并在结果里说明原因；重置只动界面偏好。
 
 import (
@@ -12,26 +12,28 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
-	"sync"
 	"time"
 )
 
 const (
 	uiConfigFormat  = "mclbx-config"
 	uiConfigVersion = 1
-	uiChangeMax     = 500     // 变更记录条数上限
 	uiImportMaxLen  = 1 << 20 // 导入文件大小上限
 )
 
+// uiLegacyFields 是已废弃的旧字段名：仍需读入以便迁移，但不再当作可编辑设置。
+// 面板、导出、导入与重置一律跳过它们。
+var uiLegacyFields = map[string]bool{"musicMode": true, "musicLoop": true}
+
 // ---- 字段名（从结构体标签取，避免与 guiUIState 各写一份）----
 
-// uiFieldNames 取 guiUIState 上全部 json 字段名。
+// uiFieldNames 取 guiUIState 上全部 json 字段名（不含遗留字段）。
 func uiFieldNames() []string {
 	t := reflect.TypeOf(guiUIState{})
 	out := make([]string, 0, t.NumField())
 	for i := 0; i < t.NumField(); i++ {
 		name := strings.Split(t.Field(i).Tag.Get("json"), ",")[0]
-		if name == "" || name == "-" {
+		if name == "" || name == "-" || uiLegacyFields[name] {
 			continue
 		}
 		out = append(out, name)
@@ -93,23 +95,20 @@ type uiFieldInfo struct {
 // 只有真正会被读取、会改变行为的字段才允许进来，只读展示项不进这里。
 var uiFieldLabels = map[string]uiFieldInfo{
 	// 主题外观
-	"theme":    {"主题外观", "主题"},
-	"accent":   {"主题外观", "强调色"},
-	"flat":     {"主题外观", "材质"},
-	"radii":    {"主题外观", "圆角大小"},
-	"backdrop": {"主题外观", "背景光效"},
-	"bgImage":  {"主题外观", "背景图片"},
-	"glass":    {"主题外观", "毛玻璃"},
-	"fade":     {"主题外观", "面板淡入"},
-	"scale":    {"主题外观", "界面字号"},
-	"motion":   {"主题外观", "动画效果"},
-	"rail":     {"主题外观", "侧边栏样式"},
+	"theme":   {"主题外观", "主题"},
+	"accent":  {"主题外观", "强调色"},
+	"flat":    {"主题外观", "材质"},
+	"radii":   {"主题外观", "圆角大小"},
+	"bgImage": {"主题外观", "背景图片"},
+	"glass":   {"主题外观", "毛玻璃"},
+	"scale":   {"主题外观", "界面字号"},
+	"motion":  {"主题外观", "动画效果"},
+	"rail":    {"主题外观", "侧边栏样式"},
 	// 高级选项与上面同属主题外观：它们改的也是观感，只是代价由用户自己承担。
 	"transparency": {"主题外观", "面板透明度"},
 	"wallBright":   {"主题外观", "背景图明暗"},
 	// 辅助工具
-	"musicMode": {"辅助工具", "播放顺序"},
-	"musicLoop": {"辅助工具", "循环"},
+	"musicPlay": {"辅助工具", "播放方式"},
 	"musicVol":  {"辅助工具", "音量"},
 	"remember":  {"辅助工具", "记住上次填过的值"},
 	"logKeep":   {"辅助工具", "日志保留行数"},
@@ -214,14 +213,14 @@ func uiStorageStats() map[string]any {
 		total += size
 		files += n
 	}
-	// 配置与日志是单文件，单独统计
-	for key, p := range map[string]string{"config": guiConfigFile(), "changes": uiChangeFile()} {
+	// 配置是单文件，单独统计
+	{
 		var size int64
 		var n int
-		if info, err := os.Stat(p); err == nil {
+		if info, err := os.Stat(guiConfigFile()); err == nil {
 			size, n = info.Size(), 1
 		}
-		items[key] = map[string]any{"bytes": size, "files": n}
+		items["config"] = map[string]any{"bytes": size, "files": n}
 		total += size
 		files += n
 	}
@@ -468,106 +467,4 @@ func isUIFace(name string) bool {
 		}
 	}
 	return false
-}
-
-// ---- 变更记录 ----
-
-// uiChange 一条设置改动。字段固定五个：时间 / 模块 / 选项名称 / 原值 / 新值。
-type uiChange struct {
-	At     string `json:"at"`
-	Module string `json:"module"`
-	Item   string `json:"item"`
-	From   string `json:"from"`
-	To     string `json:"to"`
-}
-
-var (
-	uiChangeMu   sync.Mutex
-	uiChangeFile = func() string { return filepath.Join(dataDir(), "ui-changes.json") }
-)
-
-// loadChanges 读变更记录；倒序由界面自行处理，这里保持写入顺序。
-func loadChanges() []uiChange {
-	uiChangeMu.Lock()
-	defer uiChangeMu.Unlock()
-	return loadChangesLocked()
-}
-
-func loadChangesLocked() []uiChange {
-	b, err := os.ReadFile(uiChangeFile())
-	if err != nil {
-		return nil
-	}
-	var out []uiChange
-	if err := json.Unmarshal(b, &out); err != nil {
-		return nil // 记录坏了就当没有：它是辅助信息，不该拦住界面
-	}
-	return out
-}
-
-// recordUIChanges 比对前后两份设置，把差异记进变更记录。
-// 写不进去只是少一条记录，不得让保存设置本身报错。
-func recordUIChanges(prev, next guiUIState) {
-	// 存档目录不可用时不记：filepath.Join("", "ui-changes.json") 会变成相对当前目录的文件名，
-	// 等于往用户任意工作目录丢文件。同 datadir_test.go 末尾用例。
-	if dataDir() == "" {
-		return
-	}
-	diff := diffUIFields(prev, next)
-	if len(diff) == 0 {
-		return
-	}
-	fields := make([]string, 0, len(diff))
-	for f := range diff {
-		fields = append(fields, f)
-	}
-	sortStrings(fields)
-
-	now := time.Now().Format("2006-01-02 15:04:05")
-	add := make([]uiChange, 0, len(fields))
-	for _, f := range fields {
-		face, item := uiFieldLabel(f)
-		if item == "" {
-			continue // 说不出是哪个选项的字段就不记，记了也没法读
-		}
-		from, to := diff[f][0], diff[f][1]
-		add = append(add, uiChange{At: now, Module: face, Item: item,
-			From: showUIValue(from), To: showUIValue(to)})
-	}
-	if len(add) == 0 {
-		return
-	}
-
-	uiChangeMu.Lock()
-	defer uiChangeMu.Unlock()
-	all := append(loadChangesLocked(), add...)
-	if len(all) > uiChangeMax {
-		all = all[len(all)-uiChangeMax:] // 超出上限丢最旧的
-	}
-	b, err := json.MarshalIndent(all, "", " ")
-	if err != nil {
-		return
-	}
-	_ = os.MkdirAll(dataDir(), 0o700)
-	_ = os.WriteFile(uiChangeFile(), b, 0o600)
-}
-
-// showUIValue 把空值写成「默认」。
-func showUIValue(v string) string {
-	if v == "" {
-		return "（默认）"
-	}
-	return v
-}
-
-// clearUIChanges 清空记录，返回被清掉的条数。
-func clearUIChanges() int {
-	uiChangeMu.Lock()
-	defer uiChangeMu.Unlock()
-	if dataDir() == "" {
-		return 0 // 同上：目录不可用时不拼相对路径
-	}
-	n := len(loadChangesLocked())
-	_ = os.Remove(uiChangeFile())
-	return n
 }

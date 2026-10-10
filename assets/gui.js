@@ -63,7 +63,7 @@ function copy(text){
    apply() 写属性，浏览器不支持 backdrop-filter 时退为关闭模糊；busy() 在任务执行期间摘掉毛玻璃。
    VFX.measure() 量一段帧率，供设置页「帧率实测」与控制台查看。 */
 var VFX = (function(){
-  /* GLASS_DEF 与 guiconfig.go 的 uiGlassDefault、面板里 UI_DEF 的那一份必须一致，
+  /* GLASS_DEF 与 guiconfig.go 的 uiGlassDefault 必须一致，
      不一致表现为"首屏与设置里显示的值不同"。 */
   var GLASS_DEF = 'on';
   var st = { glass:GLASS_DEF, level:GLASS_DEF };
@@ -113,7 +113,6 @@ var VFX = (function(){
 
       var e = root();
       e.setAttribute('data-glass', lv);
-      e.setAttribute('data-fade', u.fade === 'off' ? 'off' : 'on');
     }catch(err){ /* 美化失败不该影响工具 */ }
   }
   function init(cfg){
@@ -1043,28 +1042,12 @@ function uiAccentDots(u){
       '" style="background:' + a[2] + '"></button>';
   }).join('');
 }
-/* 一个设置项。结构固定：标题 + 状态标签 / 说明 / 控件 / 悬停提示。
-   tip 走 title 不另铺一行。key 是服务端字段名，data-k 用于就地刷新标签，
-   避免重渲染整页（会丢失焦点与光标位置）。 */
-function uiItem(key, title, control, desc, tip){
-  var tag = uiTag(ui, key);
-  return '<div class="mitem" data-k="' + key + '"' + (tip ? ' title="' + uiEsc(tip) + '"' : '') + '>' +
-    '<div><div class="mi-h"><span class="mi-t">' + title + '</span>' +
-    '<span class="mi-tag' + (tag ? ' chg' : '') + '"' + (tag ? '' : ' hidden') + '>已改动</span>' +
-    '</div><div class="mi-d">' + desc + '</div></div>' +
+/* 一个设置项。结构固定：标题 / 说明 / 控件 / 悬停提示。tip 走 title 不另铺一行。 */
+function uiItem(title, control, desc, tip){
+  return '<div class="mitem"' + (tip ? ' title="' + uiEsc(tip) + '"' : '') + '>' +
+    '<div><div class="mi-h"><span class="mi-t">' + title + '</span></div>' +
+    '<div class="mi-d">' + desc + '</div></div>' +
     '<div class="mi-c">' + control + '</div></div>';
-}
-/* 保存后就地刷「已改动」标签，不重建节点，保留焦点与光标。 */
-function uiRefreshTags(){
-  var body = $('settingsBody');
-  if(!body || !ui){ return; }
-  Array.prototype.forEach.call(body.querySelectorAll('.mitem[data-k]'), function(el){
-    var tag = uiTag(ui, el.getAttribute('data-k'));
-    var span = el.querySelector('.mi-tag');
-    if(!span){ return; }
-    span.hidden = !tag;
-    span.className = 'mi-tag' + (tag ? ' chg' : '');
-  });
 }
 /* 一级分类。整页只用这一种分类容器，圆角与标题样式统一。 */
 function uiCat(icon, title, sub, body){
@@ -1073,7 +1056,7 @@ function uiCat(icon, title, sub, body){
     '<span class="tt">' + title + '</span><span class="sub">' + sub + '</span></div>' +
     body + '</section>';
 }
-/* 分类内小标题：只用于分隔只读信息与变更记录。 */
+/* 分类内小标题：只做分组分隔。 */
 function uiSub(title, extra){
   return '<div class="msub"><span class="tt">' + title + '</span>' +
     (extra ? '<span class="mi-d">' + extra + '</span>' : '') + '<span class="sp"></span></div>';
@@ -1088,25 +1071,6 @@ function advHintText(key, u){
   if(v > ADV_FACTORY){ return '已越过出厂值：部分文字可能看不清。'; }
   if(v < ADV_FACTORY){ return '比出厂值更保守，文字更容易看清。'; }
   return '出厂值。往左往右都会改变观感。';
-}
-/* 「已改动」标签的判据。这份表与 uiCollect() 里那份口径一致，不一致表现为
-   "默认值却挂着已改动"。remember 存"关掉"的反面、logKeep 是生效值，都先还原再比。 */
-var UI_DEF = {
-  theme:'auto', accent:'mint', flat:'off', radii:'std', backdrop:'on', bgImage:'',
-  glass:'on', fade:'on', scale:'std', motion:'full',
-  rail:'std', musicMode:'order', musicLoop:'all', musicVol:'70', remember:'',
-  logKeep:'2000', defPort:'', defRelay:'',
-  transparency:String(ADV_FACTORY), wallBright:String(ADV_FACTORY)
-};
-function uiTag(u, key){
-  // 纯动作行（帧率实测、曲库、播放控制等）没有设置字段，key 传空串。
-  // 否则空键在两张表里都取不到值，会被判为"已改动"。
-  if(!key){ return null; }
-  var v = u ? u[key] : '';
-  if(key === 'remember'){ v = (u.remember === '0') ? '0' : ''; }
-  if(key === 'logKeep'){ v = String((u && u.logKeep) || '2000'); }
-  if(v === undefined || v === null){ v = ''; }
-  return (String(v) === UI_DEF[key]) ? null : {text:'已改动', chg:true};
 }
 /* 只读信息：值全部来自服务端，界面上只有文本。 */
 function uiInfoRow(k, v, mono){
@@ -1125,48 +1089,43 @@ function uiStat(k, bytes, files){
 
 /* ---- 分类一：主题外观 ---- */
 function uiThemeHTML(u){
-  return uiItem('theme', '主题', uiSeg('theme', u.theme, uiThemes()),
+  return uiItem('主题', uiSeg('theme', u.theme, uiThemes()),
       '只换底色与字色。') +
-    uiItem('accent', '强调色', uiAccentDots(u), '链路状态颜色。',
+    uiItem('强调色', uiAccentDots(u), '链路状态颜色。',
       '警告与错误固定为琥珀、红。') +
-    uiItem('flat', '材质', uiSeg('flat', u.flat, [['off','立体'],['on','扁平']]),
+    uiItem('材质', uiSeg('flat', u.flat, [['off','立体'],['on','扁平']]),
       '去掉圆角、阴影、渐变与光晕，只留颜色与 1px 线条。',
       '焦点框改为描边。') +
-    uiItem('radii', '圆角大小', uiSeg('radii', u.radii, [['sharp','利落'],['std','标准'],['round','圆润']]),
+    uiItem('圆角大小', uiSeg('radii', u.radii, [['sharp','利落'],['std','标准'],['round','圆润']]),
       '面板、卡片与按钮的圆角。',
       '与「材质：扁平」冲突时以扁平为准。') +
-    uiItem('backdrop', '背景光效', uiSw('backdrop', u.backdrop !== 'off', '显示极光与网格'),
-      '两层装饰渐变；不影响背景图片。') +
-    uiItem('bgImage', '背景图片', uiWallPicker(u), wallHintText(u),
+    uiItem('背景图片', uiWallPicker(u), wallHintText(u),
       '按比例铺满；上压一层与主题同色的暗化层。') +
     /* 视觉特效自成一个分组：管"面板长什么样"。 */
     uiSub('视觉特效', '面板的半透明与模糊') +
-    uiItem('glass', '毛玻璃', uiSeg('glass', u.glass, [['off', '关'], ['on', '开']]),
+    uiItem('毛玻璃', uiSeg('glass', u.glass, [['off', '关'], ['on', '开']]),
       glassHintText(u),
       '模糊按层次分配：主容器一档，浮层更强；面板内的卡片只半透明。' +
       '设了背景图时两者并存，不影响文字可读性。高对比主题不参与。') +
-    uiItem('fade', '面板淡入', uiSw('fade', u.fade !== 'off', '浮层出现时淡入'),
-      '只动透明度，不动位置。',
-      '「动画效果：精简」或系统「减少动态效果」下自动关闭。') +
-    uiItem('', '帧率实测',
+    uiItem('帧率实测',
       '<button type="button" class="btn sm" data-act="vfxMeasure">在当前设置测一秒</button>' +
       '<span class="mi-out" id="vfxStats">尚未测过</span>',
       '开关切换后点一次；不改设置。') +
-    uiItem('scale', '界面字号', uiSeg('scale', u.scale, [['std','标准'],['big','大']]),
+    uiItem('界面字号', uiSeg('scale', u.scale, [['std','标准'],['big','大']]),
       '只放大字号，版式不动。') +
-    uiItem('motion', '动画效果', uiSeg('motion', u.motion, [['full','完整'],['lite','精简']]),
+    uiItem('动画效果', uiSeg('motion', u.motion, [['full','完整'],['lite','精简']]),
       '精简去掉全部过渡与呼吸动画（状态点保留）。',
       '系统「减少动态效果」优先。') +
-    uiItem('rail', '侧边栏样式', uiSeg('rail', u.rail, [['std','标准'],['compact','紧凑']]),
+    uiItem('侧边栏样式', uiSeg('rail', u.rail, [['std','标准'],['compact','紧凑']]),
       '去掉操作行说明、收紧行距。',
       '只影响排版；名称、顺序与行为不变。') +
     /* 高级选项自成一组：调的是同一批观感，可能比出厂更冒险。
        出厂值居中，往两端都有意义。 */
     uiSub('高级选项', '出厂值在中间；越过出厂值后文字可能看不清') +
-    uiItem('transparency', '面板透明度', uiRange('transparency', u.transparency, 0, 100),
+    uiItem('面板透明度', uiRange('transparency', u.transparency, 0, 100),
       advHintText('transparency', u),
       '往右面板更透明、往左更接近实心；50 是出厂值。') +
-    uiItem('wallBright', '背景图明暗', uiRange('wallBright', u.wallBright, 0, 100),
+    uiItem('背景图明暗', uiRange('wallBright', u.wallBright, 0, 100),
       advHintText('wallBright', u),
       '往右照片更清楚、往左照片更暗；50 是出厂值。');
 }
@@ -1175,42 +1134,39 @@ function uiThemeHTML(u){
 function uiAuxHTML(u){
   return '<div class="mbenefit">' + uiIcon('aux') +
     '<span>关掉任何一项都不影响联机。</span></div>' +
-    uiItem('', '曲库', uiMusicList(u), musicHintText(u),
+    uiItem('曲库', uiMusicList(u), musicHintText(u),
       '即存档的 music 文件夹；改动后点「刷新」。') +
-    uiItem('musicMode', '播放顺序', uiSeg('musicMode', u.musicMode, [['order','顺序'],['shuffle','随机']]),
-      '随机时避开当前这首。',
-      '只有一首时与顺序相同。') +
-    uiItem('musicLoop', '循环', uiSeg('musicLoop', u.musicLoop, [['off','不循环'],['all','列表循环'],['one','单曲循环']]),
-      '「不循环」播到最后一首即停。',
-      '随机模式不受此项影响。') +
-    uiItem('musicVol', '音量', uiRange('musicVol', u.musicVol, 0, 100),
+    uiItem('播放方式', uiSeg('musicPlay', u.musicPlay, [['loop','循环播放'],['shuffle','随机播放'],['one','单曲循环']]),
+      '循环播放按列表顺序、播完回到第一首；随机播放每次另挑一首；单曲循环反复放同一首。',
+      '随机播放会避开当前这首；只有一首时与循环播放相同。') +
+    uiItem('音量', uiRange('musicVol', u.musicVol, 0, 100),
       '0-100，与系统音量相乘；拖动即生效。',
       '无声时先检查系统音量。') +
-    uiItem('', '播放控制',
+    uiItem('播放控制',
       '<button type="button" class="btn sm" data-act="bgmPrev">上一首</button>' +
       '<button type="button" class="btn sm" data-act="bgmPlay">播放 / 暂停</button>' +
       '<button type="button" class="btn sm" data-act="bgmNext">下一首</button>',
       '状态栏音符按钮：左键播放/暂停，右键下一首。',
       '默认不自动播放。') +
-    uiItem('remember', '记住上次填过的值', uiSw('remember', u.remember !== '0', '记住上次填过的值'),
+    uiItem('记住上次填过的值', uiSw('remember', u.remember !== '0', '记住上次填过的值'),
       '按操作与填写项记住上次的值。',
       '关掉只停止新记；已记的用「清除」。') +
-    uiItem('', '清除记住的填写内容',
+    uiItem('清除记住的填写内容',
       '<button type="button" class="btn sm" data-act="forgetInputs">清除</button>',
       '清空已记住的填写值。',
       '不动任何设置。') +
-    uiItem('logKeep', '日志保留行数', uiField('logKeep', 'small', u.logKeep, '2000', '行'),
+    uiItem('日志保留行数', uiField('logKeep', 'small', u.logKeep, '2000', '行'),
       '两层各留行数，200 ~ 20000。',
       '超出范围时回到默认值。') +
-    uiItem('defPort', '默认游戏端口', uiField('defPort', 'small', u.defPort, '25565', ''),
+    uiItem('默认游戏端口', uiField('defPort', 'small', u.defPort, '25565', ''),
       '「游戏端口」留空时用它。',
       '任务里填过的优先。') +
-    uiItem('defRelay', '默认中转服务器', uiField('defRelay', '', u.defRelay, 'turn:主机:3478 或 mclbx://…', ''),
+    uiItem('默认中转服务器', uiField('defRelay', '', u.defRelay, 'turn:主机:3478 或 mclbx://…', ''),
       '「中转服务器」留空时用它。',
       '只代填，不自动启用中继。');
 }
 
-/* ---- 分类三：关于与状态（整块只读 + 变更记录） ---- */
+/* ---- 分类三：关于与状态（整块只读） ---- */
 function uiAboutHTML(u){
   var st = u.storage || {}, it = st.items || {}, cf = u.configFile || {};
   var music = (u.musicList || []).length;
@@ -1235,45 +1191,21 @@ function uiAboutHTML(u){
     uiStat('背景图缓存', it.cache && it.cache.bytes, it.cache && it.cache.files) +
     uiStat('壁纸原图', it.wall && it.wall.bytes, it.wall && it.wall.files) +
     uiStat('音乐', it.music && it.music.bytes, it.music && it.music.files) +
-    uiStat('配置与日志',
-      ((it.config && it.config.bytes) || 0) + ((it.changes && it.changes.bytes) || 0),
-      ((it.config && it.config.files) || 0) + ((it.changes && it.changes.files) || 0)) +
+    uiStat('配置与日志', it.config && it.config.bytes, it.config && it.config.files) +
     '</div>';
-  h += uiChangesHTML(u);
-  return h;
-}
-/* 变更记录："关于与状态"里的一段。 */
-function uiChangesHTML(u){
-  var list = (u && u.changes) || [];
-  var h = uiSub('设置变更记录', '共 ' + list.length + ' 条，上限 ' + (u.changeMax || 500) + ' 条' +
-    (list.length ? '　·　记录只存取值本身，不含与网络环境或个人身份有关的内容' : ''));
-  if(!list.length){
-    return h + '<div class="mchgempty">尚无改动记录。改过设置后，这里会逐条记下时间、分类、' +
-      '选项名与前后取值。</div>';
-  }
-  h += '<div class="mchg">';
-  for(var i = list.length - 1; i >= 0; i--){   // 倒序：最近改的排在最上面
-    var c = list[i];
-    h += '<div class="mchgr"><span class="t">' + uiEsc(c.at) + '</span>' +
-      '<span class="m">' + uiEsc(c.module) + '</span>' +
-      '<span class="i">' + uiEsc(c.item) + '</span>' +
-      '<span class="v">' + uiEsc(c.from) + ' → ' + uiEsc(c.to) + '</span></div>';
-  }
-  h += '</div>';
   return h;
 }
 /* ---- 维护：动作集中在这一块 ----
-   恢复默认 / 导出 / 导入 / 打开目录 / 复制版本 / 诊断包，均非设置项。
-   恢复默认保留两个范围，入口只有一个，点开后才选范围。 */
+   恢复出厂设置 / 导出 / 导入 / 打开目录 / 复制版本 / 诊断包，均非设置项。
+   恢复出厂设置保留两个范围，入口只有一个，点开后才选范围。 */
 function uiMaintHTML(){
   return '<section class="mmaint">' +
     '<div class="mcathead"><span class="ic">' + uiIcon('wrench') + '</span>' +
     '<span class="tt">维护</span><span class="sub">作用于整份配置或整个存档目录。</span></div>' +
     '<div class="acts">' +
-    '<button type="button" class="btn sm" data-act="resetAsk">恢复默认…</button>' +
+    '<button type="button" class="btn sm" data-act="resetAsk">恢复出厂设置…</button>' +
     '<button type="button" class="btn sm" data-act="exportCfg">导出全部配置</button>' +
     '<button type="button" class="btn sm" data-act="importCfg">导入配置…</button>' +
-    '<button type="button" class="btn sm" data-act="changesClear">清空变更记录</button>' +
     '<button type="button" class="btn sm" data-act="openData">打开数据目录</button>' +
     '<button type="button" class="btn sm" data-act="copyVersion">复制版本信息</button>' +
     '<button type="button" class="btn sm" data-act="diag">导出诊断包</button>' +
@@ -1284,8 +1216,8 @@ function uiMaintHTML(){
     '</section>';
 }
 function uiSettingsHTML(u){
-  return '<p class="mintro">所有选项<b>改完即时生效</b>，无需重启，也没有「保存」这一步。' +
-    '带<b>已改动</b>标记的项与出厂值不同；悬停一行可见更细的说明。</p>' +
+  return '<p class="mintro">所有选项<b>改完即时生效</b>，无需重启，也没有「保存」这一步；' +
+    '悬停一行可见更细的说明。</p>' +
     uiCat('theme', '主题外观', '配色、背景、特效与排版。', uiThemeHTML(u)) +
     uiCat('aux', '辅助工具', '附加能力，可按需开关。', uiAuxHTML(u)) +
     uiCat('info', '关于与状态', '只读信息。', uiAboutHTML(u)) +
@@ -1354,10 +1286,10 @@ function uiCollect(){
   var u = ui || {};
   var out = {
     theme:u.theme || 'auto', accent:u.accent || 'mint', motion:u.motion || 'full',
-    backdrop:u.backdrop || 'on', scale:u.scale || 'std', flat:u.flat || 'off',
-    glass:u.glass || 'on', fade:u.fade || 'on',
+    scale:u.scale || 'std', flat:u.flat || 'off',
+    glass:u.glass || 'on',
     transparency:u.transparency || String(ADV_FACTORY), wallBright:u.wallBright || String(ADV_FACTORY),
-    bgImage:u.bgImage || '', musicMode:u.musicMode || 'order', musicLoop:u.musicLoop || 'all',
+    bgImage:u.bgImage || '', musicPlay:u.musicPlay || 'loop',
     musicVol:u.musicVol || '70', remember:u.remember || '', logKeep:u.logKeep || '',
     defPort:u.defPort || '', defRelay:u.defRelay || '',
     autoProbe:!!u.autoProbe
@@ -1372,12 +1304,7 @@ function uiCollect(){
     var k = c.getAttribute('data-sw');
     if(k === 'autoProbe'){ out.autoProbe = c.checked; }
     if(k === 'remember'){ out.remember = c.checked ? '' : '0'; }
-    // 背景光效须在此读取：漏掉会让 out.backdrop 固定为 'on'，复选框无效且保存会把用户的
-    // "off" 打回 on。用例 TestEverySwitchInThePanelIsCollected 逐键比对。
-    if(k === 'backdrop'){ out.backdrop = c.checked ? 'on' : 'off'; }
     if(k === 'flat'){ out.flat = c.checked ? 'on' : 'off'; }
-    // 【视觉美化，非核心功能】面板淡入
-    if(k === 'fade'){ out.fade = c.checked ? 'on' : 'off'; }
   });
   Array.prototype.forEach.call(document.querySelectorAll('#settingsBody [data-in]'), function(i){
     out[i.getAttribute('data-in')] = (i.value || '').trim();
@@ -1409,13 +1336,12 @@ function uiApply(u){
   var el = document.documentElement;
   el.setAttribute('data-accent', u.accent || 'mint');
   el.setAttribute('data-motion', u.motion === 'lite' ? 'lite' : 'full');
-  el.setAttribute('data-backdrop', u.backdrop === 'off' ? 'off' : 'on');
   el.setAttribute('data-scale', u.scale === 'big' ? 'big' : 'std');
   el.setAttribute('data-flat', u.flat === 'on' ? 'on' : 'off');
   // 圆角与侧边栏须立即生效：否则选了新档位要等刷新才变，看似未保存成功。
   el.setAttribute('data-radii', u.radii || 'std');
   el.setAttribute('data-rail', u.rail || 'std');
-  // 【视觉美化，非核心功能】data-glass / data-fade 交给 VFX 写：
+  // 【视觉美化，非核心功能】data-glass 交给 VFX 写：
   // 取值需先检查 backdrop-filter 支持性并在不支持时降级；业务侧不参与渲染决策。
   VFX.apply(u);
   // 背景图由服务端缩放缓存后返回地址，此处只挂上/摘下，且须立即生效。
@@ -1469,7 +1395,6 @@ async function uiSave(){
   ui = r.ui;
   uiApply(ui);
   uiRefreshHints(ui);
-  uiRefreshTags();
   // 音量立即生效，无需等下一首
   if(bgmEl){ bgmEl.volume = bgmGain(); }
   // logKeep 按十进制字符串收，与服务端两路（读设置 / 保存）形态一致
@@ -1484,7 +1409,7 @@ async function uiSave(){
     uiSaveState('已修正 ' + cor.length + ' 项取值 ' + clockNow(), true);
     toast('有 ' + cor.length + ' 项取值不合法，已改回合法值：' + parts.join('、') +
       (cor.length > 3 ? ' 等' : ''), true);
-    // 重画一次，使控件显示服务端归一化后真正生效的值，并刷新「已改动」标签。
+    // 重画一次，使控件显示服务端归一化后真正生效的值。
     renderSettings();
     return;
   }
@@ -1509,7 +1434,7 @@ async function uiImportWall(file){
 /* ---- 背景音乐 ----
    播放交给界面侧：<audio> 原生解 MP3/WAV/FLAC/OGG/M4A；拖动进度靠服务端 /music/ 的 Range；
    播完有 ended 事件。故无需轮询与定时器，Go 侧也不维护播放状态机。
-   曲库来自服务端扫描 music 目录的结果；界面只记住「放哪一首」与偏好（顺序、循环、音量）。
+   曲库来自服务端扫描 music 目录的结果；界面只记住「放哪一首」与偏好（播放方式、音量）。
    无法播放的文件记在 bgmBad 并显示出来。 */
 var bgmEl = null, bgmList = [], bgmIdx = -1, bgmBad = {};
 
@@ -1539,11 +1464,11 @@ function bgmSetList(list){
   if(bgmIdx >= 0 && !bgmList[bgmIdx]){ bgmIdx = -1; } // 那一首被删了
   bgmPaint();
 }
-/* 下一首的下标。随机时避开当前这首（只有一首时只能重复）。 */
+/* 下一首的下标。随机播放时避开当前这首（只有一首时只能重复）。 */
 function bgmNextIndex(){
   if(!bgmList.length){ return -1; }
   if(bgmList.length === 1){ return 0; }
-  if(((ui && ui.musicMode) || 'order') === 'shuffle'){
+  if(((ui && ui.musicPlay) || 'loop') === 'shuffle'){
     var n = bgmIdx;
     while(n === bgmIdx){ n = Math.floor(Math.random() * bgmList.length); }
     return n;
@@ -1572,14 +1497,10 @@ function bgmPlayAt(i){
   }
   bgmPaint();
 }
-/* 一首放完：按循环设置决定重放本曲、下一首，还是停下。 */
+/* 一首放完：单曲循环重放本曲，其余按播放方式取下一首。 */
 function bgmEnded(){
-  var loop = (ui && ui.musicLoop) || 'all';
-  if(loop === 'one'){ bgmEl.currentTime = 0; bgmEl.play().catch(function(){}); return; }
-  if(loop === 'off' && ((ui && ui.musicMode) || 'order') === 'order' && bgmIdx === bgmList.length - 1){
-    bgmPaint();
-    return; // 顺序播到最后一首且不循环：停下
-  }
+  var play = (ui && ui.musicPlay) || 'loop';
+  if(play === 'one'){ bgmEl.currentTime = 0; bgmEl.play().catch(function(){}); return; }
   bgmPlayAt(bgmNextIndex());
 }
 /* 某文件放不了：记下并提示，跳到尚未失败的一首；全部失败则停止。 */
@@ -1625,7 +1546,7 @@ async function bgmStep(delta){
   if(!bgmList.length){ toast('曲库里还没有音乐', true); return; }
   bgmPlayAt(delta > 0 ? bgmNextIndex() : bgmPrevIndex());
 }
-/* 恢复默认前的就地确认条，不弹系统对话框（各平台 WebView 行为不一致）。
+/* 恢复出厂设置前的就地确认条，不弹系统对话框（各平台 WebView 行为不一致）。
    范围写在按钮的 data-board 上，三个范围共用同一动作名。 */
 function uiAskReset(){
   var old = $('mConfirm');
@@ -1681,7 +1602,7 @@ async function uiAction(a, btn){
     }
     return;
   }
-  /* ---- 配置管理：导出 / 导入 / 恢复默认 / 变更记录 / 复制版本 ----
+  /* ---- 配置管理：导出 / 导入 / 恢复出厂设置 / 复制版本 ----
      导出与导入走服务端专用接口而非下载链接，避开各平台 WebView 下载行为不一致的问题。 */
   if(a === 'exportCfg'){
     var er = await api('/api/settings/export', {});
@@ -1697,14 +1618,7 @@ async function uiAction(a, btn){
     if(cf){ cf.value = ''; cf.click(); }
     return;
   }
-  if(a === 'changesClear'){
-    var cl = await api('/api/settings/changes', { clear:true });
-    if(cl && cl.changes && ui){ ui.changes = cl.changes; }
-    renderSettings();
-    toast('已清空 ' + ((cl && cl.cleared) || 0) + ' 条记录');
-    return;
-  }
-  /* 恢复默认只有一个入口，范围在此选。 */
+  /* 恢复出厂设置只有一个入口，范围在此选。 */
   if(a === 'resetAsk'){ uiAskReset(); return; }
   if(a === 'resetCancel'){
     var cd = $('mConfirm');
@@ -1715,15 +1629,15 @@ async function uiAction(a, btn){
     var board = (btn && btn.getAttribute('data-board')) || 'all';
     var label = (board === 'all') ? '全部设置' : ('「' + board + '」这一类');
     var rr = await api('/api/settings/reset', { scope: board });
-    if(!rr || !rr.ok){ toast((rr && rr.err) || '恢复默认失败', true); return; }
+    if(!rr || !rr.ok){ toast((rr && rr.err) || '恢复出厂设置失败', true); return; }
     var cd2 = $('mConfirm');
     if(cd2 && cd2.parentNode){ cd2.parentNode.removeChild(cd2); }
-    if(!rr.changed){ toast(label + '已是默认值'); return; }
+    if(!rr.changed){ toast(label + '已是出厂值'); return; }
     ui = rr.ui;
     uiApply(ui);
     renderSettings();
-    uiSaveState('已恢复默认 ' + clockNow());
-    toast('已把' + label + '恢复默认，共改动 ' + rr.changed + ' 项');
+    uiSaveState('已恢复出厂设置 ' + clockNow());
+    toast('已把' + label + '恢复出厂设置，共改动 ' + rr.changed + ' 项');
     return;
   }
   if(a === 'copyVersion'){ copy(((ui && ui.version) || 'mclbx') + ''); return; }

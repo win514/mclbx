@@ -25,28 +25,30 @@ type guiConfig struct {
 
 // guiUIState 界面偏好；读取时统一归一化，非法取值回落到默认。
 type guiUIState struct {
-	Theme    string `json:"theme,omitempty"`    // auto（跟随系统）/ dark / light / contrast
-	Accent   string `json:"accent,omitempty"`   // mint / blue / violet
-	Motion   string `json:"motion,omitempty"`   // full / lite
-	Backdrop string `json:"backdrop,omitempty"` // on / off
-	Scale    string `json:"scale,omitempty"`    // std / big（界面字号，独立于主题）
-	Flat     string `json:"flat,omitempty"`     // on / off（扁平化，独立于主题）
-	Glass    string `json:"glass,omitempty"`    // on / off（毛玻璃）：off = 实心不做模糊，on = 最透明那一档
-	Fade     string `json:"fade,omitempty"`     // on / off（面板淡入）
-	BgImage  string `json:"bgImage,omitempty"`  // 背景图片名（存档 wallpapers 目录里的一个文件）；空 = 不用
-	Radii    string `json:"radii,omitempty"`    // sharp / std / round（界面圆角大小）
-	Rail     string `json:"rail,omitempty"`     // std / compact（侧边栏样式）
+	Theme   string `json:"theme,omitempty"`   // auto（跟随系统）/ dark / light / contrast
+	Accent  string `json:"accent,omitempty"`  // mint / blue / violet
+	Motion  string `json:"motion,omitempty"`  // full / lite
+	Scale   string `json:"scale,omitempty"`   // std / big（界面字号，独立于主题）
+	Flat    string `json:"flat,omitempty"`    // on / off（扁平化，独立于主题）
+	Glass   string `json:"glass,omitempty"`   // on / off（毛玻璃）：off = 实心不做模糊，on = 最透明那一档
+	BgImage string `json:"bgImage,omitempty"` // 背景图片名（存档 wallpapers 目录里的一个文件）；空 = 不用
+	Radii   string `json:"radii,omitempty"`   // sharp / std / round（界面圆角大小）
+	Rail    string `json:"rail,omitempty"`    // std / compact（侧边栏样式）
 
 	// 高级选项：两个 0-100 的百分比，出厂都是 50。只在离开出厂值时才覆盖样式。
 	Transparency string `json:"transparency,omitempty"` // 面板透明度：越大面板越透
 	WallBright   string `json:"wallBright,omitempty"`   // 背景图明暗：越大照片越清楚
-	MusicMode    string `json:"musicMode,omitempty"`    // order / shuffle（顺序 / 随机）
-	MusicLoop    string `json:"musicLoop,omitempty"`    // off / all / one（不循环 / 列表循环 / 单曲循环）
+	MusicPlay    string `json:"musicPlay,omitempty"`    // loop / shuffle / one（循环播放 / 随机播放 / 单曲循环）
 	MusicVol     string `json:"musicVol,omitempty"`     // 0-100，十进制字符串
 	Remember     string `json:"remember,omitempty"`     // "0" = 不记住填写内容；空 = 记住
 	LogKeep      string `json:"logKeep,omitempty"`      // 日志每层保留行数
 	DefPort      string `json:"defPort,omitempty"`      // 默认游戏端口；空 = 不干预
 	DefRelay     string `json:"defRelay,omitempty"`     // 默认中转服务器；空 = 不干预
+
+	// 旧配置遗留：音乐原有的两个设置项，仅用于把老配置迁移到 MusicPlay。
+	// 它们不再是可编辑设置，见 uiLegacyFields —— 面板、导出、导入与重置都不认它们。
+	MusicMode string `json:"musicMode,omitempty"`
+	MusicLoop string `json:"musicLoop,omitempty"`
 }
 
 // themeValues 主题白名单，须与 assets/gui.js 的 uiThemes() 及 CSS 的 :root[data-theme=…] 一致。
@@ -56,8 +58,11 @@ var themeValues = []string{"dark", "light", "contrast"}
 // accentValues 强调色白名单，与 assets/gui.js 的 uiAccents() 对应。
 var accentValues = []string{"blue", "violet"}
 
-// scaleValues 界面字号白名单，是与 Motion/Backdrop 同级的独立维度。
+// scaleValues 界面字号白名单，是与 Motion 同级的独立维度。
 var scaleValues = []string{"std", "big"}
+
+// musicPlayValues 背景音乐播放方式白名单，与 assets/gui.js 的 uiSeg('musicPlay') 一致。
+var musicPlayValues = []string{"loop", "shuffle", "one"}
 
 // 毛玻璃：只有开与关两态。
 //
@@ -115,9 +120,6 @@ func normalizeUI(u guiUIState) guiUIState {
 	if u.Motion != "lite" {
 		u.Motion = "full"
 	}
-	if u.Backdrop != "off" {
-		u.Backdrop = "on"
-	}
 	if !containsStr(scaleValues, u.Scale) {
 		u.Scale = "std"
 	}
@@ -141,10 +143,6 @@ func normalizeUI(u guiUIState) guiUIState {
 	// 高级选项的两个百分比：越界与非数字一律回到出厂值，不留半个合法值。
 	u.Transparency = clampPercent(u.Transparency)
 	u.WallBright = clampPercent(u.WallBright)
-	// 面板淡入默认开，无总开关。
-	if u.Fade != "off" {
-		u.Fade = "on"
-	}
 	// 圆角与侧边栏样式：白名单之外一律回落到默认（取值直接命中 CSS 里对应的块）。
 	if !containsStr(radiiValues, u.Radii) {
 		u.Radii = "std"
@@ -154,12 +152,15 @@ func normalizeUI(u guiUIState) guiUIState {
 	}
 	// 旧配置存的是路径，在此换成导入进存档的副本（读写两条路都经过这里，迁移一次即可）。
 	u.BgImage = adoptLegacyWallPath(cleanWallPath(u.BgImage))
-	if !containsStr([]string{"order", "shuffle"}, u.MusicMode) {
-		u.MusicMode = "order"
+	// 背景音乐：旧的 musicMode / musicLoop 合并为一个 musicPlay，取值 loop / shuffle / one。
+	// 迁移只看老配置：musicMode=shuffle 直接落到 shuffle；否则按 musicLoop 映射，
+	// one → one，off 与 all → loop，认不出的回落 loop。迁移完成后清空遗留字段。
+	if !containsStr(musicPlayValues, strings.ToLower(strings.TrimSpace(u.MusicPlay))) {
+		u.MusicPlay = migrateMusicPlay(u.MusicMode, u.MusicLoop)
+	} else {
+		u.MusicPlay = strings.ToLower(strings.TrimSpace(u.MusicPlay))
 	}
-	if !containsStr([]string{"off", "all", "one"}, u.MusicLoop) {
-		u.MusicLoop = "all" // 背景音乐默认列表循环
-	}
+	u.MusicMode, u.MusicLoop = "", ""
 	if n, err := strconv.Atoi(strings.TrimSpace(u.MusicVol)); err != nil || n < 0 || n > 100 {
 		u.MusicVol = "70"
 	} else {
@@ -179,6 +180,21 @@ func normalizeUI(u guiUIState) guiUIState {
 	}
 	u.DefRelay = strings.TrimSpace(u.DefRelay)
 	return u
+}
+
+// migrateMusicPlay 把旧的两个音乐设置项合并成一个取值。
+// 契约：musicMode="shuffle" 落到 shuffle（随机优先）；否则按 musicLoop 映射，
+// one → one，off 与 all → loop；认不出的值一律回落 loop。
+func migrateMusicPlay(mode, loop string) string {
+	if strings.ToLower(strings.TrimSpace(mode)) == "shuffle" {
+		return "shuffle"
+	}
+	switch strings.ToLower(strings.TrimSpace(loop)) {
+	case "one":
+		return "one"
+	default:
+		return "loop"
+	}
 }
 
 // cleanWallPath 清理背景图路径：去首尾空白，以及「复制文件地址」粘贴时自带的一对引号。
@@ -209,8 +225,8 @@ func (u guiUIState) logKeep() int {
 // htmlAttr 拼出 <html> 的主题属性，由服务端注入以避免首屏闪烁。
 // 视觉美化各项一并注入，用于决定首屏观感。
 func (u guiUIState) htmlAttr() string {
-	return fmt.Sprintf(` data-theme="%s" data-accent="%s" data-motion="%s" data-backdrop="%s" data-scale="%s" data-flat="%s" data-glass="%s" data-fade="%s" data-radii="%s" data-rail="%s"`,
-		u.Theme, u.Accent, u.Motion, u.Backdrop, u.Scale, u.Flat, u.Glass, u.Fade, u.Radii, u.Rail)
+	return fmt.Sprintf(` data-theme="%s" data-accent="%s" data-motion="%s" data-scale="%s" data-flat="%s" data-glass="%s" data-radii="%s" data-rail="%s"`,
+		u.Theme, u.Accent, u.Motion, u.Scale, u.Flat, u.Glass, u.Radii, u.Rail)
 }
 
 // wallAttr 拼出背景图片那一段：data-wall 标记加一个行内 --wall 变量；无可用图片时返回空串。
@@ -231,14 +247,11 @@ func (u guiUIState) uiStartupJSON() string {
 		Theme     string `json:"theme"`
 		FollowOS  bool   `json:"followOS"`
 		LogKeep   int    `json:"logKeep"`
-		MusicMode string `json:"musicMode"`
-		MusicLoop string `json:"musicLoop"`
+		MusicPlay string `json:"musicPlay"`
 		MusicVol  string `json:"musicVol"`
-		// 视觉美化各项需在首屏获知，省一次取设置的往返。
-		Glass string `json:"glass"`
-		Fade  string `json:"fade"`
-		Radii string `json:"radii"`
-		Rail  string `json:"rail"`
+		Glass     string `json:"glass"`
+		Radii     string `json:"radii"`
+		Rail      string `json:"rail"`
 		// 高级选项的两个百分比：倍率由前端算，服务端只把取值发下去。
 		Transparency string `json:"transparency"`
 		WallBright   string `json:"wallBright"`
@@ -246,11 +259,9 @@ func (u guiUIState) uiStartupJSON() string {
 		Theme:        u.Theme,
 		FollowOS:     u.Theme == "auto",
 		LogKeep:      u.logKeep(),
-		MusicMode:    u.MusicMode,
-		MusicLoop:    u.MusicLoop,
+		MusicPlay:    u.MusicPlay,
 		MusicVol:     u.MusicVol,
 		Glass:        u.Glass,
-		Fade:         u.Fade,
 		Radii:        u.Radii,
 		Rail:         u.Rail,
 		Transparency: u.Transparency,
@@ -270,18 +281,13 @@ func loadUI() guiUIState {
 }
 
 // saveUI 整份覆盖并落盘（界面提交完整一份，故清空默认值也能生效）。
-// 顺带在锁外记一条变更记录（见 uicfg_io.go），它失败不影响本次保存。
 func saveUI(next guiUIState) (guiUIState, error) {
 	guiCfgMu.Lock()
 	c := loadConfigLocked()
-	prev := normalizeUI(c.UI)
 	c.UI = normalizeUI(next)
 	err := writeConfigLocked(c)
 	out := c.UI
 	guiCfgMu.Unlock()
-	if err == nil {
-		recordUIChanges(prev, out)
-	}
 	return out, err
 }
 

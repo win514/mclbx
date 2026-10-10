@@ -11,9 +11,9 @@ const guiShellHTML = `<!doctype html>
   界面页：服务端一次性渲染，不依赖外网；设置存在存档目录的 config.json 里。
 
   样式改动的性能约束：
-    模糊只加在局部面板，整屏图层（.bg / .aurora / .grid / .modal）与
+    模糊只加在局部面板，整屏图层（.bg / .modal）与
     持续追加或随滚动、搜索重算的区域（.logpanel / .log / .tasks / .op / 侧栏面板）不加；
-    任务执行期间整体让位（data-vfx-busy），结束后恢复；不写 will-change，淡入只动 opacity。
+    任务执行期间整体让位（data-vfx-busy），结束后恢复；不写 will-change。
     美化层（gui.css 的「视觉美化（VFX）」段与 gui.js 的 VFX 模块）可整段删除，
     界面回到实心扁平外观，功能不受影响。
 -->
@@ -50,7 +50,7 @@ const guiShellHTML = `<!doctype html>
 <link rel="stylesheet" href="/assets/gui.css">
 </head>
 <body>
-<div class="bg"><div class="wall"></div><div class="scrim"></div><div class="aurora"></div><div class="grid"></div></div>
+<div class="bg"><div class="wall"></div><div class="scrim"></div></div>
 
 <div class="shell" id="app">
   <!-- 顶栏 = 身份 + 页面导航 + 连接进展 + 当前状态，顺序固定。

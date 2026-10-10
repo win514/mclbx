@@ -14,17 +14,14 @@ import (
 	"testing"
 )
 
-// withTempArchive 把存档目录指到临时目录：导出文件与变更记录都落在那里。
+// withTempArchive 把存档目录指到临时目录：导出文件落在那里。
 func withTempArchive(t *testing.T) string {
 	t.Helper()
 	old := archiveDirOverride
 	dir := t.TempDir()
 	archiveDirOverride = dir
-	oldChanges := uiChangeFile
-	uiChangeFile = func() string { return filepath.Join(dir, "ui-changes.json") }
 	t.Cleanup(func() {
 		archiveDirOverride = old
-		uiChangeFile = oldChanges
 	})
 	return dir
 }
@@ -147,7 +144,7 @@ func TestNewSegmentOptionsMatchTheWhitelist(t *testing.T) {
 // ---- 规约二：只读区不得有可编辑控件 ----
 
 func TestReadonlyBlockHasNoEditableControls(t *testing.T) {
-	ro := bodyBetween(t, "function uiAboutHTML(u){", "function uiChangesHTML(u){")
+	ro := bodyBetween(t, "function uiAboutHTML(u){", "function uiMaintHTML(){")
 	for _, bad := range []string{"uiSeg(", "uiSw(", "uiField(", "uiItem(", "data-in=", "data-sw=", "data-seg=", "data-accent="} {
 		if strings.Contains(ro, bad) {
 			t.Errorf("「关于与状态」里出现了 %s —— 这一块是纯展示，不许留任何编辑入口", bad)
@@ -352,42 +349,9 @@ func TestResetOnlyTouchesItsOwnBoard(t *testing.T) {
 	}
 }
 
-// ---- 变更记录 ----
-
-func TestChangesRecordBoardAndItemName(t *testing.T) {
-	withTempConfig(t)
-	withTempArchive(t)
-	clearUIChanges()
-
-	if _, err := saveUI(guiUIState{Theme: "dark"}); err != nil {
-		t.Fatal(err)
-	}
-	list := loadChanges()
-	if len(list) != 1 {
-		t.Fatalf("改了一项，记录里应当有 1 条，实际 %d 条：%v", len(list), list)
-	}
-	c := list[0]
-	if c.Module != "主题外观" || c.Item != "主题" {
-		t.Errorf("记录没写清改的是哪一项：板块=%q 选项=%q", c.Module, c.Item)
-	}
-	if c.From == "" || c.To != "dark" || c.At == "" {
-		t.Errorf("记录内容不完整：from=%q to=%q at=%q", c.From, c.To, c.At)
-	}
-	if _, err := saveUI(guiUIState{Theme: "dark"}); err != nil {
-		t.Fatal(err)
-	}
-	if n := len(loadChanges()); n != 1 {
-		t.Errorf("取值没变却又记了一条，现在共 %d 条", n)
-	}
-	if n := clearUIChanges(); n != 1 {
-		t.Errorf("清空说清掉了 %d 条，实际记录里有 1 条", n)
-	}
-}
-
-// 存档目录取不到时，变更记录与导出都不得退化成相对路径。
-// filepath.Join("", "ui-changes.json") 会变成相对当前目录的文件名，
+// 存档目录取不到时导出不得退化成相对路径：filepath.Join("", name) 会变成相对当前目录的文件名，
 // 等于往用户的任意工作目录里丢文件。
-func TestChangeLogAndExportRefuseToWriteWithoutDataDir(t *testing.T) {
+func TestExportRefusesToWriteWithoutDataDir(t *testing.T) {
 	withTempConfig(t)
 	clearDirCaches()
 	oldExe, oldOverride := exePath, archiveDirOverride
@@ -403,25 +367,8 @@ func TestChangeLogAndExportRefuseToWriteWithoutDataDir(t *testing.T) {
 	if got := dataDir(); got != "" {
 		t.Skipf("本机仍然有一个可写位置（%s），这条只能验证到「没有退化成相对路径」", got)
 	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	stray := filepath.Join(cwd, "ui-changes.json")
-	_ = os.Remove(stray)
-
-	if _, err := saveUI(guiUIState{Theme: "dark"}); err != nil {
-		t.Fatalf("存档目录不可用时保存设置不该失败：%v", err)
-	}
-	if _, err := os.Stat(stray); err == nil {
-		_ = os.Remove(stray)
-		t.Error("变更记录被写进了当前工作目录 —— 存档目录取不到时应当干脆不写")
-	}
 	if p, err := exportUIConfig(); err == nil {
 		_ = os.Remove(p)
 		t.Errorf("没有存档目录时导出竟然成功了：%s", p)
-	}
-	if n := clearUIChanges(); n != 0 {
-		t.Errorf("没有存档目录时清空记录应当返回 0，实际 %d", n)
 	}
 }

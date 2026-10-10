@@ -12,9 +12,8 @@
   --chrome:#090E14; --panel:rgba(3,6,10,.72); --field:rgba(5,9,14,.72);
   --search:rgba(7,11,17,.75); --plate:rgba(4,9,8,.85); --pre-bg:rgba(62,224,161,.06);
   --line:#1A2836; --line2:#233A4D; --hair:rgba(255,255,255,.08); --hair2:rgba(255,255,255,.14);
-  --grid-ink:rgba(255,255,255,.032); --sheen:rgba(255,255,255,.12);
+  --sheen:rgba(255,255,255,.12);
   --scroll:#1E3040; --scroll-hi:#2A4356;
-  --aurora-a:rgba(62,224,161,.045); --aurora-b:rgba(99,169,255,.10);
   /* ---- 字 ----
      四级灰阶 + 一组"彩色字"（只用于状态与日志，标示性质）。
      四级都必须读得清（对比度见 uisettings_test.go 表）；层次靠字号与位置，不靠降低可见度。 */
@@ -90,10 +89,10 @@
 
    变量分三类：
      · 主题私有：每个主题块必须自己声明全部，漏一个会出现"某块仍用上一个主题的颜色"；
-     · 强调色私有：--sig / --sig-deep / --sel / --pre-bg / --aurora-a，仅强调色块与浅色主题可动；
-     · 共用：尺寸与字体，以及强调色族的半透明值。
-   --pre-bg 与 --aurora-a 由强调色顺带决定；若要加背景类主题，须先把这两个移出强调色块，
-   否则会得到"主题 × 强调色"的全组合。
+     · 强调色私有：--sig / --sig-deep / --sel / --pre-bg，仅强调色块与浅色主题可动；
+    · 共用：尺寸与字体，以及强调色族的半透明值。
+  --pre-bg 由强调色顺带决定；若要加背景类主题，须先把它移出强调色块，
+  否则会得到"主题 × 强调色"的全组合。
    ========================================================================== */
 
 /* 强调色：只换这一个色族，不区分深浅主题（半透明的那些在两种底色上都成立）。 */
@@ -101,13 +100,13 @@
   --sig:#63A9FF; --sig-deep:#2F7BD8; --sig-soft:rgba(99,169,255,.13);
   --sig-edge:rgba(99,169,255,.34); --sig-ring:rgba(99,169,255,.14);
   --sig-focus:rgba(99,169,255,.55); --sig-live:rgba(99,169,255,.7); --sig-glow:rgba(99,169,255,.45);
-  --sel:rgba(99,169,255,.28); --pre-bg:rgba(99,169,255,.06); --aurora-a:rgba(99,169,255,.05);
+  --sel:rgba(99,169,255,.28); --pre-bg:rgba(99,169,255,.06);
 }
 :root[data-accent="violet"]{
   --sig:#B08CFF; --sig-deep:#7C55D8; --sig-soft:rgba(176,140,255,.13);
   --sig-edge:rgba(176,140,255,.34); --sig-ring:rgba(176,140,255,.14);
   --sig-focus:rgba(176,140,255,.55); --sig-live:rgba(176,140,255,.7); --sig-glow:rgba(176,140,255,.45);
-  --sel:rgba(176,140,255,.28); --pre-bg:rgba(176,140,255,.06); --aurora-a:rgba(176,140,255,.05);
+  --sel:rgba(176,140,255,.28); --pre-bg:rgba(176,140,255,.06);
 }
 /* 此处不提供琥珀强调色：琥珀已作为"注意"语义色（未放行入站、名单超限、警告行），
    再作强调色会与正常状态混淆。 */
@@ -121,9 +120,8 @@
   --chrome:#FFFFFF; --panel:rgba(9,17,26,.045); --field:rgba(9,17,26,.045);
   --search:rgba(9,17,26,.05); --plate:rgba(255,255,255,.72); --pre-bg:rgba(14,159,110,.08);
   --line:#DCE4EC; --line2:#BFCEDC; --hair:rgba(9,17,26,.10); --hair2:rgba(9,17,26,.16);
-  --grid-ink:rgba(9,17,26,.05); --sheen:rgba(255,255,255,.55);
+  --sheen:rgba(255,255,255,.55);
   --scroll:#C6D2DE; --scroll-hi:#AEBECB;
-  --aurora-a:rgba(14,159,110,.05); --aurora-b:rgba(42,111,214,.06);
   --glass-rgb:255,255,255;
   --wall-scrim-rgb:242,245,249;--wall-scrim-a:.80;
   /* 浅底上的层次靠阴影扩散：三档都更淡更散，顶边高光改为压白。 */
@@ -148,26 +146,25 @@
 }
 :root[data-theme="light"][data-accent="blue"]{
   --sig:#2A6FD6; --sig-deep:#1F55A8; --sig-glow:rgba(42,111,214,.32);
-  --sel:rgba(42,111,214,.20); --pre-bg:rgba(42,111,214,.08); --aurora-a:rgba(42,111,214,.06);
+  --sel:rgba(42,111,214,.20); --pre-bg:rgba(42,111,214,.08);
 }
 :root[data-theme="light"][data-accent="violet"]{
   --sig:#7A4FD0; --sig-deep:#5B37A2; --sig-glow:rgba(122,79,208,.32);
-  --sel:rgba(122,79,208,.20); --pre-bg:rgba(122,79,208,.08); --aurora-a:rgba(122,79,208,.06);
+  --sel:rgba(122,79,208,.20); --pre-bg:rgba(122,79,208,.08);
 }
 
 /* 高对比：面向"看不清"的处境（低端 TN 屏、白天靠窗反光、投屏）。
    它不是第 4 种口味，而是深色把对比度推到顶：正文 20:1、次级 16:1、最低一级 8:1。
    两点取舍：不动强调色族（故本主题只有这一块，无需复合规则）；
-   页面氛围（极光 + 网格）让位给对比度。 */
+   页面氛围让位给对比度。 */
 :root[data-theme="contrast"]{
   --bg:#000308; --bg2:#04070C;
   --surf:#080D13; --surf2:#0C1219; --surf3:#111922;
   --chrome:#000308; --panel:rgba(0,0,0,.88); --field:rgba(255,255,255,.06);
   --search:rgba(0,0,0,.88); --plate:rgba(0,0,0,.92);
   --line:#2C3E52; --line2:#4A6A8A; --hair:rgba(255,255,255,.20); --hair2:rgba(255,255,255,.34);
-  --grid-ink:rgba(255,255,255,0); --sheen:rgba(255,255,255,.10);
+  --sheen:rgba(255,255,255,.10);
   --scroll:#3A5470; --scroll-hi:#4E7092;
-  --aurora-a:rgba(0,0,0,0); --aurora-b:rgba(0,0,0,0);
   /* 高对比不参与毛玻璃：半透明与模糊与"看清"冲突。颜色与三档不透明度在此钉死，
      开态选择器用 :not([data-theme="contrast"]) 将其排除，故这一档三面始终接近实心。 */
   --glass-rgb:8,13,19;
@@ -194,20 +191,13 @@
 
 /* 动效「精简」：等同于系统的 prefers-reduced-motion，但这里是手抄的第二份
    （系统那份见文件末尾的 @media 块）。两处必须逐条相同，有用例逐条比对
-   （TestLiteMotionMatchesSystemPreference）。执行中的状态点保留，只是不呼吸。
-   本档不得碰背景光效（归 data-backdrop 管），有用例拦截。 */
+   （TestLiteMotionMatchesSystemPreference）。执行中的状态点保留，只是不呼吸。 */
 :root[data-motion="lite"] *{transition:none !important}
 :root[data-motion="lite"] .dot.run::after{animation:none;opacity:.45}
-/* 面板淡入走时长变量而非 transition，故关掉 transition 不足够：把时长归零即等于关掉
-   （下面 @media 里须逐条相同，有用例比对）。 */
-:root[data-motion="lite"]{--vfx-fade:0s}
 /* 内容入场（.op / .ln）走 animation 而非 transition，需单独关一次。
    下面 @media 里须有一条逐字相同的（有用例比对）。 */
 :root[data-motion="lite"] .op,
 :root[data-motion="lite"] .ln{animation:none}
-/* 背景光效开关只管极光与网格两层；自选背景图片由 data-wall 决定，不受它影响。 */
-:root[data-backdrop="off"] .aurora,
-:root[data-backdrop="off"] .grid{display:none}
 
 /* ---- 大字号（独立开关，不属于主题） ----
    字号改版式，主题改配色，两者独立。它只覆盖字号 token 与顶栏/状态栏高度。
@@ -218,7 +208,7 @@
   --fs-9:10px; --fs-26:29px;
   --row-top:62px; --row-bot:46px;
 }
-/* ---- 背景图片（独立于背景光效） ----
+/* ---- 背景图片（独立的静态贴图） ----
    一层静态贴图 + 一层压暗。静态为硬要求：平移、缩放或视差都会整屏逐帧重新光栅化。
    压暗层保证任意照片上的文字可读，颜色取自当前主题底色。 */
 .wall{position:absolute;inset:0;background-image:var(--wall);
@@ -231,7 +221,7 @@
 /* ---- 扁平化（独立开关，不属于主题） ----
    去掉材质与层次（圆角、阴影、渐变、光晕）。两条边界：
      · 焦点态必须留下：外阴影聚焦环换成 outline；
-     · 不碰 .bg / .aurora / .grid，背景光效归 data-backdrop 管。 */
+     · 不碰背景层（.bg / .wall / .scrim），背景归 data-wall 管。 */
 /* 圆角大小：三个离散档，改同一组圆角令牌。排在「扁平」之前，因扁平会把圆角归零。 */
 :root[data-radii="sharp"]{--r1:3px;--r2:4px;--r3:6px}
 :root[data-radii="round"]{--r1:10px;--r2:14px;--r3:20px}
@@ -276,11 +266,10 @@
 
    属性（首屏由服务端注入，避免"先实心、再闪成玻璃"）：
      data-glass     on/off   毛玻璃：off = 实心不模糊，on = 最透明那一档
-     data-fade      on/off   浮层淡入
      data-vfx-busy  on/off   运算期间让位（脚本在任务执行时挂上）
 
    边界（成本随「玻璃面积 × 变化频率」增长）：
-     · 只给局部面板加模糊；整屏层（.modal / .bg / .aurora / .grid）、
+     · 只给局部面板加模糊；整屏层（.modal / .bg）、
        随滚动与搜索重排的列表（.tasks / .op / 侧栏面板）、持续追加的日志（.logpanel / .log）不加；
      · 运算期间 backdrop-filter 全部退回 none，结束后恢复；
      · 不写 will-change（会为每块玻璃常驻一个合成层）；
@@ -350,14 +339,8 @@
 :root .panel:not(.logpanel)::before,
 :root .panel:not(.logpanel)::after{opacity:.55}
 
-/* 面板淡入只动 opacity，不动 transform：玻璃面板位移会让背后纹理每帧重新采样。
-   时长走变量，精简动效与系统"减少动态效果"将其归零即等于关掉（两处须逐条相同）。 */
-:root{--vfx-fade:.16s}
-@keyframes vfx-fade{from{opacity:0}to{opacity:1}}
-:root[data-fade="on"] .mbox{animation:vfx-fade var(--vfx-fade) ease-out both}
-
 /* ---- 内容入场：只给不与玻璃同层的元素 ----
-   玻璃面位移或整体淡入会让背后纹理每帧重新采样，故入场只发给操作列表行与日志行，
+   玻璃面位移会让背后纹理每帧重新采样，故入场只发给操作列表行与日志行，
    它们不在模糊白名单里（见 VFX 段对 .tasks / .op / .log 的排除）。
    一次性、只动 opacity 与 2px 位移，时长写字面量（用例可一眼看出毫秒数）；
    不开 fill-mode，否则会盖住 .op:active 的按压位移。关闭靠下面两处的 animation:none。 */
@@ -375,14 +358,6 @@ input{font:inherit;color:inherit}
 
 /* 背景：静态。此层占满视口，不得带 filter / backdrop-filter / 动画。 */
 .bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
-.aurora{position:absolute;inset:0;background:
-    linear-gradient(180deg,var(--aurora-a),transparent 42%),
-    radial-gradient(52% 40% at 88% -6%,var(--aurora-b),transparent 68%)}
-.grid{position:absolute;inset:0;opacity:.5;
-  background-image:linear-gradient(var(--grid-ink) 1px,transparent 1px),
-                   linear-gradient(90deg,var(--grid-ink) 1px,transparent 1px);
-  background-size:48px 48px;
-  mask-image:radial-gradient(130% 100% at 50% 0,#000 24%,transparent 92%)}
 
 /* ===== 外壳：顶栏 / 页面 / 状态栏 三段纵向 =====
    三段高度由 token（--row-top / --row-bot）决定，随字号放大而增长，否则字会被切掉。 */
@@ -762,10 +737,6 @@ input{font:inherit;color:inherit}
 .mitem:first-child{border-top:0}
 .mi-h{display:flex;align-items:center;gap:var(--s2);margin-bottom:3px}
 .mi-t{font-size:var(--fs-13);font-weight:600;color:var(--ink)}
-/* 状态标签：只说该项当前状态，不重复控件信息。 */
-.mi-tag{font:var(--fs-10)/1 var(--mono);padding:2px 6px;border-radius:3px;white-space:nowrap;
-  border:1px solid var(--line2);color:var(--muted)}
-.mi-tag.chg{border-color:var(--sig-edge);color:var(--sig);background:var(--sig-soft)}
 .mi-d{font-size:var(--fs-11-5);color:var(--muted);line-height:1.6;max-width:64ch}
 .mi-c{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;justify-content:flex-end}
 /* 控件旁的结果数字，用等宽字体。 */
@@ -805,16 +776,6 @@ input{font:inherit;color:inherit}
   font-size:var(--fs-11-5);line-height:1.6;color:var(--ink2)}
 .mnotice .ic{flex:0 0 auto;display:flex;color:var(--amber)}
 
-/* 变更记录：属于"关于与状态"的一部分。 */
-.mchg{display:flex;flex-direction:column;margin:var(--s2) 0}
-.mchgr{display:flex;align-items:baseline;gap:8px;padding:5px 0;
-  border-bottom:1px solid var(--hair);font-size:var(--fs-11-5);color:var(--ink2)}
-.mchgr .t{flex:0 0 118px;font-family:var(--mono);color:var(--muted)}
-.mchgr .m{flex:0 0 92px;color:var(--muted)}
-.mchgr .i{flex:1;min-width:0}
-.mchgr .v{flex:0 0 auto;font-family:var(--mono);color:var(--muted)}
-.mchgempty{padding:var(--s3) 2px;color:var(--muted2);font-size:var(--fs-11-5)}
-
 /* ---- 设置控件（统一 m 前缀） ----
    分段器 / 开关 / 输入框 / 色点，共四种。 */
 .mseg{display:flex;border:1px solid var(--line);border-radius:var(--r1);overflow:hidden}
@@ -841,8 +802,8 @@ input{font:inherit;color:inherit}
 .mdot.on{box-shadow:0 0 0 2px var(--surf),0 0 0 4px var(--sig-edge)}
 
 /* ---- 维护操作：集中在这里 ----
-   恢复默认、导出、导入、变更记录、打开数据目录、导出诊断包，均为动作而非设置。
-   恢复默认保留两个范围（当前分类 / 全部），入口只有一个，点开后再选范围。 */
+   恢复出厂设置、导出、导入、打开数据目录、导出诊断包，均为动作而非设置。
+   恢复出厂设置保留两个范围（当前分类 / 全部），入口只有一个，点开后再选范围。 */
 .mmaint{border:1px solid var(--line);border-radius:var(--r3);background:var(--surf);
   padding:var(--s4) var(--s5)}
 .mmaint .acts{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s3)}
@@ -874,7 +835,6 @@ input{font:inherit;color:inherit}
   .dot.run::after{animation:none;opacity:.45}
   *{transition:none !important}
   .op,.ln{animation:none}
-  :root{--vfx-fade:0s}
 }
 /* 窗口变窄时让位顺序：进度链最先隐藏，其次是导航内边距，最后侧栏由左列改为上块。 */
 @media (max-width:1040px){.linkbar{display:none}}

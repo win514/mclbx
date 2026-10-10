@@ -172,22 +172,45 @@ func TestMusicSniffDoesNotSwallowText(t *testing.T) {
 }
 
 // 偏好值须落在合法范围：非法值退回默认，不得原样存入后在界面上表现为「选了没反应」。
+// 旧配置的两个设置项须按契约迁移到合并后的 musicPlay。
 func TestMusicPrefsAreNormalized(t *testing.T) {
 	withTempConfig(t)
-	cases := []struct{ mode, loop, vol, wantMode, wantLoop, wantVol string }{
-		{"shuffle", "one", "35", "shuffle", "one", "35"},
-		{"", "", "", "order", "all", "70"},
-		{"乱填", "乱填", "abc", "order", "all", "70"},
-		{"order", "off", "101", "order", "off", "70"},
-		{"order", "all", "-5", "order", "all", "70"},
-		{"order", "all", "007", "order", "all", "7"},
+	// 新取值：合法原样保留，非法回落默认 loop。
+	for _, c := range []struct{ in, want string }{
+		{"loop", "loop"}, {"shuffle", "shuffle"}, {"one", "one"},
+		{"LOOP", "loop"}, {" one ", "one"},
+		{"", "loop"}, {"乱填", "loop"},
+	} {
+		if got := normalizeUI(guiUIState{MusicPlay: c.in}).MusicPlay; got != c.want {
+			t.Errorf("MusicPlay=%q 归一化后是 %q，期望 %q", c.in, got, c.want)
+		}
 	}
-	for _, c := range cases {
-		u := normalizeUI(guiUIState{MusicMode: c.mode, MusicLoop: c.loop, MusicVol: c.vol})
-		if u.MusicMode != c.wantMode || u.MusicLoop != c.wantLoop || u.MusicVol != c.wantVol {
-			t.Errorf("输入 %q/%q/%q 应当被收拾成 %q/%q/%q，实际得到 %q/%q/%q",
-				c.mode, c.loop, c.vol, c.wantMode, c.wantLoop, c.wantVol,
-				u.MusicMode, u.MusicLoop, u.MusicVol)
+	// 旧配置迁移：musicMode=shuffle 落到 shuffle；否则按 musicLoop 映射，
+	// one → one，off 与 all → loop，认不出的回落 loop。
+	for _, c := range []struct{ mode, loop, want string }{
+		{"shuffle", "one", "shuffle"},
+		{"shuffle", "all", "shuffle"},
+		{"order", "one", "one"},
+		{"order", "off", "loop"},
+		{"order", "all", "loop"},
+		{"order", "乱填", "loop"},
+		{"乱填", "one", "one"},
+		{"", "", "loop"},
+	} {
+		u := normalizeUI(guiUIState{MusicMode: c.mode, MusicLoop: c.loop})
+		if u.MusicPlay != c.want {
+			t.Errorf("旧配置 %q/%q 迁移后是 %q，期望 %q", c.mode, c.loop, u.MusicPlay, c.want)
+		}
+		if u.MusicMode != "" || u.MusicLoop != "" {
+			t.Errorf("迁移后遗留字段应当清空，得到 %q/%q", u.MusicMode, u.MusicLoop)
+		}
+	}
+	// 音量：越界与非数字回到默认 70，前导零去掉。
+	for _, c := range []struct{ in, want string }{
+		{"35", "35"}, {"", "70"}, {"abc", "70"}, {"101", "70"}, {"-5", "70"}, {"007", "7"},
+	} {
+		if got := normalizeUI(guiUIState{MusicVol: c.in}).MusicVol; got != c.want {
+			t.Errorf("MusicVol=%q 归一化后是 %q，期望 %q", c.in, got, c.want)
 		}
 	}
 }

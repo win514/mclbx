@@ -139,7 +139,7 @@ func isSharedVar(name string) bool {
 // accentOwnedVars 由强调色块给值，主题只准在为浅底重调实心色时覆盖。
 var accentOwnedVars = map[string]bool{
 	"--sig": true, "--sig-deep": true, "--sig-glow": true,
-	"--sel": true, "--pre-bg": true, "--aurora-a": true,
+	"--sel": true, "--pre-bg": true,
 }
 
 // 每个主题都必须声明全部主题私有变量。
@@ -205,7 +205,7 @@ func TestSharedVarsAreNotRedefinedByThemes(t *testing.T) {
 func TestCompoundBlocksOnlyTouchTheAgreedVars(t *testing.T) {
 	allowed := map[string]bool{
 		"--sig": true, "--sig-deep": true, "--sig-glow": true,
-		"--sel": true, "--pre-bg": true, "--aurora-a": true,
+		"--sel": true, "--pre-bg": true,
 	}
 	re := regexp.MustCompile(`:root\[data-theme="[a-z]+"\]\[data-accent="[a-z]+"\]\{`)
 	locs := re.FindAllStringIndex(guiPageHTML, -1)
@@ -367,10 +367,11 @@ func TestNoNonexistentVariablesInCSS(t *testing.T) {
 
 // 写死在界面各处的底色/字色不许再回来，应走变量。
 func TestNoHardcodedColorsOutsideTheTokens(t *testing.T) {
-	marker := `data-backdrop="off"`
+	// 主题块（:root / 各主题）都在大字号块之前；从它往后不许再出现写死的颜色。
+	marker := `:root[data-scale="big"]`
 	i := strings.Index(guiPageHTML, marker)
 	if i < 0 {
-		t.Fatal("找不到背景光效那条规则 —— 主题块的边界判断失效了")
+		t.Fatal("找不到大字号那条规则 —— 主题块的边界判断失效了")
 	}
 	rest := guiPageHTML[i:]
 	banned := []string{

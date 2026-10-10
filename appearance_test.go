@@ -154,8 +154,6 @@ func TestNoBackdropFilterOnChurningSurfaces(t *testing.T) {
 		{".side", "侧栏整体同上；它的两块面板因此只做半透明，不做模糊"},
 		{".modal", "整屏遮罩层：占满视口再配模糊，就是原来那条红线本身"},
 		{".bg", "整屏背景层"},
-		{".aurora", "整屏背景层"},
-		{".grid", "整屏背景层"},
 		{".op", "操作行：一屏二十行，逐行模糊等于把整列都糊上"},
 	}
 	token := regexp.MustCompile(`\.([A-Za-z][\w-]*)`)
@@ -218,32 +216,6 @@ func TestNoWillChangeOnGlass(t *testing.T) {
 	}
 }
 
-// 面板淡入只准动 opacity：动 transform 会让背后那层模糊每帧重新采样。
-func TestFadeOnlyAnimatesOpacity(t *testing.T) {
-	css := cssRegion(t)
-	i := strings.Index(css, "@keyframes vfx-fade")
-	if i < 0 {
-		t.Fatal("找不到 vfx-fade 关键帧 —— 面板淡入被删了吗？这条检查等于没做")
-	}
-	j := strings.Index(css[i:], "{")
-	body, ok := matchBraces(css[i+j:])
-	if !ok {
-		t.Fatal("vfx-fade 的花括号不配对")
-	}
-	if !strings.Contains(body, "opacity") {
-		t.Error("vfx-fade 没动 opacity —— 那它就不是淡入")
-	}
-	for _, bad := range []string{"transform", "filter", "box-shadow", "margin", "width", "height"} {
-		if strings.Contains(body, bad) {
-			t.Errorf("vfx-fade 里动了 %s：玻璃面板一动，背后那块纹理就得每帧重采样", bad)
-		}
-	}
-	// 时长必须走变量，精简动效与系统的"减少动态效果"才能把它归零
-	if !strings.Contains(css, "--vfx-fade:0s") {
-		t.Error("找不到把淡入时长归零的规则 —— 精简动效与系统「减少动态效果」就关不掉它")
-	}
-}
-
 // 占满视口的图层不许带模糊、滤波或动画（mask 例外，它只光栅一次）。
 func TestGuiNeverBlursAFullScreenLayer(t *testing.T) {
 	reFull := regexp.MustCompile(`inset\s*:\s*0(px)?\s*;`)
@@ -268,7 +240,7 @@ func TestGuiNeverBlursAFullScreenLayer(t *testing.T) {
 
 // ---- 扁平化 ----
 
-// 扁平化的规则不许出现背景层选择器：背景归 data-backdrop 与 data-wall 管。
+// 扁平化的规则不许出现背景层选择器：背景归 data-wall 管。
 func TestFlatNeverTouchesTheBackdropLayer(t *testing.T) {
 	found := 0
 	for _, r := range cssRules(cssRegion(t)) {
@@ -277,9 +249,9 @@ func TestFlatNeverTouchesTheBackdropLayer(t *testing.T) {
 			continue
 		}
 		found++
-		for _, banned := range []string{".bg", ".aurora", ".grid", ".wall", ".scrim"} {
+		for _, banned := range []string{".bg", ".wall", ".scrim"} {
 			if strings.Contains(sel, banned) {
-				t.Errorf("扁平化的规则碰了背景层 %s（%s）—— 背景归 data-backdrop 与 data-wall 管", banned, sel)
+				t.Errorf("扁平化的规则碰了背景层 %s（%s）—— 背景归 data-wall 管", banned, sel)
 			}
 		}
 	}
@@ -373,23 +345,20 @@ func TestFlatAndGlassAreWiredEndToEnd(t *testing.T) {
 		{"非法毛玻璃", normalizeUI(guiUIState{Glass: "yes"}).Glass, uiGlassDefault},
 		{"合法毛玻璃", normalizeUI(guiUIState{Glass: "on"}).Glass, "on"},
 		// 旧数字档与更早的 off/low/mid/high 的迁移核对见 glass_toggle_test.go。
-		{"默认淡入", normalizeUI(guiUIState{}).Fade, "on"},
 	} {
 		if c.got != c.want {
 			t.Errorf("%s：得到 %q，期望 %q", c.name, c.got, c.want)
 		}
 	}
 	// 首屏注入：每个开关都要显式写在 <html> 上，不能缺省。
-	a := normalizeUI(guiUIState{Flat: "on", Glass: "off", Fade: "on"}).htmlAttr()
-	for _, want := range []string{`data-flat="on"`, `data-glass="off"`,
-		`data-fade="on"`} {
+	a := normalizeUI(guiUIState{Flat: "on", Glass: "off"}).htmlAttr()
+	for _, want := range []string{`data-flat="on"`, `data-glass="off"`} {
 		if !strings.Contains(a, want) {
 			t.Errorf("htmlAttr 没有带上 %s：%q", want, a)
 		}
 	}
 	d := normalizeUI(guiUIState{}).htmlAttr()
-	for _, want := range []string{`data-flat="off"`, `data-glass="` + uiGlassDefault + `"`,
-		`data-fade="on"`} {
+	for _, want := range []string{`data-flat="off"`, `data-glass="` + uiGlassDefault + `"`} {
 		if !strings.Contains(d, want) {
 			t.Errorf("默认也要显式写 %s，否则默认值就靠猜", want)
 		}
@@ -402,7 +371,7 @@ func TestFlatAndGlassAreWiredEndToEnd(t *testing.T) {
 	}
 	if strings.Contains(cssRegion(t), `data-vfx="`) {
 		t.Error("样式表里还留着 data-vfx 的选择器 —— 那个属性已不再输出，这些规则会静默失效" +
-			"（轮廓微光、毛玻璃与淡入都会跟着不见）")
+			"（轮廓微光与毛玻璃都会跟着不见）")
 	}
 	// 改完要立刻生效：这几项属性由 VFX 统一写，这里查 uiApply 有没有递进去。
 	apply := bodyBetween(t, "function uiApply", "async function uiSave")
@@ -412,12 +381,10 @@ func TestFlatAndGlassAreWiredEndToEnd(t *testing.T) {
 	if !strings.Contains(apply, "data-flat") {
 		t.Error("uiApply 没有设置 data-flat")
 	}
-	// VFX 自己必须把这几项都写出来，少一项即那个开关失效
+	// VFX 自己必须把这一项写出来，少一项即那个开关失效
 	vfx := bodyBetween(t, "var VFX = (function(){", "async function api")
-	for _, want := range []string{"data-glass", "data-fade"} {
-		if !strings.Contains(vfx, want) {
-			t.Errorf("VFX.apply 没有写 %s —— 那个开关点了没反应", want)
-		}
+	if !strings.Contains(vfx, "data-glass") {
+		t.Error("VFX.apply 没有写 data-glass —— 那个开关点了没反应")
 	}
 	// 撤销的两项不许回头：外壳属性重新出现即说明设置项被加回
 	if strings.Contains(a, "data-glow") || strings.Contains(vfx, "data-glow") {
@@ -470,7 +437,6 @@ func TestAppearanceControlsExistInThePanel(t *testing.T) {
 	panel := bodyBetween(t, "function uiThemeHTML(u){", "function uiAboutHTML(u){")
 	for _, want := range []string{
 		"uiSeg('theme'", "uiAccentDots(u)", "uiSeg('flat'", "uiSeg('glass'",
-		"uiSw('fade'", "uiSw('backdrop'",
 		"uiSeg('radii'", "uiSeg('rail'", "uiSeg('scale'", "uiSeg('motion'",
 		"uiWallPicker(", "vfxMeasure",
 	} {
@@ -509,18 +475,6 @@ func TestAppearanceControlsExistInThePanel(t *testing.T) {
 	for _, want := range []string{`<div class="wall"></div>`, `<div class="scrim"></div>`} {
 		if !strings.Contains(guiPageHTML, want) {
 			t.Errorf("背景层里缺少 %s", want)
-		}
-	}
-}
-
-// 背景光效的开关只管极光与网格，不该把用户自选的背景图一起关掉。
-func TestBackdropSwitchLeavesTheWallpaperAlone(t *testing.T) {
-	if strings.Contains(cssRegion(t), `data-backdrop="off"] .bg{`) {
-		t.Error("背景光效关掉时整层 .bg 都被隐藏了 —— 用户自选的背景图会跟着一起消失")
-	}
-	for _, want := range []string{`data-backdrop="off"] .aurora`, `data-backdrop="off"] .grid`} {
-		if !strings.Contains(cssRegion(t), want) {
-			t.Errorf("背景光效关掉时应当隐藏 %s", want)
 		}
 	}
 }
@@ -604,13 +558,8 @@ func TestGlassOverPageKeepsTextReadable(t *testing.T) {
 			if !ok {
 				t.Fatalf("%s+%s：--glass-rgb 不是 r,g,b 三元组（%q）", theme, acc, v["--glass-rgb"])
 			}
-			// 没有背景图：面板背后只有底色 + 极光 + 网格三层。
+			// 没有背景图：面板背后只有底色。
 			noWall := []layer{{"只有底色", bg}}
-			for _, av := range []string{"--aurora-a", "--aurora-b", "--grid-ink"} {
-				if a, ok := parseColor(v[av]); ok {
-					noWall = append(noWall, layer{av, over(a, bg)})
-				}
-			}
 			// 有背景图：背后是用户照片 + 压暗层，取纯白与纯黑两个极端。
 			// 压暗层颜色与深浅是两个变量，这里合成回来。
 			scrimRGB, ok := parseRGBTriple(v["--wall-scrim-rgb"])

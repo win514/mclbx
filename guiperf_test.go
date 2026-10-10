@@ -19,21 +19,6 @@ func cssRule(t *testing.T, selector string) string {
 	return m[1]
 }
 
-// 背景光斑必须保持静态：占满视口的图层带模糊或动画会持续占用 GPU。
-func TestGuiBackgroundGlowIsStatic(t *testing.T) {
-	body := cssRule(t, ".aurora")
-	for _, bad := range []string{"animation", "filter", "backdrop-filter"} {
-		if strings.Contains(body, bad) {
-			t.Errorf(".aurora 里不该有 %s：它是占满视口的图层，配上模糊或动画就会让界面闲着也烧 GPU"+
-				"（实测空闲 13%%→0.01%%、运行中 51%%→0.6%% 就是去掉它换来的）", bad)
-		}
-	}
-	// 无动画时不应外扩：放大会让光栅化面积翻倍
-	if strings.Contains(body, "inset:-") {
-		t.Error(".aurora 不该比视口还大（inset 为负）：没有动画位移就不需要外扩，那只会让光栅化面积翻倍")
-	}
-}
-
 // @keyframes 只可动画 transform / opacity，避免每帧重绘。
 func TestGuiKeyframesStayCompositorFriendly(t *testing.T) {
 	open := regexp.MustCompile(`@keyframes\s+[\w-]+\s*\{`)

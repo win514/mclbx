@@ -143,18 +143,16 @@ func renderGuiPage() string {
 func settingsPayload(ui guiUIState) map[string]any {
 	wall := wallFromConfig(ui.BgImage)
 	return map[string]any{
-		"ok":       true,
-		"theme":    ui.Theme,
-		"accent":   ui.Accent,
-		"motion":   ui.Motion,
-		"backdrop": ui.Backdrop,
-		"scale":    ui.Scale,
-		"flat":     ui.Flat,
-		"glass":    ui.Glass,
-		"fade":     ui.Fade,
-		"bgImage":  ui.BgImage,
-		"radii":    ui.Radii,
-		"rail":     ui.Rail,
+		"ok":      true,
+		"theme":   ui.Theme,
+		"accent":  ui.Accent,
+		"motion":  ui.Motion,
+		"scale":   ui.Scale,
+		"flat":    ui.Flat,
+		"glass":   ui.Glass,
+		"bgImage": ui.BgImage,
+		"radii":   ui.Radii,
+		"rail":    ui.Rail,
 		// 高级选项：面板透明度与背景图明暗，都是 0-100、出厂 50。
 		"transparency": ui.Transparency,
 		"wallBright":   ui.WallBright,
@@ -162,8 +160,7 @@ func settingsPayload(ui guiUIState) map[string]any {
 		"wallList": listWallImages(),
 		// 曲库清单取自存档的 music 目录
 		"musicList": listMusicTracks(),
-		"musicMode": ui.MusicMode,
-		"musicLoop": ui.MusicLoop,
+		"musicPlay": ui.MusicPlay,
 		"musicVol":  ui.MusicVol,
 		"remember":  ui.Remember,
 		// 背景图已缩放缓存，这里只把地址交给界面；读不出时 wallReason 给原因
@@ -178,9 +175,6 @@ func settingsPayload(ui guiUIState) map[string]any {
 		"version":   version,
 		// 运行环境只读展示：系统与架构来自编译期，版本来自运行时
 		"platform": runtime.GOOS + " " + runtime.GOARCH + " · " + runtime.Version(),
-		// 变更记录由服务端持有，跨会话保存，界面刷新不丢
-		"changes":   loadChanges(),
-		"changeMax": uiChangeMax,
 		// 只读展示信息，界面上不给编辑入口
 		"storage":    uiStorageStats(),
 		"configFile": uiConfigFileState(),
@@ -1211,8 +1205,8 @@ func cmdGui(args []string) error {
 		_ = json.NewEncoder(w).Encode(settingsPayload(loadUI()))
 	})
 
-	// ---- 配置管理：导出 / 导入 / 重置 / 变更记录 ----
-	// 四个都走 post() 包装（校验 X-MCLBX-GUI 头与 Origin、统一错误形状），不可绕过。
+	// ---- 配置管理：导出 / 导入 / 重置 ----
+	// 三个都走 post() 包装（校验 X-MCLBX-GUI 头与 Origin、统一错误形状），不可绕过。
 	mux.HandleFunc("/api/settings/export", post(func(w http.ResponseWriter, r *http.Request) error {
 		path, err := exportUIConfig()
 		if err != nil {
@@ -1257,20 +1251,6 @@ func cmdGui(args []string) error {
 		}
 		return json.NewEncoder(w).Encode(map[string]any{
 			"ok": true, "changed": changed, "ui": settingsPayload(loadUI()),
-		})
-	}))
-
-	mux.HandleFunc("/api/settings/changes", post(func(w http.ResponseWriter, r *http.Request) error {
-		var req struct {
-			Clear bool `json:"clear"`
-		}
-		_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req)
-		n := 0
-		if req.Clear {
-			n = clearUIChanges()
-		}
-		return json.NewEncoder(w).Encode(map[string]any{
-			"ok": true, "cleared": n, "changes": loadChanges(),
 		})
 	}))
 

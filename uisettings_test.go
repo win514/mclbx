@@ -4,14 +4,13 @@ package main
 
 import (
 	"os"
-	"reflect"
 	"strings"
 	"testing"
 )
 
 func TestRenderGuiPageInjectsSettings(t *testing.T) {
 	withTempConfig(t)
-	if _, err := saveUI(guiUIState{Theme: "light", Accent: "blue", Motion: "lite", Backdrop: "off", LogKeep: "500"}); err != nil {
+	if _, err := saveUI(guiUIState{Theme: "light", Accent: "blue", Motion: "lite", LogKeep: "500"}); err != nil {
 		t.Fatal(err)
 	}
 	page := renderGuiPage()
@@ -21,7 +20,7 @@ func TestRenderGuiPageInjectsSettings(t *testing.T) {
 		}
 	}
 	for _, want := range []string{
-		`data-theme="light"`, `data-accent="blue"`, `data-motion="lite"`, `data-backdrop="off"`,
+		`data-theme="light"`, `data-accent="blue"`, `data-motion="lite"`,
 		`"logKeep":500`,
 	} {
 		if !strings.Contains(page, want) {
@@ -34,7 +33,7 @@ func TestRenderGuiPageInjectsSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	def := renderGuiPage()
-	for _, want := range []string{`data-theme="auto"`, `data-accent="mint"`, `data-motion="full"`, `data-backdrop="on"`} {
+	for _, want := range []string{`data-theme="auto"`, `data-accent="mint"`, `data-motion="full"`} {
 		if !strings.Contains(def, want) {
 			t.Errorf("默认设置下页面上应当带上 %s", want)
 		}
@@ -57,10 +56,10 @@ func TestGuiPageHasSettingsEntry(t *testing.T) {
 // 坏值一律回落到默认值，不得使界面崩溃。
 func TestUINormalizeFallsBackToDefaults(t *testing.T) {
 	got := normalizeUI(guiUIState{
-		Theme: "rainbow", Accent: "neon", Motion: "zippy", Backdrop: "?", Remember: "yes",
+		Theme: "rainbow", Accent: "neon", Motion: "zippy", Remember: "yes",
 		LogKeep: "一百万", DefPort: "70000", DefRelay: "  turn:a:3478  ",
 	})
-	if got.Theme != "auto" || got.Accent != "mint" || got.Motion != "full" || got.Backdrop != "on" {
+	if got.Theme != "auto" || got.Accent != "mint" || got.Motion != "full" {
 		t.Errorf("非法取值应当回到默认，得到 %+v", got)
 	}
 	if got.Remember != "" {
@@ -76,9 +75,9 @@ func TestUINormalizeFallsBackToDefaults(t *testing.T) {
 		t.Errorf("中转地址应当只做去空白，得到 %q", got.DefRelay)
 	}
 
-	ok := normalizeUI(guiUIState{Theme: "dark", Accent: "violet", Motion: "lite", Backdrop: "off",
+	ok := normalizeUI(guiUIState{Theme: "dark", Accent: "violet", Motion: "lite",
 		Remember: "0", LogKeep: "500", DefPort: "25566", DefRelay: "mclbx://h?tcp=8090"})
-	if ok.Theme != "dark" || ok.Accent != "violet" || ok.Motion != "lite" || ok.Backdrop != "off" ||
+	if ok.Theme != "dark" || ok.Accent != "violet" || ok.Motion != "lite" ||
 		ok.Remember != "0" || ok.LogKeep != "500" || ok.DefPort != "25566" {
 		t.Errorf("合法取值不该被改动，得到 %+v", ok)
 	}
@@ -253,7 +252,7 @@ func TestSettingsPayloadShape(t *testing.T) {
 	setAutoProbe(false)
 	p := settingsPayload(guiUIState{Theme: "light", Accent: "blue", LogKeep: "500"})
 	for _, k := range []string{
-		"ok", "theme", "accent", "motion", "backdrop", "scale", "remember", "logKeep",
+		"ok", "theme", "accent", "motion", "scale", "remember", "logKeep", "musicPlay",
 		"defPort", "defRelay", "autoProbe", "dataDir", "version",
 	} {
 		if _, ok := p[k]; !ok {
@@ -268,19 +267,14 @@ func TestSettingsPayloadShape(t *testing.T) {
 	}
 }
 
-// 设置载荷必须覆盖 guiUIState 的每个字段，故用反射逐字段比对而非手写清单。
+// 设置载荷必须覆盖 guiUIState 的每个可编辑字段，故按字段清单逐项比对而非手写清单。
+// 旧配置遗留字段（musicMode / musicLoop）已合并进 musicPlay，不算可编辑设置，故不在其列。
 func TestSettingsPayloadCoversEveryUIStateField(t *testing.T) {
 	withTempConfig(t)
 	p := settingsPayload(guiUIState{})
-	typ := reflect.TypeOf(guiUIState{})
-	for i := 0; i < typ.NumField(); i++ {
-		f := typ.Field(i)
-		name := strings.Split(f.Tag.Get("json"), ",")[0]
-		if name == "" || name == "-" {
-			continue
-		}
+	for _, name := range uiFieldNames() {
 		if _, ok := p[name]; !ok {
-			t.Errorf("guiUIState 有字段 %s（json:%q），但设置载荷里没有它 —— 面板拿不到它的当前值", f.Name, name)
+			t.Errorf("guiUIState 有可编辑字段 %s，但设置载荷里没有它 —— 面板拿不到它的当前值", name)
 		}
 	}
 }
