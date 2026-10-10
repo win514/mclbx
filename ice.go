@@ -377,8 +377,8 @@ func stunTroubleHint() string {
 	if len(urls) == 0 {
 		return "未配置 STUN 服务器（可用环境变量 MCLBX_STUN 指定，逗号分隔）"
 	}
-	return fmt.Sprintf("本次配置的 STUN（%s）都没有换回外网映射地址 —— 这类网络多半 UDP 受限，"+
-		"请改用中继转发；想换 STUN 服务器可设环境变量 MCLBX_STUN（逗号分隔）",
+	return fmt.Sprintf("本次配置的 STUN（%s）均未换回外网映射地址：此类网络多为 UDP 受限，"+
+		"请改用中继转发；如需更换 STUN 服务器，可设环境变量 MCLBX_STUN（逗号分隔）",
 		strings.Join(urls, "、"))
 }
 

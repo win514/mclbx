@@ -111,7 +111,7 @@ func relayRoomName(raw string) (string, error) {
 	}
 	for _, r := range raw {
 		if r < 0x20 || r == 0x7f {
-			return "", fmt.Errorf("房间名不能包含控制字符 0x%02x —— 控制字符会破坏协议行", r)
+			return "", fmt.Errorf("房间名不能包含控制字符 0x%02x，控制字符会破坏协议行", r)
 		}
 	}
 	name := strings.ToLower(strings.TrimSpace(raw))
@@ -253,7 +253,7 @@ func serveRelayConn(c net.Conn, wait time.Duration, mu *sync.Mutex, waiting map[
 				}
 				mu.Unlock()
 				if others > 0 {
-					fmt.Printf(" [中继] 房间 %s 仍在等待对端；当前有 %d 个其他房间也在等待 —— "+
+					fmt.Printf(" [中继] 房间 %s 仍在等待对端；当前有 %d 个其他房间也在等待。"+
 						"若双方应为同一房间，请核对链接中的 room= 参数，大小写与首尾空白已自动统一\n",
 						room, others)
 				} else {
@@ -405,7 +405,7 @@ func tcpTunnelHostRun(relay, room, to string) error {
 		typ, id, payload, err := readTcpFrame(br)
 		if err != nil {
 			if armed && isTimeoutErr(err) {
-				fmt.Printf(" 中继链路连续 %s 无数据，但仍有玩家连接 —— 判定对端已掉线，主动断开\n", tcpIdleTimeout)
+				fmt.Printf(" 中继链路连续 %s 无数据，但仍有玩家连接，判定对端已掉线，主动断开\n", tcpIdleTimeout)
 				return nil
 			}
 			fmt.Printf(" 中继连接结束：%v\n", err)
@@ -571,7 +571,7 @@ func tcpTunnelGuestOn(relay, room string, ln net.Listener) error {
 		typ, id, payload, err := readTcpFrame(br)
 		if err != nil {
 			if armed && isTimeoutErr(err) {
-				fmt.Printf(" 中继链路连续 %s 无数据，但本机仍有连接在使用 —— 判定对端已掉线，主动断开\n", tcpIdleTimeout)
+				fmt.Printf(" 中继链路连续 %s 无数据，但本机仍有连接在使用，判定对端已掉线，主动断开\n", tcpIdleTimeout)
 				return nil
 			}
 			fmt.Printf(" 中继连接结束：%v\n", err)

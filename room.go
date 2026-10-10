@@ -161,8 +161,8 @@ func cmdRoom(args []string) error {
 	case softwareReady:
 		fmt.Printf(" 结论：软件入场已就绪；公网入口本次不可用\n")
 	default:
-		fmt.Printf(" 结论：两条入口都没能开启，玩家现在连不进来\n")
-		fmt.Printf(" 下一步：按下面「公网入口不可用」列的 1)~4) 逐条处理\n")
+		fmt.Printf(" 结论：两条入口均未开启，玩家当前无法连接\n")
+		fmt.Printf(" 下一步：按下方「公网入口不可用」的 1)~4) 逐条处理\n")
 	}
 	fmt.Printf(" 房间码 : %s（两端需一致）\n", roomCode)
 	fmt.Printf("================================================\n")
@@ -185,8 +185,8 @@ func cmdRoom(args []string) error {
 		// IPv6 出口探测未通过时提前说明
 		if gate.state.v6Tried && !gate.state.v6Reach {
 			fmt.Printf("================================================\n")
-			fmt.Printf(" 注意：本机 IPv6 出口探测无应答，上面这个地址可能连不上\n")
-			fmt.Printf(" 先用纯 IPv6 网站确认本机能出去；不行就改用中继转发（见说明书第 2 节）\n")
+			fmt.Printf(" 注意：本机 IPv6 出口探测无应答，该地址可能无法连接\n")
+			fmt.Printf(" 请先用纯 IPv6 网站确认本机可出站；若不可用，请改用中继转发（见说明书第 2 节）\n")
 		}
 		fmt.Printf("================================================\n")
 	} else {
@@ -213,7 +213,7 @@ func cmdRoom(args []string) error {
 		inPorts = append(inPorts, fmt.Sprint(signalPort))
 	}
 	if len(inPorts) > 0 {
-		fmt.Printf(" 入站端口: %s（防火墙与端口映射都要覆盖，否则会出现「没装工具的能进、装了工具的进不来」）\n", strings.Join(inPorts, " 与 "))
+		fmt.Printf(" 入站端口: %s（防火墙与端口映射均需覆盖，否则会出现未安装本工具的玩家可进入、已安装的玩家无法进入）\n", strings.Join(inPorts, " 与 "))
 		if runtime.GOOS == "windows" {
 			fmt.Printf("          一键放行：mclbx firewall --port %s\n", strings.Join(inPorts, ","))
 		}
@@ -287,9 +287,9 @@ func serveSoftwareGuests(base, room, to string) {
 				}
 				burst += claimed
 				if burst >= softwareGuestBurstWarn {
-					logf("提醒：一分钟内有 %d 位新玩家在登记（朋友同时进入也会如此）。"+
-						"若非受邀玩家，说明房间地址已外传：结束房间并更换房间码重开"+
-						"（正在游戏的人会断开一次）；限定名字可用 --allow", burst)
+					logf("提醒：一分钟内有 %d 位新玩家在登记。"+
+						"若非受邀玩家，说明房间地址已外传：请结束房间并更换房间码重开"+
+						"（正在游戏的人会断开一次）；如需限定名字，可用 --allow", burst)
 					burst, burstStart = 0, now
 				}
 			}
@@ -517,12 +517,12 @@ func serveRelayEntry(ref *tunnelRef, room string, entryPort int, allow string) {
 		fmt.Printf("   「多人游戏 → 直接连接」粘贴：\n\n")
 		fmt.Printf("     %s\n\n", addr.share)
 		// 转发同时占用本机上行与下行，按流量计费的用户需注意
-		fmt.Printf("  说明：流量经隧道转发至房主：朋友的数据先到本机，再由本机发出，\n")
+		fmt.Printf("  说明：流量经隧道转发至房主：数据先到本机，再由本机发出，\n")
 		fmt.Printf("        因此同时占用本机的上行与下行；按流量计费时请注意。\n")
 		fmt.Printf("        本端退出后该入口关闭。\n")
 		if len(allowList) == 0 {
-			fmt.Printf("        该入口目前不校验玩家名：拿到上面这一行地址的人都能进入，\n")
-			fmt.Printf("        限定名单可加 --relay-allow Steve,Alex\n")
+			fmt.Printf("        该入口目前不校验玩家名：任何获得该地址的玩家均可进入，\n")
+			fmt.Printf("        如需限定名单，可加 --relay-allow Steve,Alex\n")
 		} else {
 			fmt.Printf("        仅允许这些玩家名进入：%s\n", strings.Join(allowList, "、"))
 			if note := allowListNote(allowList); note != "" {

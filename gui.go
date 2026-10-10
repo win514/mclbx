@@ -192,7 +192,7 @@ func settingsPayload(ui guiUIState) map[string]any {
 // openDataDir 在资源管理器中打开数据目录。
 func openDataDir() error {
 	if runtime.GOOS != "windows" {
-		return fmt.Errorf("这条是给 Windows 资源管理器用的；当前系统是 %s，数据目录是 %s", runtime.GOOS, dataDir())
+		return fmt.Errorf("该功能需在 Windows 资源管理器中使用；当前系统为 %s，数据目录为 %s", runtime.GOOS, dataDir())
 	}
 	dir := dataDir()
 	if dir == "" {
@@ -202,7 +202,7 @@ func openDataDir() error {
 		return fmt.Errorf("数据目录不可用：%w", err)
 	}
 	if err := exec.Command("explorer", dir).Start(); err != nil {
-		return fmt.Errorf("打不开资源管理器：%w", err)
+		return fmt.Errorf("无法打开资源管理器：%w", err)
 	}
 	return nil
 }
@@ -850,7 +850,7 @@ func (c *guiController) startJob(t guiTask, in map[string]string, auto bool) (*g
 
 	// 检查是否有任务在运行；自动任务不占用，可被直接抢占
 	if blockedBy, preempt := c.checkBusy(auto); blockedBy != "" {
-		return nil, fmt.Errorf("已经有一个任务在跑（%s），先点「停止」再来", blockedBy)
+		return nil, fmt.Errorf("已有一个任务在运行（%s），请先点「停止」再试", blockedBy)
 	} else if preempt != nil {
 		preempt.kill()
 	}
@@ -1048,7 +1048,7 @@ func cmdGui(args []string) error {
 		} else {
 			// 原生界面不可用时退回网页版
 			guiLog("原生界面失败：%v，改用网页版", err)
-			fmt.Printf(" 原生界面起不来（%v），改用网页版界面\n", err)
+			fmt.Printf(" 原生界面无法启动（%v），改用网页版界面\n", err)
 		}
 	}
 
@@ -1356,8 +1356,8 @@ func cmdGui(args []string) error {
 	fmt.Printf(" %s · 控制台\n", version)
 	fmt.Printf("================================================\n")
 	fmt.Printf(" 界面地址 : %s\n", url)
-	fmt.Printf(" 安全说明 : 只绑本机回环（127.0.0.1 / ::1），同一网络里的其他机器访问不到\n")
-	fmt.Printf(" 结束方式 : 关掉窗口，或按 Ctrl+C\n\n")
+	fmt.Printf(" 安全说明 : 仅绑定本机回环（127.0.0.1 / ::1），同一网络内的其他机器无法访问\n")
+	fmt.Printf(" 结束方式 : 关闭窗口，或按 Ctrl+C\n\n")
 
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- srv.Serve(ln) }()
@@ -1379,7 +1379,7 @@ func cmdGui(args []string) error {
 		} else {
 			guiLog("内置窗口失败：%v", err)
 			// 不弹出黑框，改为在页面顶部提示原因
-			msg := fmt.Sprintf("内置窗口起不来（%v），已改用浏览器打开", err)
+			msg := fmt.Sprintf("内置窗口无法启动（%v），已改用浏览器打开", err)
 			fmt.Printf(" %s\n", msg)
 			openURL = url + "?notice=" + neturl.QueryEscape(msg)
 		}

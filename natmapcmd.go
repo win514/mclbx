@@ -70,7 +70,7 @@ func cmdNatmap(args []string) error {
 		for _, m := range opened {
 			m.Release()
 		}
-		fmt.Println(" 未加 --keep，映射已撤销；需要长期保留请加 --keep")
+		fmt.Println(" 未加 --keep，映射已撤销；如需长期保留，请加 --keep")
 		return nil
 	}
 

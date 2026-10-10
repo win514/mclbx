@@ -99,7 +99,7 @@ func elevateSelf() error {
 		NShow:        swShowNormal,
 	}
 	if r, _, err2 := pShellExecuteExW.Call(uintptr(unsafe.Pointer(&sei))); r == 0 {
-		return fmt.Errorf("申请管理员权限失败（可能被用户在 UAC 里点了取消）：%v", err2)
+		return fmt.Errorf("申请管理员权限失败（可能用户在 UAC 中选择了取消）：%v", err2)
 	}
 	fmt.Println(" 已用管理员权限重新启动。")
 	return nil

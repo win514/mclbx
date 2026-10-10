@@ -33,8 +33,8 @@ func isFatal(err error) bool {
 }
 
 // localNetHint 玩家侧几处失败结论共用的补充说明，提示也可能出在本机网络。
-const localNetHint = "  也可能是本机这一侧：延迟大 / 丢包 / UDP 被限制都会表现成上面这几句。" +
-	"可在「更多功能 → 路况诊断」看本机一侧的结论"
+const localNetHint = "  也可能出在本机一侧：延迟大 / 丢包 / UDP 被限制都可能表现为上述现象。" +
+	"可在「更多功能 → 路况诊断」查看本机一侧的结论"
 
 // 退避
 
@@ -210,7 +210,7 @@ func runGuest(sess *guestSession, ref *tunnelRef, onUp func(gen int, first bool)
 				return fmt.Errorf("连续 %d 次都未能建立连接，已停止重试\n  最后一次失败：%w\n%s",
 					failures, err, localNetHint)
 			}
-			logf("结论：第 %d 代未连上（累计失败 %d 次）：%v", gen, failures, err)
+			logf("结论：第 %d 代未能建立连接（累计失败 %d 次）：%v", gen, failures, err)
 			d := backoffFor(failures)
 			logf(".. %d 秒后重试", int(d.Seconds()))
 			time.Sleep(d)

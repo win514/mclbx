@@ -129,10 +129,10 @@ func cmdPunch(args []string) error {
 		if ok {
 			fmt.Printf("\n结论：双对称 NAT 下端口探测连通，第 %d 次尝试\n", try)
 			fmt.Printf("      本次发了 %d 个探针；对端 NAT 为这个目的地映射到 %s\n", sent, src)
-			fmt.Printf("      这一条探测结果证明两端之间存在可打穿的路径，作用是确认「这条路走得通」。\n")
-			fmt.Printf("      但它不能直接交给内置直连去用：内置直连会自己选本地端口，换一个来源端口，\n")
-			fmt.Printf("      对方 NAT 映射出来的外网端口就跟着变了，这条结果对不上。\n")
-			fmt.Printf("      要真正用上它，需要让后续的加密通道复用同一个 socket，本版本还没有这条通路。\n")
+			fmt.Printf("      该结果证明两端之间存在可连通的路径，用于确认该路径可用。\n")
+			fmt.Printf("      但该结果不能直接供内置直连使用：内置直连会自行选择本地端口，更换来源端口后，\n")
+			fmt.Printf("      对端 NAT 映射出的外网端口随之变化，本结果不再对应。\n")
+			fmt.Printf("      要实际使用该结果，需让后续加密通道复用同一 socket，本版本尚未提供该通路。\n")
 			return nil
 		}
 		logf("第 %d 次尝试未连通，发送 %d 个探针，收到 %d 个，更换本地端口重试", try, sent, probes)

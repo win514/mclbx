@@ -350,7 +350,7 @@ func (h *webviewHost) resize() {
 	var r rectT
 	pGetClientRect.Call(h.hwnd, uintptr(unsafe.Pointer(&r)))
 	if r.Right == 0 || r.Bottom == 0 {
-		logf("窗口客户区是空的（%d,%d - %d,%d），界面可能显示不出来", r.Left, r.Top, r.Right, r.Bottom)
+		logf("窗口客户区为空（%d,%d - %d,%d），界面可能无法显示", r.Left, r.Top, r.Right, r.Bottom)
 	}
 	// RECT 为 16 字节，超出寄存器传值范围，须传指向临时副本的地址。
 	if hr, _, _ := syscall.SyscallN(method(h.ctrl, ctrlIdxPutBounds), h.ctrl, uintptr(unsafe.Pointer(&r))); int32(uint32(hr)) < 0 {
@@ -442,7 +442,7 @@ func (h *webviewHost) onEnv(hrRaw, env uintptr) {
 		var view uintptr
 		r, _, _ := syscall.SyscallN(method(ctrl, ctrlIdxGetCoreWebView2), ctrl, uintptr(unsafe.Pointer(&view)))
 		if int32(uint32(r)) < 0 || view == 0 {
-			h.finish(fmt.Errorf("拿不到 CoreWebView2 接口：HRESULT=0x%08X，指针=%#x", uint32(r), view))
+			h.finish(fmt.Errorf("无法获取 CoreWebView2 接口：HRESULT=0x%08X，指针=%#x", uint32(r), view))
 			return
 		}
 		h.view = view
@@ -512,13 +512,13 @@ func webErrorText(s int32) string {
 	case 11:
 		return "网络断开（WebErrorStatus=11）"
 	case 12:
-		return "连不上（WebErrorStatus=12，常见于被防火墙/代理拦下）"
+		return "无法连接（WebErrorStatus=12，常见于被防火墙/代理拦截）"
 	case 13:
-		return "域名解析不了（WebErrorStatus=13）"
+		return "域名无法解析（WebErrorStatus=13）"
 	case 14:
 		return "操作被取消（WebErrorStatus=14）"
 	case 16:
-		return "意料之外的错误（WebErrorStatus=16）"
+		return "发生意外错误（WebErrorStatus=16）"
 	default:
 		return fmt.Sprintf("WebErrorStatus=%d", s)
 	}
@@ -529,7 +529,7 @@ func webErrorText(s int32) string {
 func (h *webviewHost) ensureLoaded() {
 	for attempt := 1; attempt <= 3; attempt++ {
 		if attempt > 1 {
-			logf("界面第 %d 次导航没有动静，重试", attempt-1)
+			logf("界面第 %d 次导航无响应，重试", attempt-1)
 			u, _ := syscall.UTF16PtrFromString(h.url)
 			if r, _, _ := syscall.SyscallN(method(h.view, viewIdxNavigate), h.view, uintptr(unsafe.Pointer(u))); int32(uint32(r)) < 0 {
 				h.finish(fmt.Errorf("打开界面地址失败 HRESULT=0x%08X", uint32(r)))
@@ -600,7 +600,7 @@ func (h *webviewHost) watchdog() {
 		if r == 0 {
 			if !hung {
 				hung = true
-				logf("界面线程超过 2.5 秒未响应（%v）——窗口会显示「未响应」", err)
+				logf("界面线程超过 2.5 秒未响应（%v），窗口会显示「未响应」", err)
 			}
 			continue
 		}
@@ -670,7 +670,7 @@ func runNativeWindow(url, title string) (err error) {
 			dpi = uint32(v)
 		}
 	} else {
-		logf("这个系统的窗口 API 比较老（没有高 DPI 那套），按 96 DPI 显示")
+		logf("此系统的窗口 API 较旧（不支持高 DPI），按 96 DPI 显示")
 	}
 
 	// 界面只连本机回环，故禁用代理（等价于 AdditionalBrowserArguments，用官方环境变量传入）。
@@ -747,12 +747,12 @@ func runNativeWindow(url, title string) (err error) {
 		select {
 		case err := <-h.ready:
 			if err != nil {
-				logf("内置窗口起不来：%v", err)
+				logf("内置窗口无法启动：%v", err)
 			} else {
 				logf("内置窗口已就绪，加载 %s", url)
 			}
 		case <-time.After(20 * time.Second):
-			h.finish(fmt.Errorf("WebView2 初始化超过 20 秒没有回执"))
+			h.finish(fmt.Errorf("WebView2 初始化超过 20 秒未收到回执"))
 		}
 	}()
 

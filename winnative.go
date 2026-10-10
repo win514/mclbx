@@ -359,7 +359,7 @@ func runNativeUI(ctl *guiController) error {
 			dpi = int32(v)
 		}
 	} else {
-		logf("这个系统的窗口 API 比较老（没有高 DPI 那套），按 96 DPI 显示")
+		logf("此系统的窗口 API 较旧（不支持高 DPI），按 96 DPI 显示")
 	}
 
 	u := &nativeUI{ctl: ctl, sel: -1, hover: -1, dpi: dpi}
@@ -1520,7 +1520,7 @@ func (u *nativeUI) appendLine(s string) {
 		// 上色失败是静默的，故只提示一次。
 		if r, _, _ := pSendMessageW.Call(h, emSetCharFormat, scfSelection, uintptr(unsafe.Pointer(&cf))); r == 0 && !u.colorWarned {
 			u.colorWarned = true
-			guiLog("日志上色没成功（EM_SETCHARFORMAT 返回 0）——不影响功能，只是日志不再按行分色")
+			guiLog("日志上色未生效（EM_SETCHARFORMAT 返回 0），不影响功能，仅日志不再按行分色")
 		}
 	}
 	pSendMessageW.Call(h, emSetReadOnly, 1, 0)
@@ -1735,7 +1735,7 @@ func rosterLine(val string) string {
 		return ""
 	}
 	if p.N == 0 || len(p.Who) == 0 {
-		return "[在场] 0 人（还没有人通过身份校验）"
+		return "[在场] 0 人（尚无人通过身份校验）"
 	}
 	parts := make([]string, 0, len(p.Who))
 	for _, w := range p.Who {

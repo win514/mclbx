@@ -465,7 +465,7 @@ func cmdProbe(args []string) error {
 		if r, ok := stunProbeV6(defaultStunServers(), 1500*time.Millisecond); ok {
 			fmt.Printf("IPv6 出口      : %s，IPv6 无 NAT，即本机地址\n", r.IP)
 		} else if len(globalIPv6()) > 0 {
-			fmt.Printf("IPv6 出口      : 无应答 —— 网卡上有 IPv6 地址，但未必出得去\n")
+			fmt.Printf("IPv6 出口      : 无应答；网卡上有 IPv6 地址，但未必可出站\n")
 		}
 	}
 

@@ -30,7 +30,7 @@ func TestGateOffExplanationTellsTheTruthPerForm(t *testing.T) {
 		{
 			name: "公网 IPv4 直连：不许说无法被扫到", addrKind: "v4direct", room: testRoom,
 			roomGiven:  true,
-			mustHave:   []string{"可以被全网扫描", "拿到这一行的人都能进"},
+			mustHave:   []string{"可以被全网扫描", "任何获得该地址的玩家均可进入"},
 			mustNotHas: []string{"无法被全网扫描"},
 		},
 		{
@@ -42,7 +42,7 @@ func TestGateOffExplanationTellsTheTruthPerForm(t *testing.T) {
 		{
 			name: "用户自己关了校验：要说清是他关的", addrKind: "v6dns", room: testRoom, noGate: true,
 			roomGiven:  true,
-			mustHave:   []string{"--no-gate", "拿到这一行的人都能进"},
+			mustHave:   []string{"--no-gate", "任何获得该地址的玩家均可进入"},
 			mustNotHas: []string{"IPv6 地址空间无法被全网扫描"},
 		},
 		{

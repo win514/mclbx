@@ -114,7 +114,7 @@ func TestNormalOutputGetsNoHint(t *testing.T) {
 		"  原因：这个端口已被其他程序占用",
 		"      处理：关闭占用该端口的程序后重试",
 		"路由器放行失败：SOAP 失败：HTTP 500",
-		"配置没写下去（不影响使用）：permission denied",
+		"配置未写入（不影响使用）：permission denied",
 	}
 	for _, line := range normal {
 		if got := explainError(line); len(got) != 0 {

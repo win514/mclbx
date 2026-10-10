@@ -125,7 +125,7 @@ type dnsQuery struct {
 
 func parseDNSQuery(pkt []byte) (*dnsQuery, error) {
 	if len(pkt) < 12 {
-		return nil, errors.New("DNS 报文太短")
+		return nil, errors.New("DNS 报文过短")
 	}
 	q := &dnsQuery{id: binary.BigEndian.Uint16(pkt[0:2]), raw: pkt}
 	flags := binary.BigEndian.Uint16(pkt[2:4])

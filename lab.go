@@ -140,7 +140,7 @@ func cmdStun(args []string) error {
 		}
 		fmt.Printf("\n")
 	} else {
-		fmt.Printf(" 说明     : 只报告对方看到的映射，不转发流量\n")
+		fmt.Printf(" 说明     : 只报告对端看到的映射，不转发流量\n")
 	}
 	fmt.Printf(" 客户端侧 : 把上面那一行填进 --relay-server，或设置环境变量 MCLBX_RELAY\n")
 	fmt.Printf(" Ctrl+C 退出。\n")

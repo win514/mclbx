@@ -183,7 +183,7 @@ func printFacts(f docFacts) {
 		if f.Elevated {
 			sys += "，已提权"
 		} else {
-			sys += "，未提权，修改入站规则时会弹一次 UAC"
+			sys += "，未提权，修改入站规则时会弹出一次 UAC"
 		}
 	}
 	guiDetail(" 系统        : %s", sys)
@@ -196,7 +196,7 @@ func printFacts(f docFacts) {
 		if f.V6Reach {
 			guiDetail(" IPv6 出口   : 可用，%s", f.V6Out)
 		} else if f.V6Tried {
-			guiDetail(" IPv6 出口   : 无应答（有地址，但可能出不去）")
+			guiDetail(" IPv6 出口   : 无应答（有地址，但可能无法出站）")
 		}
 	} else {
 		guiDetail(" 公网 IPv6   : 无")
@@ -281,7 +281,7 @@ func judge(f docFacts) []docFinding {
 		why := "玩家在游戏内「多人游戏 → 直接连接」填入该地址即可。"
 		if f.V6Reach {
 			what = fmt.Sprintf("公网直连可用：公网 IPv6 已验通（出口 %s）", f.V6Out)
-			why = "用 IPv6 问到了 STUN，说明这个地址确实可路由；玩家在游戏内「多人游戏 → 直接连接」填入该地址即可。"
+			why = "用 IPv6 问到了 STUN，说明该地址确实可路由；玩家在游戏内「多人游戏 → 直接连接」填入该地址即可。"
 		}
 		out = append(out, docFinding{Level: "ok", What: what, Why: why})
 
@@ -289,9 +289,9 @@ func judge(f docFacts) []docFinding {
 		if f.V6Tried && !f.V6Reach {
 			out = append(out, docFinding{
 				Level: "warn",
-				What:  "但 IPv6 出口探测无应答：地址在网卡上，未必出得去",
-				Why:   "运营商没开 IPv6、路由器没下发前缀、或上游把 IPv6 丢进黑洞时，网卡上照样有公网 IPv6 地址，但发出去的包回不来。此时玩家按这个地址连会一直超时，而本机看不出任何异常。",
-				Fix:   "先在这台机器上打开一个纯 IPv6 网站确认；打不开就先修 IPv6，或改用软件入场与中继转发。",
+				What:  "但 IPv6 出口探测无应答：地址在网卡上，未必可出站",
+				Why:   "运营商未开通 IPv6、路由器未下发前缀或上游丢弃 IPv6 报文时，网卡上仍有公网 IPv6 地址，但发出的报文无法返回。此时玩家按该地址连接会持续超时，而本机无异常显示。",
+				Fix:   "先在这台机器上访问一个纯 IPv6 网站确认；若无法访问，请先修复 IPv6，或改用软件入场与中继转发。",
 			})
 		}
 	} else {
@@ -335,9 +335,9 @@ func judge(f docFacts) []docFinding {
 		What:  "兜底方案：TCP 中继转发仅使用 TCP，可访问网页的网络均可用",
 		Why:   "UDP 受限时仍可用；数据经中继转发且为明文。",
 		Fix: "在任意一台有公网地址的机器上运行 mclbx relaybox" +
-			"（本程序自带，不必另外装服务），把它输出的那一行 mclbx:// 填进「中继服务器」即可。见「中继服务」分组。" +
-			"注意：跑中继的那台机器的地址会写进这条链接，用本机跑就等于把自己的地址发给参与者 ——" +
-			"不想暴露本机地址，请挑一台不是你房主机的机器（VPS 或朋友的电脑）。",
+			"（本程序自带，无需另行安装服务），将其输出的那一行 mclbx:// 填入「中继服务器」即可。见「中继服务」分组。" +
+			"注意：运行中继的那台机器的地址会写入这条链接，用本机运行等同于把自己的地址发给参与者；" +
+			"不想暴露本机地址，请选择一台非房主机的机器（VPS 或朋友的电脑）。",
 	})
 
 	// 4) Windows 防火墙
@@ -361,8 +361,8 @@ func judge(f docFacts) []docFinding {
 			Level: "warn",
 			What:  "未安装 WebView2 运行时，内置窗口不可用",
 			Why:   "将自动改用系统浏览器打开，功能不受影响。",
-			Fix: "安装 WebView2 运行时。在浏览器里用时注意：" +
-				"关掉标签页不会结束房间 —— 房间要在界面里点「停止」才会结束。",
+			Fix: "安装 WebView2 运行时。在浏览器里使用时注意：" +
+				"关闭标签页不会结束房间；房间需在界面中点「停止」才会结束。",
 		})
 	}
 

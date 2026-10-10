@@ -40,7 +40,7 @@ func cmdDiag(args []string) error {
 	fmt.Printf("结论：诊断包已生成\n")
 	fmt.Printf("      文件：%s\n", path)
 	fmt.Printf("      大小：%d 字节、%d 行\n", len(text), strings.Count(text, "\n")+1)
-	fmt.Printf("      发给他人之前请先打开看一眼：文件里含本机网络地址。\n")
+	fmt.Printf("      发给他人之前请先查看：文件里含本机网络地址。\n")
 	return nil
 }
 
@@ -48,7 +48,7 @@ func cmdDiag(args []string) error {
 func diagHeader() string {
 	return fmt.Sprintf("==== mclbx 诊断包 ====\n"+
 		"生成时间 : %s\n"+
-		"注意     : 本文件含本机网络地址与端口。发给他人之前请先自行检查一遍。\n\n",
+		"注意     : 本文件含本机网络地址与端口。发给他人之前请先自行检查。\n\n",
 		time.Now().Format("2006-01-02 15:04:05 -0700"))
 }
 

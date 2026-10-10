@@ -84,7 +84,7 @@ func cmdFirewall(args []string) error {
 	}
 
 	if runtime.GOOS != "windows" {
-		return fmt.Errorf("这条命令是给 Windows 防火墙用的；当前系统是 %s，Linux/macOS 请用各自的防火墙工具", runtime.GOOS)
+		return fmt.Errorf("该命令用于 Windows 防火墙；当前系统为 %s，Linux/macOS 请使用各自的防火墙工具", runtime.GOOS)
 	}
 
 	protos, err := parseProtos(*proto)

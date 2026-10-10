@@ -90,7 +90,7 @@ func cmdRelayCheck(args []string) error {
 	}
 	// 部分可用时，结论要写清能用的是哪条。
 	if okCount > 0 {
-		fmt.Printf(" 结论：部分可用 —— 上方标记 ✓ 的通道可用，剩余通道校验未通过：\n")
+		fmt.Printf(" 结论：部分可用。上方标有 ✓ 的通道可用，剩余通道校验未通过：\n")
 		return fmt.Errorf("  %s", strings.Join(failures, "\n  "))
 	}
 	return fmt.Errorf("校验未通过：\n  %s", strings.Join(failures, "\n  "))
@@ -197,7 +197,7 @@ func checkTurnHop(h relayHop, timeout time.Duration) error {
 
 	relay2, err := c2.Allocate()
 	if err != nil {
-		fmt.Printf("  [4/5] 数据回环        ⚠ 第二个分配失败 %s ——\n", explainAllocError(err))
+		fmt.Printf("  [4/5] 数据回环        ⚠ 第二个分配失败 %s\n", explainAllocError(err))
 		fmt.Printf("        部分中继限制每个 IP 仅允许一个分配，跳过此步；\n")
 		fmt.Printf("        前三步已确认账号可用且已获取中继地址，中继本身可用\n")
 		return nil
@@ -234,7 +234,7 @@ func checkTurnHop(h relayHop, timeout time.Duration) error {
 	select {
 	case r := <-ch:
 		if r.err != nil {
-			return fmt.Errorf("数据未能经中继返回，%v —— 分配成功但转发失败，中继本身可能存在问题", r.err)
+			return fmt.Errorf("数据未能经中继返回，%v。分配成功但转发失败，中继本身可能存在问题", r.err)
 		}
 		if string(r.data) != string(payload) {
 			return fmt.Errorf("返回内容不一致：收到 %q，期望 %q", r.data, payload)
@@ -245,7 +245,7 @@ func checkTurnHop(h relayHop, timeout time.Duration) error {
 		}
 		fmt.Printf("       数据回环        ✓ %d 字节往返成功，两端地址改写正确\n", r.n)
 	case <-time.After(timeout):
-		return fmt.Errorf("数据未能经中继返回，等待 %v —— 分配成功但转发失败", timeout)
+		return fmt.Errorf("数据未能经中继返回，等待 %v。分配成功但转发失败", timeout)
 	}
 
 	// 5) 粗测中转带宽。
@@ -284,7 +284,7 @@ func checkTurnHop(h relayHop, timeout time.Duration) error {
 	}
 	el := time.Since(t0)
 	if n < burst {
-		fmt.Printf("  [5/5] 连发 %d 个包     ⚠ 仅收到 %d 个，%d ms —— 可连通但可能丢包\n", burst, n, el.Milliseconds())
+		fmt.Printf("  [5/5] 连发 %d 个包     ⚠ 仅收到 %d 个，%d ms，可连通但可能丢包\n", burst, n, el.Milliseconds())
 	} else {
 		mbps := float64(n*pktSize) / el.Seconds() / 1048576
 		fmt.Printf("  [5/5] 连发 %d 个包     ✓ 全部收到，%.2f MiB/s，%d ms，含两端各一次加密开销\n",
@@ -301,7 +301,7 @@ func checkTCPHop(addr, room string, timeout time.Duration) error {
 
 	c1, _, err := dialRelay(addr, room)
 	if err != nil {
-		return fmt.Errorf("%w —— 常见原因：对端未运行 mclbx relay、端口错误、防火墙未开放", err)
+		return fmt.Errorf("%w。常见原因：对端未运行 mclbx relay、端口错误、防火墙未开放", err)
 	}
 	defer c1.Close()
 	fmt.Printf("  [1/4] 连上中继        ✓ 第一条连接就绪\n")

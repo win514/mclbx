@@ -189,7 +189,7 @@ func (g *gateState) watchIPv6Changes() {
 		if newAddr == "" {
 			continue
 		}
-		g.addLog("公网 IPv6 变化：%s → %s，地址卡已更新（旧邀请请重新复制）", old, pick)
+		g.addLog("公网 IPv6 变化：%s → %s，地址卡已更新；请重新复制邀请", old, pick)
 		g.emitAddr(newAddr)
 	}
 }
@@ -530,7 +530,7 @@ func startZeroInstallGate(o gateSetup) (*gateReady, error) {
 			g.v6Reach, g.v6Out = true, r.IP.String()
 			g.natInfo += fmt.Sprintf("；IPv6 出口 %s，无 NAT", r.IP)
 		} else if len(g.v6) > 0 {
-			g.natInfo += "；IPv6 出口无应答（地址在，但可能出不去）"
+			g.natInfo += "；IPv6 出口无应答（地址存在，但可能无法出站）"
 		}
 		fmt.Printf(" 出站 NAT         : %s\n", g.natInfo)
 	}
@@ -631,7 +631,7 @@ func startZeroInstallGate(o gateSetup) (*gateReady, error) {
 		}
 		// 该解析成功只代表房主侧；玩家侧 DNS 受限时提示改用 --mode raw。
 		fmt.Println("  若玩家那边提示「无法解析主机名」（受限 DNS / 不解析通配域名）：")
-		fmt.Println("  房主改用 --mode raw 重开一次即可 —— raw 直接给 IPv6 字面量，不经过任何 DNS")
+		fmt.Println("  房主改用 --mode raw 重开一次即可；raw 直接给 IPv6 字面量，不经过任何 DNS")
 
 	case publicV4Direct(g.stunV4):
 		// 本机直连公网 IPv4：无需端口映射或第三方，地址即本机地址。
@@ -687,13 +687,13 @@ func startZeroInstallGate(o gateSetup) (*gateReady, error) {
 		}
 
 		if !mapped {
-			fmt.Println(" 结论：公网入口不可用——无公网 IPv6，自动端口映射不可用")
+			fmt.Println(" 结论：公网入口不可用：无公网 IPv6，自动端口映射不可用")
 			fmt.Println("  原因：玩家需主动连接本机，本机位于 NAT 之后且无稳定入站端口")
-			fmt.Println("  处理（按省事程度排）：")
-			fmt.Println("    1) 最省事：请一位有公网地址（或有 VPS）的朋友运行 mclbx relaybox，")
+			fmt.Println("  处理（按优先级排序）：")
+			fmt.Println("    1) 首选方案：请一位有公网地址（或有 VPS）的朋友运行 mclbx relaybox，")
 			fmt.Println("       把他屏幕上那一行 mclbx:// 发给你，填进「中转服务器」即可；")
-			fmt.Println("       你也可以自己在一台能上网的常驻机器上跑它。")
-			fmt.Println("       注意：中继这条通道是明文转发，能用直连时别用它。")
+			fmt.Println("       你也可以自己在一台可联网的常驻机器上运行它。")
+			fmt.Println("       注意：中继通道为明文转发，直连可用时请勿使用。")
 			fmt.Println("    2) 在光猫或路由器开启 IPv6（家用宽带多数免费，改完重启一次）")
 			fmt.Println("    3) 在路由器管理页把入口端口映射到本机")
 			fmt.Println("    4) 两端都装本工具（双方都在 NAT 后时仍需中继，只是多一层加密）")
@@ -702,8 +702,8 @@ func startZeroInstallGate(o gateSetup) (*gateReady, error) {
 
 	// IPv6 路线且出口探测未通时必须提示。
 	if has6 && g.v6Tried && !g.v6Reach {
-		fmt.Println(" 提醒             : IPv6 出口探测无应答 —— 地址在网卡上，未必出得去")
-		fmt.Println("                    先用纯 IPv6 网站确认本机能出去；不行就改用软件入场或中继")
+		fmt.Println(" 提醒             : IPv6 出口探测无应答；地址在网卡上，未必可出站")
+		fmt.Println("                    请先用纯 IPv6 网站确认本机可出站；若不可用，请改用软件入场或中继")
 	}
 
 	// IPv6 路线下启动低频快照监控地址变化。
@@ -794,20 +794,20 @@ func gateOffExplanation(addrKind, room string, noGate, roomGiven bool) []string 
 	var out []string
 	switch {
 	case noGate:
-		out = append(out, "  说明：你已用 --no-gate 关掉房间码校验，拿到这一行的人都能进")
+		out = append(out, "  说明：你已用 --no-gate 关闭房间码校验，任何获得该地址的玩家均可进入")
 	case addrKind == "v6raw":
 		out = append(out, "  说明：IPv6 地址空间无法被全网扫描，仅告知受信任的玩家")
 	case addrKind == "v4direct" || addrKind == "v4map":
 		out = append(out,
-			"  说明：公网 IPv4 可以被全网扫描，拿到这一行的人都能进",
+			"  说明：公网 IPv4 可以被全网扫描，任何获得该地址的玩家均可进入",
 			"        需要门槛请改用 --mode dns（房间码编进玩家要填的名字）")
 	default:
 		out = append(out, "  说明：本模式没有房间码门槛")
 	}
 	// 用户给出了房间码但该形式无法承载时，仅在用户显式指定房间码的情况下提示。
 	if !noGate && roomGiven && addrKind != "v6dns" {
-		out = append(out, fmt.Sprintf("  注意：你给了房间码 %s，但这种地址形式没有地方承载它 —— "+
-			"房间码在本模式下不生效，需要它生效请用 --mode dns", room))
+		out = append(out, fmt.Sprintf("  注意：已指定房间码 %s，但该地址形式无法承载它："+
+			"房间码在本模式下不生效，如需其生效请用 --mode dns", room))
 	}
 	if len(out) > 0 {
 		out[len(out)-1] += "\n" // 这几行后留一个空行

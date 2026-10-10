@@ -446,7 +446,7 @@ func writeTaskInputs(taskKey string, in map[string]string) {
 	err := writeConfigLocked(c)
 	guiCfgMu.Unlock()
 	if err != nil {
-		guiLog("配置没写下去（不影响使用）：%v", err)
+		guiLog("配置未写入（不影响使用）：%v", err)
 	}
 }
 
@@ -515,10 +515,10 @@ func forgetGuiConfig() error {
 func cmdForget(args []string) error {
 	path := guiConfigFile()
 	if err := forgetGuiConfig(); err != nil {
-		return fmt.Errorf("删不掉 %s：%w", path, err)
+		return fmt.Errorf("无法删除 %s：%w", path, err)
 	}
-	fmt.Printf("已忘掉上次填过的内容（%s）\n", path)
-	fmt.Println("下次打开界面，各个输入框会回到默认值。")
+	fmt.Printf("已清除上次记住的填写内容（%s）\n", path)
+	fmt.Println("下次打开界面时，各输入框恢复默认值。")
 	return nil
 }
 

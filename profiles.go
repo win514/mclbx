@@ -28,7 +28,7 @@ type exposureProfile struct {
 var exposureProfiles = []exposureProfile{
 	{
 		ID: "P0", Title: "仅内网",
-		Tradeoff: "不出网：适合同宿舍、同办公室，代价是外面的人连不上。",
+		Tradeoff: "不出网：适合同宿舍、同办公室，代价是外部玩家无法连接。",
 		Note:     "不需要起入口：让同一局域网内的玩家直接连本机地址即可。",
 		Route:    "",
 	},
@@ -40,14 +40,14 @@ var exposureProfiles = []exposureProfile{
 	},
 	{
 		ID: "P2", Title: "私密直连",
-		Tradeoff: "房主地址仍会出现，但只有拿到房间码的人进得来：适合熟人局。",
+		Tradeoff: "房主地址仍会出现，但仅持有房间码的玩家可进入：适合熟人之间联机。",
 		Note:     "公网入口 + 地址形式 dns + 房间码门槛；房间码藏在玩家填入的地址里。",
 		Route:    "expose", Mode: "dns", Gate: true, NeedRoom: true,
 	},
 	{
 		ID: "P3", Title: "隐藏房主",
-		Tradeoff: "需要一台不是你房主机的机器当中继，否则流量只能落在本机。",
-		Note:     "公网入口与软件入口，经你指定的那台中继兜底；中继跑在别的机器上，房主地址才不出现在链接里。",
+		Tradeoff: "需要一台非房主机的机器当中继，否则流量只能落在本机。",
+		Note:     "公网入口与软件入口，经指定的那台中继兜底；中继运行在另一台机器上，房主地址才不出现在链接里。",
 		Route:    "room", Mode: "dns", Gate: true, NeedRoom: true, NeedsRelay: true,
 	},
 	{
@@ -96,8 +96,8 @@ func expandProfile(p exposureProfile, room, relay string) ([]string, error) {
 	}
 	if p.NeedsRelay {
 		if strings.TrimSpace(relay) == "" {
-			return nil, fmt.Errorf("档位 %s（%s）需要一台中继：把中继放到一台不是你房主机的机器上运行，"+
-				"再用 --relay-server <中继链接> 指过来", p.ID, p.Title)
+			return nil, fmt.Errorf("档位 %s（%s）需要一台中继：把中继放到一台非房主机的机器上运行，"+
+				"再用 --relay-server <中继链接> 指定", p.ID, p.Title)
 		}
 		args = append(args, "--relay-server", strings.TrimSpace(relay))
 	}
@@ -111,7 +111,7 @@ func expandProfile(p exposureProfile, room, relay string) ([]string, error) {
 func cmdProfile(args []string) error {
 	if len(args) == 0 {
 		fmt.Println("暴露档位：先选“这台机器愿意暴露多少”，其余默认值由档位展开。")
-		fmt.Println("档位只是预设，不是新链路 —— 它展开成的命令你也可以手工敲。")
+		fmt.Println("档位只是预设，不引入新链路：展开结果为一串现有命令，也可自行手写。")
 		fmt.Println()
 		for _, p := range exposureProfiles {
 			fmt.Printf("  %s  %s\n", p.ID, p.Title)
@@ -124,7 +124,7 @@ func cmdProfile(args []string) error {
 
 	p, ok := profileByID(args[0])
 	if !ok {
-		return fmt.Errorf("没有这个档位：%q；可选 %s", args[0], strings.Join(profileIDs(), " / "))
+		return fmt.Errorf("未知档位：%q；可选 %s", args[0], strings.Join(profileIDs(), " / "))
 	}
 
 	fmt.Printf("  %s  %s\n", p.ID, p.Title)

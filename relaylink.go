@@ -599,7 +599,7 @@ func resolveTCPRelayAddr(relayServer, relayAddr string) (string, error) {
 		if a := plan.TCPAddr(); a != "" {
 			return a, nil
 		}
-		return "", fmt.Errorf("这条中继链接中没有 TCP 中继地址 %s —— 中继转发无法使用它，"+
+		return "", fmt.Errorf("这条中继链接中没有 TCP 中继地址 %s，中继转发无法使用它，"+
 			"请在链接中加 tcp:主机:端口，或单独运行一台 mclbx relay", plan.describe())
 	}
 	// 都未给：读取环境变量配置
