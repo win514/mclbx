@@ -46,7 +46,7 @@ func TestRelayboxSaysTheAddressInTheLinkIsYours(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(doc), "把本机当成那台第三方机器") {
+	if !strings.Contains(string(doc), "以本机充当那台第三方机器") {
 		t.Error("说明书没有讲清「本机中继」里那台第三方机器就是本机自己")
 	}
 }
