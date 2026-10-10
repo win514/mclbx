@@ -10,9 +10,8 @@ import (
 	"testing"
 )
 
-// segOptions 从面板源码里取出某个分段控件的取值列表，
-// 例如 `uiSeg('scale', u.scale, [['std','标准'],['big','大']])`。
-// 判据是：这个列表必须与 normalizeUI 的白名单一致。
+// segOptions 从面板源码里取出某个分段控件的取值列表，列表须与 normalizeUI 的白名单一致。
+// 例：`uiSeg('scale', u.scale, [['std','标准'],['big','大']])`。
 func segOptions(t *testing.T, key string) []string {
 	t.Helper()
 	i := strings.Index(guiPageHTML, "uiSeg('"+key+"'")
@@ -21,7 +20,7 @@ func segOptions(t *testing.T, key string) []string {
 	}
 	body := guiPageHTML[i:]
 	if j := strings.Index(body, "])"); j > 0 {
-		body = body[:j] // 切到 opts 数组结尾，免得把后面几个控件的取值也算进来
+		body = body[:j] // 切到 opts 数组结尾，避免算进后面控件的取值
 	}
 	var out []string
 	for _, m := range regexp.MustCompile(`\[\s*'([a-z]+)'\s*,`).FindAllStringSubmatch(body, -1) {

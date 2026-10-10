@@ -1,6 +1,6 @@
 package main
 
-// dns_test.go —— 报文编解码与「短名字 → 记录集」的单测。
+// dns_test.go 覆盖报文编解码与「短名字 → 记录集」的单测。
 
 import (
 	"encoding/binary"

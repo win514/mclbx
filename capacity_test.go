@@ -1,6 +1,6 @@
 package main
 
-// capacity_test.go —— 各条转发路径的软件侧吞吐上限基准。
+// capacity_test.go 测量各条转发路径的软件侧吞吐上限基准。
 
 import (
 	"bufio"

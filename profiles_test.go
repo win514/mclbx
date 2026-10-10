@@ -1,12 +1,7 @@
 package main
 
-// profiles_test.go —— 暴露档位那三条自我约束的可执行形式。
-//
-// 这里检查的不是“档位好不好用”，而是它有没有偷偷越界：
-//   · 展开出来的是不是既有子命令（不是新链路）
-//   · 用到的每个开关是不是真的存在（不是编的）
-//   · 该给的输入缺了是不是会报错（不是拿默认值顶上）
-//   · 五个档位的标识是不是稳定（配置与文档都按它引用）
+// profiles_test.go 暴露档位自我约束的可执行形式：
+// 展开出的子命令必须已存在，用到的开关必须已定义，缺输入必须报错，档位标识必须稳定。
 
 import (
 	"os"
@@ -15,13 +10,13 @@ import (
 	"testing"
 )
 
-// routeSourceFile 档位展开成的子命令定义在哪个文件里 —— 用来核对开关确实存在。
+// routeSourceFile 记录档位展开出的子命令定义在哪个文件，用于核对开关确实存在。
 var routeSourceFile = map[string]string{
 	"expose": "expose.go",
 	"room":   "room.go",
 }
 
-// 五个档位的标识与顺序是稳定契约：界面、文档与用户的记忆都按它引用。
+// 五个档位的标识与顺序是稳定契约，界面与文档均按它引用。
 func TestExposureProfileIDsAreStable(t *testing.T) {
 	want := []string{"P0", "P1", "P2", "P3", "P4"}
 	got := profileIDs()
@@ -36,7 +31,7 @@ func TestExposureProfileIDsAreStable(t *testing.T) {
 	}
 }
 
-// 每个档位都要有名字、代价说明和展开说明，否则列出来是一行空白。
+// 每个档位都要有标题、代价说明与展开说明。
 func TestExposureProfilesAreFullyDescribed(t *testing.T) {
 	for _, p := range exposureProfiles {
 		if p.Title == "" {
@@ -51,7 +46,7 @@ func TestExposureProfilesAreFullyDescribed(t *testing.T) {
 	}
 }
 
-// 档位只是预设：展开结果的第一项必须是 main.go 认得的子命令，不能是档位自己发明的东西。
+// 档位只是预设：展开结果的第一项必须是 main.go 认得的子命令，不得引入新命令。
 func TestExposureProfilesRouteToKnownSubcommands(t *testing.T) {
 	known := map[string]bool{}
 	for _, name := range cliSurfaceBaseline {
@@ -68,7 +63,7 @@ func TestExposureProfilesRouteToKnownSubcommands(t *testing.T) {
 	}
 }
 
-// 展开是确定的：同样的输入必须得到同样的命令，且与设计时写下的那一条一致。
+// 展开是确定的：相同输入必须得到相同命令，且与预期一致。
 func TestExposureProfilesExpandExactly(t *testing.T) {
 	const room = "abc123"
 	const relay = "turn:1.2.3.4:3478"
@@ -105,14 +100,14 @@ func TestExposureProfilesExpandExactly(t *testing.T) {
 	}
 }
 
-// 该给的输入缺了要报错，而不是拿随机值或默认值顶上 —— 否则用户以为门槛开了，其实没有。
+// 缺少必要输入必须报错，不得以随机值或默认值代替，否则门槛看似开启实则未生效。
 func TestExposureProfilesRefuseMissingInput(t *testing.T) {
 	const room = "abc123"
 	const relay = "turn:1.2.3.4:3478"
 	cases := []struct {
 		id          string
 		room, relay string
-		wantErr     string // 报错里必须出现的关键词，用来确认报的是这件事
+		wantErr     string // 报错中必须出现的关键词，用于确认报的是该错误
 	}{
 		{id: "P2", room: "", relay: "", wantErr: "房间码"},
 		{id: "P3", room: "", relay: relay, wantErr: "房间码"},
@@ -137,8 +132,7 @@ func TestExposureProfilesRefuseMissingInput(t *testing.T) {
 	}
 }
 
-// 展开里用到的每个开关都必须真的定义在对应子命令的源码里。
-// 这条防的是“档位里写了 --no-map，但那一条只存在于另一个子命令”—— 那种错在运行期才炸。
+// 展开里用到的每个开关都必须定义在对应子命令的源码中，防止运行期才暴露的错配。
 func TestExposureProfilesUseOnlyRealFlags(t *testing.T) {
 	const room = "abc123"
 	const relay = "turn:1.2.3.4:3478"

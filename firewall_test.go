@@ -33,7 +33,7 @@ func TestFirewallRuleNameIsStableAndDeletable(t *testing.T) {
 	if n1 != n2 {
 		t.Errorf("大小写不同不该产生两个规则名：%q vs %q", n1, n2)
 	}
-	// 删除用的名字必须和添加时一模一样，否则删不掉
+	// 删除用的名字须与添加时完全一致，否则删不掉
 	got := firewallDelArgs(n1)
 	if len(got) != 5 || got[4] != "name="+n1 {
 		t.Errorf("删除命令对不上：%v", got)

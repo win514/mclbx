@@ -249,7 +249,7 @@ func TestTcpTunnelIdleRuleOnlyFiresWhenSomeoneIsConnected(t *testing.T) {
 		go func() { _ = tcpTunnelHostRun(relayAddr, "halfopen", gameLn.Addr().String()); close(done) }()
 		time.Sleep(200 * time.Millisecond)
 
-		// 对端连中继、报同一房间、发一帧后装死（不关连接）。
+		// 对端连中继、报同一房间、发一帧后不再发送（不关连接）。
 		peer, err := net.DialTimeout("tcp", relayAddr, 2*time.Second)
 		if err != nil {
 			t.Fatal(err)

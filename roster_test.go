@@ -1,6 +1,6 @@
 package main
 
-// roster_test.go —— 房主侧在场玩家名单，覆盖未校验不入榜、迟到 markConnected、重连清空三处时序。
+// roster_test.go 覆盖房主侧在场玩家名单：未校验不入榜、迟到 markConnected、重连清空三处时序。
 
 import (
 	"encoding/json"
@@ -77,7 +77,7 @@ func TestRosterClearedWhenNextGenerationAccepted(t *testing.T) {
 	}
 }
 
-// 界面按 JSON 解析，字段名就是契约；空名单要给出 []，不能是 null。
+// 界面按 JSON 解析，字段名即契约；空名单须给出 []，不能是 null。
 func TestRosterPayloadIsJSONWithStableKeys(t *testing.T) {
 	type who struct {
 		C string `json:"c"`

@@ -2,7 +2,7 @@
 
 package main
 
-// winnative_ocr_test.go —— 用 OCR 校验界面手绘文字确实被画出且可识别（依赖外部工具，缺失则跳过）。
+// winnative_ocr_test.go 用 OCR 校验界面手绘文字确实被画出且可识别（依赖外部工具，缺失则跳过）。
 
 import (
 	"fmt"
@@ -148,7 +148,7 @@ func TestEveryPageReallyDrewItsText(t *testing.T) {
 
 	for i, task := range guiTasks {
 		png := filepath.Join(dir, task.Key+".png")
-		// 本页的等价命令（界面显示的就是它）
+		// 本页的等价命令（界面显示的内容）
 		cmd := "mclbx " + task.Key // 兜底：任务表里 key 与子命令一般同名
 		if args, err := task.build(sample); err == nil && len(args) > 0 {
 			cmd = "mclbx " + args[0]

@@ -1,6 +1,6 @@
 package main
 
-// 数据目录是「存档」的地基：配置、日志、图片、音乐都挂在它下面；这几条用例把选址规则钉住。
+// 数据目录是「存档」的根：配置、日志、图片、音乐都放在其下；下列用例固定选址规则。
 
 import (
 	"os"
@@ -13,13 +13,13 @@ func clearDirCaches() {
 	internalCache = dirCache{}
 }
 
-// 存档优先放在 exe 同级 —— 这样「存档」才名副其实：整个文件夹拷走就带走全部设置。
+// 存档优先放在 exe 同级：整个文件夹拷走即带走全部设置。
 func TestDataDirPrefersExeSibling(t *testing.T) {
 	clearDirCaches()
 	exeDir := t.TempDir()
 	oldExe, oldRoots := exePath, tempRoots
 	exePath = func() (string, error) { return filepath.Join(exeDir, "mclbx.exe"), nil }
-	// 把「临时目录」指到别处，好让 exeDir 被当成普通目录（t.TempDir 本身在临时目录下）
+	// 把「临时目录」指到别处，使 exeDir 被当成普通目录（t.TempDir 本身在临时目录下）
 	tempRoots = func() []string { return []string{filepath.Join(exeDir, "nope")} }
 	defer func() { exePath, tempRoots = oldExe, oldRoots; clearDirCaches() }()
 
@@ -32,14 +32,14 @@ func TestDataDirPrefersExeSibling(t *testing.T) {
 		t.Fatalf("存档目录没有被建出来：%s", got)
 	}
 
-	// 用户把它删掉之后，下一次访问要能自己长回来
+	// 用户删除后，下一次访问须自动重建
 	if err := os.RemoveAll(got); err != nil {
 		t.Fatal(err)
 	}
 	if dirExists(got) {
 		t.Fatal("目录没删掉")
 	}
-	clearDirCaches() // 模拟下一次访问（进程内的记忆也要跟着重算）
+	clearDirCaches() // 模拟下一次访问（进程内缓存随之重算）
 	again := dataDir()
 	if again != want {
 		t.Errorf("删掉之后应当仍然选中同一位置 %s，实际 %s", want, again)
@@ -49,8 +49,7 @@ func TestDataDirPrefersExeSibling(t *testing.T) {
 	}
 }
 
-// 从临时目录运行时不采用 exe 同级：那种情况下系统清理临时目录会把用户的数据一起带走，
-// 而「存档」的意义恰好是留得住。
+// exe 位于临时目录时不采用 exe 同级：系统清理临时目录会连同用户数据一起删除。
 func TestDataDirSkipsTempExeDir(t *testing.T) {
 	clearDirCaches()
 	exeDir := t.TempDir() // 本身就在临时目录下
@@ -80,7 +79,7 @@ func TestInternalDirStaysOutOfArchive(t *testing.T) {
 	}
 }
 
-// 「可写」必须是真的写得进去，而不是 Stat 说目录在。
+// 「可写」须确实能写入，而非仅 Stat 判断目录存在。
 func TestDataDirIsActuallyWritable(t *testing.T) {
 	clearDirCaches()
 	exeDir := t.TempDir()
@@ -102,7 +101,7 @@ func TestDataDirIsActuallyWritable(t *testing.T) {
 	_ = os.Remove(name)
 }
 
-// 存档位置换了后，用户既有设置必须跟着过来，且只复制不移动。
+// 存档位置更换后，用户既有设置须迁移过来，且只复制不移动。
 func TestArchiveMigrationBringsLegacySettingsOver(t *testing.T) {
 	clearDirCaches()
 	legacyBase := t.TempDir()
@@ -153,7 +152,7 @@ func TestArchiveMigrationBringsLegacySettingsOver(t *testing.T) {
 	}
 }
 
-// 全都不通时必须返回空串，而不是拼成相对当前目录的路径（那等于设置凭空消失）。
+// 全部方案都不可用时须返回空串，而不是拼成相对当前目录的路径（会导致设置落进工作目录）。
 func TestDataDirReturnsEmptyWhenNothingWorks(t *testing.T) {
 	clearDirCaches()
 	oldExe := exePath

@@ -1,6 +1,6 @@
 package main
 
-// sctp_rtt_test.go —— 测量隧道吞吐随 RTT 的变化，定位高延迟下的瓶颈。
+// sctp_rtt_test.go 测量隧道吞吐随 RTT 的变化，定位高延迟下的瓶颈。
 
 import (
 	"crypto/tls"

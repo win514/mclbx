@@ -1,6 +1,6 @@
 package main
 
-// guiwindow_test.go —— 「只能有一个窗口」的保证：能认出既有服务，且认出后不再起第二个实例。
+// guiwindow_test.go 单窗口保证：能认出既有服务，且认出后不再起第二个实例。
 
 import (
 	"net"
@@ -81,7 +81,7 @@ func TestGuiRunningOnRejectsNotFoundAndDeadPort(t *testing.T) {
 	}
 }
 
-// 已有实例在跑时直接接手，不再起第二个。
+// 已有实例运行时直接接手，不再起第二个。
 func TestGuiReuseRunningHandsOverToExistingInstance(t *testing.T) {
 	withNoGuiWindow(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -96,7 +96,7 @@ func TestGuiReuseRunningHandsOverToExistingInstance(t *testing.T) {
 	}
 }
 
-// 没有在跑的实例：必须返回 handled=false，让调用方去起自己的服务
+// 没有运行的实例：必须返回 handled=false，让调用方去起自己的服务
 func TestGuiReuseRunningStartsFreshWhenNothingRunning(t *testing.T) {
 	withNoGuiWindow(t)
 	ln, err := net.Listen("tcp", "127.0.0.1:0")

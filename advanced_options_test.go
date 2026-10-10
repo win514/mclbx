@@ -7,12 +7,9 @@ import (
 )
 
 /* 高级显示选项（面板透明度、背景图明暗）的护栏。
-   这一层对用户是三项硬承诺，所以每条都有用例：
-     一、出厂值下不写任何覆盖 —— 没动过这两根滑杆的人，拿到的必须是与引入这两项之前
-         逐值相同的取值；
-     二、倍率在 CSS 里以"未设置即 1"的形态出现，于是"不写覆盖"与"倍率是 1"是同一件事，
-         不存在"写了覆盖但倍率是 1"这种中间状态；
-     三、越过出厂值当场提示，不硬卡 —— 可读性由用户自己决定，但必须有提示。 */
+   一、出厂值下不写任何覆盖；
+   二、倍率在 CSS 里以"未设置即 1"的形态出现，故"不写覆盖"与"倍率是 1"是同一件事；
+   三、越过出厂值当场提示，不硬卡。 */
 
 // TestAdvancedOptionNormalize 越界、非数字与空值一律回到出厂值，不留半个合法值。
 func TestAdvancedOptionNormalize(t *testing.T) {
@@ -31,8 +28,7 @@ func TestAdvancedOptionNormalize(t *testing.T) {
 	if u.Transparency != "80" || u.WallBright != "50" {
 		t.Errorf("归一化后是 %q / %q，期望 \"80\" / \"50\"", u.Transparency, u.WallBright)
 	}
-	// 出厂常量本身：Go 与前端各有一份同值的定义，两边不一致就会出现"看到的是出厂值、
-	// 服务端存的却不是"这种没人查得出来的错，所以这里把它钉住。
+	// 出厂常量：Go 与前端各有一份同值定义，不一致会静默出错，故在此钉住。
 	if uiPctDefault != 50 || uiPctMin != 0 || uiPctMax != 100 {
 		t.Errorf("百分比常量是 %d/%d/%d，期望 0/100/50", uiPctMin, uiPctMax, uiPctDefault)
 	}
@@ -54,15 +50,13 @@ func TestAdvancedOptionsExistInThePanel(t *testing.T) {
 			t.Errorf("设置页里找不到 %q", want)
 		}
 	}
-	// 出厂值在正中间，所以两端都是有效方向；写成 0 到 100 的滑杆而不是两态开关，
-	// 是因为这一层的目的正是让用户自己定，而不是替用户定。
+	// 刻度是 0 到 100 的滑杆，两端都是有效方向，不能做成两态开关。
 	if strings.Contains(guiPageHTML, "uiSeg('transparency'") || strings.Contains(guiPageHTML, "uiSeg('wallBright'") {
 		t.Error("高级选项被做成了分段开关，但这一层要的是可调区间")
 	}
 }
 
-// TestAdvancedFactoryWritesNoOverride 出厂值必须走 removeProperty：不写覆盖。
-// 这条是"出厂观感逐值不变"的唯一保证，不能靠"倍率等于 1 所以无所谓"。
+// TestAdvancedFactoryWritesNoOverride 出厂值必须走 removeProperty，不写覆盖。
 func TestAdvancedFactoryWritesNoOverride(t *testing.T) {
 	if !strings.Contains(guiPageHTML, "if(k === 0){ el.style.removeProperty(prop); return; }") {
 		t.Error("出厂值没有走 removeProperty —— 会留下一个内容为 1 的覆盖属性")
@@ -71,7 +65,7 @@ func TestAdvancedFactoryWritesNoOverride(t *testing.T) {
 		!strings.Contains(guiPageHTML, "put('--adv-scrim', wallBright, 0.75)") {
 		t.Error("两个倍率的换算步长没找到")
 	}
-	// 回落到 1 的形态：没有它，"未设置"与"设成 1"就是两件事。
+	// 回落到 1 的形态：没有它，"未设置"与"设成 1"是两件事。
 	if n := strings.Count(guiPageHTML, "var(--adv-glass,1)"); n != 3 {
 		t.Errorf("玻璃三层里以 var(--adv-glass,1) 出现的倍率有 %d 处，期望 3 处", n)
 	}
@@ -80,8 +74,7 @@ func TestAdvancedFactoryWritesNoOverride(t *testing.T) {
 	}
 }
 
-// TestAdvancedOptionIsRegistered 两项都要登记进字段表 ——
-// 恢复默认、导出、导入三处都按这张表走，漏登记的症状是"改了但重置不动它"。
+// TestAdvancedOptionIsRegistered 两项都要登记进字段表：恢复默认、导出、导入三处都按它走。
 func TestAdvancedOptionIsRegistered(t *testing.T) {
 	for _, k := range []string{"transparency", "wallBright"} {
 		info, ok := uiFieldLabels[k]
@@ -95,7 +88,7 @@ func TestAdvancedOptionIsRegistered(t *testing.T) {
 			t.Errorf("%s 没有中文名", k)
 		}
 	}
-	// 服务端要把两项交给界面：不发的话面板显示的是默认值，用户改了也看不到回显。
+	// 服务端要把两项交给界面，否则面板显示默认值、看不到用户改后的回显。
 	src, err := os.ReadFile("gui.go")
 	if err != nil {
 		t.Fatalf("读不到 gui.go：%v", err)
@@ -107,11 +100,8 @@ func TestAdvancedOptionIsRegistered(t *testing.T) {
 	}
 }
 
-// TestAdvancedOptionWarnsPastFactory 越过出厂值必须当场提示，且说明行要就地刷新。
-//
-// 说明行是浏览器端按滑杆的值算出来的，Go 这边没有 JS 引擎可以执行它，所以这里核对源码里
-// 的判据形态：提示句存在，且只在值大于出厂值时出现 —— 而"拖动时会更新"靠的是说明行登记进
-// uiRefreshHints，那一条也一并盯住，否则改完滑杆要等重开面板才看得见提示。
+// TestAdvancedOptionWarnsPastFactory 越过出厂值必须当场提示，说明行须登记进 uiRefreshHints。
+// 说明行由浏览器端按滑杆值算出，Go 无 JS 引擎，故核对源码中的判据形态。
 func TestAdvancedOptionWarnsPastFactory(t *testing.T) {
 	for _, want := range []string{
 		"if(v > ADV_FACTORY){ return '已越过出厂值：部分文字可能看不清。'; }",
@@ -125,21 +115,17 @@ func TestAdvancedOptionWarnsPastFactory(t *testing.T) {
 	}
 }
 
-// TestAdvancedOptionsAreAppliedOnFirstScreen 两项必须在首屏就生效，而不是等用户动一次设置。
-//
-// 只把取值存住是不够的：倍率的唯一写入口是 applyAdvanced，而它平时只被 uiApply 叫到 ——
-// uiApply 只在保存设置、导入配置与恢复默认三处跑。首屏那一次如果没人补，重开程序后界面会
-// 一直停在出厂观感（面板偏实、照片偏暗），用户看到的就是"设置没生效，点一下才回来"。
+// TestAdvancedOptionsAreAppliedOnFirstScreen 两项须在首屏生效。
+// 倍率的唯一写入口是 applyAdvanced，uiApply 只在保存设置、导入配置与恢复默认三处调用。
 func TestAdvancedOptionsAreAppliedOnFirstScreen(t *testing.T) {
-	// 一、服务端首屏要把取值发给前端：这两项不像主题那样能直接对应一个 CSS 块，
-	// 倍率由浏览器算，所以取值必须在首屏 JSON 里。
+	// 服务端首屏要把取值放进首屏 JSON：倍率由浏览器算，不能像主题那样对应一个 CSS 块。
 	boot := normalizeUI(guiUIState{Transparency: "100", WallBright: "20"}).uiStartupJSON()
 	for _, want := range []string{`"transparency":"100"`, `"wallBright":"20"`} {
 		if !strings.Contains(boot, want) {
 			t.Errorf("首屏 JSON 里没有 %s —— 前端无从知道用户调过这两项", want)
 		}
 	}
-	// 二、启动段要真的写下去，且以首屏 JSON 的取值为准。
+	// 启动段要真的写下去，且以首屏 JSON 的取值为准。
 	i := strings.Index(guiPageHTML, "VFX.init(window.MCLBX_UI || null);")
 	if i < 0 {
 		t.Fatal("找不到美化层的启动调用 —— 这条检查等于没做")

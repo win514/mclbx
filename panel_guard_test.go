@@ -23,11 +23,8 @@ func bodyBetween(t *testing.T, from, to string) string {
 	return guiPageHTML[i : i+j]
 }
 
-// TestEverySwitchInThePanelIsCollected 检查面板上每个开关都被 uiCollect() 读到。
-//
-// 分段与输入框走的是通用扫描（见下一条），开关不是：每个开关值怎么落到配置上都不同
-// （例如「记住」存的是关掉），所以必须逐个显式处理。
-// 漏一个的症状是：拨了没反应，而且下一次任意保存都会把它打回默认。
+// TestEverySwitchInThePanelIsCollected 每个开关都必须被 uiCollect() 显式读到。
+// 开关值落到配置上的方式各不相同，漏一个的症状是拨了没反应、下次保存被打回默认。
 func TestEverySwitchInThePanelIsCollected(t *testing.T) {
 	panel := bodyBetween(t, "function uiThemeHTML(u){", "function uiAboutHTML(u){")
 	collect := bodyBetween(t, "function uiCollect", "function uiApply")
@@ -137,20 +134,15 @@ func TestLiteMotionMatchesSystemPreference(t *testing.T) {
 	}
 }
 
-// 空闲时不许留**无限**动画。
-//
-// 口径原来更严：除「执行中」那个状态点外，全表不许出现 animation。加面板淡入时放宽成现在这样 ——
-// 真正烧 GPU 的是"永远在跑"的那种，而一次性动画（淡入 0.16 秒就结束）不是常驻开销。
-// 放宽带三条约束，缺一条它就变回常驻开销：不能是 infinite；必须有明确时长；
-// 不能挂在整屏图层上（整屏 + 动画正是那条「空闲 13%」红线的机制）。
+// 空闲时不许留无限动画。放宽为允许一次性动画的三条约束：不能是 infinite、必须有明确时长、
+// 不能挂在整屏图层上，缺一条它就变回常驻开销。
 func TestNoIdleAnimation(t *testing.T) {
 	css := cssRegion(t)
 	infinite := regexp.MustCompile(`animation[^;}]*\binfinite\b`)
 	hasDur := regexp.MustCompile(`animation:[^;}]*\d+(\.\d+)?m?s`)
 	varDur := regexp.MustCompile(`animation:[^;}]*var\((--[\w-]+)\)`)
 	fullScreen := regexp.MustCompile(`inset\s*:\s*0(px)?\s*;`)
-	// 时长可以写字面量，也可以走变量（面板淡入走变量，好让精简动效把它归零）。
-	// 走变量时必须在样式表里查得到那个变量确实是个时间值 —— 否则"有明确时长"这句话没被验证到。
+	// 时长可以写字面量或走变量；走变量时须在样式表里查出它是时间值。
 	varIsTime := func(name string) bool {
 		return regexp.MustCompile(regexp.QuoteMeta(name) + `:\s*[\d.]+m?s`).MatchString(css)
 	}
@@ -160,7 +152,7 @@ func TestNoIdleAnimation(t *testing.T) {
 		}
 		sel := effSel(r.sel)
 		if strings.Contains(sel, ".dot.run") {
-			continue // 有意保留：只在任务运行期间存在，是"正在干活"的唯一反馈
+			continue // 有意保留：只在任务运行期间存在，是运行状态的唯一反馈
 		}
 		if regexp.MustCompile(`animation:\s*none`).MatchString(r.body) {
 			continue // 精简 / 系统偏好两条覆盖规则把它关掉

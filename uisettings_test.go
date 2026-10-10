@@ -227,7 +227,7 @@ func TestAutoProbeIsOneSwitchForBothUIs(t *testing.T) {
 	if autoProbeOn() {
 		t.Error("设置里关掉之后，probe 那个勾也必须是关的")
 	}
-	// 只动 auto，别的字段不能被顺手清掉
+	// 只动 auto，不得连带清掉其它字段
 	writeTaskInputs("probe", map[string]string{"port": "25566", "auto": ""})
 	setAutoProbe(true)
 	resetGuiConfigCache()

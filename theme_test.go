@@ -113,8 +113,7 @@ func jsListIDs(t *testing.T, fn string) []string {
 	return out
 }
 
-// sharedVars 是不归任何主题私有的变量：尺寸与字体、强调色的半透明值，
-// 以及运行期注入的背景图片地址（它由设置决定，与配色无关）。
+// sharedVars 是不归任何主题私有的变量：尺寸与字体、强调色的半透明值，以及运行期注入的背景图片地址。
 var sharedVars = map[string]bool{
 	"--s1": true, "--s2": true, "--s3": true, "--s4": true, "--s5": true,
 	"--r1": true, "--r2": true, "--r3": true, "--pill": true,
@@ -122,12 +121,10 @@ var sharedVars = map[string]bool{
 	"--wall":     true,
 	"--sig-soft": true, "--sig-edge": true, "--sig-ring": true,
 	"--sig-focus": true, "--sig-live": true,
-	// 动效令牌也不是"主题私有"：时长与缓动是全局手感，换成浅色背景不该变成另一种节奏。
+	// 动效令牌也不是主题私有：时长与缓动是全局的。
 	"--d1": true, "--d2": true, "--d3": true, "--ease": true,
-	// 毛玻璃那一族也不是"主题私有"：颜色由每个主题的 --glass-rgb 决定，
-	// 不透明度与模糊由档位块给（档位块与主题正交），三档合成值 --glass-1/2/3 在基础块里算一次。
-	// 唯一会覆盖它们的是高对比主题（档位块用 :not([data-theme="contrast"]) 把它排除在外），
-	// 那一头由 TestGlassLevelsAreBoundedAndOrdered 与 TestGlassOverPageKeepsTextReadable 盯着。
+	// 毛玻璃那一族同理：颜色由各主题的 --glass-rgb 决定，不透明度与模糊由开态块给；
+	// 唯一覆盖它们的是高对比主题，相关约束见 TestGlassOverPageKeepsTextReadable。
 	"--glass-1": true, "--glass-2": true, "--glass-3": true,
 	"--g1a": true, "--g2a": true, "--g3a": true,
 	"--glass-blur": true, "--blur-3": true,
@@ -185,11 +182,8 @@ func TestEveryThemeCoversEveryThemeOwnedVariable(t *testing.T) {
 	}
 }
 
-// themeOverridableShared 是"共用、但允许某个主题覆盖"的那一小撮。
-//
-// 目前只有毛玻璃的三档不透明度，理由在 guihtml.go 的档位表那一段：档位块与主题正交，
-// 唯独高对比主题必须把它们钉回接近实心（它的存在理由是"看清"，不能随档位变透明）。
-// 这是一处**明写的例外**，不是把守卫放松 —— 除这三个名字之外，共用变量依旧不许被主题重新定义。
+// themeOverridableShared 是"共用、但允许某个主题覆盖"的一小撮，目前只有毛玻璃三档不透明度。
+// 高对比主题须把它们钉回接近实心；除这三个名字外，共用变量不许被主题重新定义。
 var themeOverridableShared = map[string]bool{"--g1a": true, "--g2a": true, "--g3a": true}
 
 // 共用变量不许被任何主题块重新定义（上面那三个例外除外）。
@@ -346,8 +340,7 @@ func TestNoNonexistentVariablesInCSS(t *testing.T) {
 			}
 		}
 	}
-	// 毛玻璃同理：--glass-blur 与三档不透明度是按开态声明的（与字号档同一形态，不是主题私有变量）。
-	// 开态块带 :not([data-theme="contrast"])，选择器要照抄，否则这里 collect 不到、会误报成"变量没定义"。
+	// 毛玻璃同理：--glass-blur 与三档不透明度按开态声明；选择器须照抄 :not([data-theme="contrast"])。
 	for _, name := range glassValues {
 		if name == uiGlassOff {
 			continue // off 是关闭，没有属于自己的块
@@ -359,8 +352,7 @@ func TestNoNonexistentVariablesInCSS(t *testing.T) {
 			}
 		}
 	}
-	// 任何一处 `:root{...}` 都算定义，不只第一处。
-	// 视觉美化那一段自带一个 :root 块（--vfx-fade 的时长）：它必须留在那一段里，删掉美化时不该留孤儿。
+	// 任何一处 `:root{...}` 都算定义；视觉美化那段自带的 :root 块须留在段内，删段时不留孤儿。
 	for _, m := range regexp.MustCompile(`:root\{([^}]*)\}`).FindAllStringSubmatch(guiPageHTML, -1) {
 		for v := range cssVars(m[1]) {
 			declared[v] = true

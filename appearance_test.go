@@ -1,10 +1,7 @@
 package main
 
 // appearance_test.go —— 三项外观能力的护栏：扁平化、毛玻璃、背景图片。
-//
-// 这个文件里的断言都围绕同一件事：**界面在空闲时不能有持续的 GPU / CPU 开销**。
-// 项目里那条实测红线是「空闲 13%、运行中 51% 来自一个占满视口又带模糊或动画的图层」，
-// 下面每一条守卫都是把那条红线写成可执行的判据。
+// 断言围绕一件事：界面空闲时不能有持续的 GPU / CPU 开销。
 
 import (
 	"bytes"
@@ -25,7 +22,7 @@ import (
 	"testing"
 )
 
-// withTempGallery 把图库目录指到临时目录 —— 没有它，旧路径的自动采纳会往真实的存档里写文件。
+// withTempGallery 把图库目录指到临时目录：否则自动采纳会写入真实存档。
 func withTempGallery(t *testing.T) string {
 	t.Helper()
 	old := wallGalleryDir
@@ -49,17 +46,12 @@ func withTempWall(t *testing.T) string {
 	return dir
 }
 
-// 样式表不许使用比基线更新的 CSS 函数。
-//
-// 界面跑在系统自带的 WebView2 上，那台机器上的 Chromium 版本由微软的更新决定，不由这个 exe
-// 决定。用了新函数时，不支持的引擎会在**解析期**把整条声明丢掉，而且丢得悄无声息：
-// 毛玻璃那几条只是没效果，但暗化层一丢就是"照片上的字没有东西托着"——那一档是危险的。
-// 所以这类值一律写成每个主题各一份的静态变量（见 :root 里 --glass / --wall-scrim 那段注释）。
+// 样式表不许使用比基线更新的 CSS 函数：不支持的引擎会在解析期丢掉整条声明且不报错。
+// 这类值一律写成每个主题各一份的静态变量。
 func TestNoVersionDependentCSSFunctions(t *testing.T) {
-	// 括号里这几个都是 Chromium 105 之后才有的。项目基线只用到 min() / max()（79），
-	// 那两个不在此列，别顺手加进来。
+	// 括号里几个都是 Chromium 105 之后才有的；基线只用到 min() / max()（79）。
 	//
-	// 先剥掉注释再扫：说明"不要用某个函数"的那几句注释本身会命中，那不是声明。
+	// 先剥注释再扫：说明用的注释本身会命中。
 	css := regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(cssRegion(t), "")
 	re := regexp.MustCompile(`(?i)\b(color-mix|oklch|oklab|lab|lch|light-dark|device-cmyk)\(|:has\(|@container|color\(from`)
 	hits := re.FindAllString(css, -1)
@@ -80,15 +72,10 @@ func TestNoVersionDependentCSSFunctions(t *testing.T) {
 
 // ---- 毛玻璃（视觉美化层）----
 //
-// 这一段的口径变过一次，值得写清楚：原来这里是「全表禁 backdrop-filter」，
-// 禁的其实是**占满视口又带模糊或动画**的图层 —— 那条实测红线（空闲 13%、运行中 51%）就是它。
-// 现在允许真毛玻璃，理由不是"模糊变便宜了"，而是把那个乘积的两个乘数都压住了：
-// 只加在局部面板上（面积），任务执行期间整体让位（变化频率）。
-// 下面几条把那两条压法写成判据。放宽的只有"能不能用"，边界一条都没松。
+// 允许真毛玻璃的前提有两条：只加在局部面板上（面积）、任务执行期间整体让位（变化频率）。
 
-// vfxCSS 取出视觉美化那一段 CSS。它必须是**可以整段删掉**的，所以先能把它圈出来。
-// 起点取到注释的 `/*` 上，而不是注释里那行标题 —— 否则这一段自带的那段说明会被算成"段外"，
-// 剥注释时剥不干净，判据就会拿说明文字当声明。
+// vfxCSS 取出视觉美化那一段 CSS，它必须可以整段删掉。
+// 起点取到注释的 /* 上，而非注释里的标题，否则自带说明会被算作段外。
 func vfxCSS(t *testing.T) string {
 	t.Helper()
 	i := strings.Index(guiPageHTML, "/* ============ 视觉美化（VFX）")
@@ -102,16 +89,13 @@ func vfxCSS(t *testing.T) string {
 	return guiPageHTML[i : i+j]
 }
 
-// cssNoComments 剥掉注释。cssRules 会把选择器前面那段注释一起算进选择器，
-// 而说明用的注释里正好也写着这些类名 —— 不剥掉就会拿说明文字当规则判。
+// cssNoComments 剥掉注释：cssRules 会把选择器前的注释算进选择器，不剥会误判。
 func cssNoComments(t *testing.T) string {
 	t.Helper()
 	return regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(cssRegion(t), "")
 }
 
-// stripNot 去掉 :not(...) 那几段。
-// 判"这条规则碰没碰某个元素"时必须先去掉它：`.card:not(.logcard)` 里的 .logcard
-// 是**排除**，恰恰说明它不碰日志卡。不剥掉就会把这条最要紧的排除条件当成违规。
+// stripNot 去掉 :not(...) 那几段：`.card:not(.logcard)` 里的 .logcard 是排除，不剥会误判为违规。
 func stripNot(sel string) string {
 	return regexp.MustCompile(`:not\([^)]*\)`).ReplaceAllString(sel, "")
 }
@@ -129,15 +113,11 @@ func blurRules(t *testing.T) []panelCSSRule {
 	return out
 }
 
-// 允许加模糊的地方。它们都是**局部**面板，且内容是间歇变化的。
-// 往这份名单里加东西之前先回答两个问题：它背后是谁？那块内容多久变一次？
-//
-// 名单的构成即"毛玻璃的层次"：顶栏与状态栏是两条薄边（背后只有静止的背景层）、
-// 主区那些面板内容是静止的（日志区被 :not 排除在外）、设置页外壳自己不滚（滚动在里面的 .mset）、
-// .mbox 是浮层。侧栏、日志面、操作行**不在**名单里 —— 它们会随搜索/追加/滚动重算。
+// 允许加模糊的地方，都是局部面板且内容间歇变化。
+// 顶栏与状态栏、主区静止面板、设置页外壳、.mbox 浮层在内；侧栏、日志面、操作行不在。
 var blurAllowedSel = []string{".topbar", ".statusbar", ".stage>.panel:not(.logpanel)", ".setpage", ".mbox"}
 
-// 局部：模糊只准落在上面那几个面板上，一个都不许漏到别处（逐条选择器核，不是整串包含）。
+// 局部：模糊只准落在上面那几个面板上，逐条选择器核。
 func TestBackdropFilterOnlyOnLocalSurfaces(t *testing.T) {
 	rules := blurRules(t)
 	if len(rules) == 0 {
@@ -165,7 +145,7 @@ func TestBackdropFilterOnlyOnLocalSurfaces(t *testing.T) {
 	}
 }
 
-// 三类地方**永远**不许加模糊。它们对应三条各自成立的代价来源，不是同一件事的三种说法。
+// 以下地方永远不许加模糊，各有独立的代价来源。
 func TestNoBackdropFilterOnChurningSurfaces(t *testing.T) {
 	banned := []struct{ cls, why string }{
 		{".logpanel", "日志在任务执行期间持续追加，模糊要跟着一遍遍重算"},
@@ -197,10 +177,7 @@ func cssNoCommentsOne(sel string) string {
 	return regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(sel, "")
 }
 
-// 每一条模糊规则都必须同时挂着两道闸：毛玻璃开着、"当前不在运算期间"。
-// 少任何一道，界面就会在不该花钱的时候花钱。
-// （原来还有第三道「视觉美化总开关」，那个开关已撤销 —— 实测它对帧率没有可测影响，
-// 关掉它省不下什么，却要付一套三处接线的成本。档位那道闸也已随档位取消而改成 on/off。）
+// 每一条模糊规则都必须同时挂着两道闸：毛玻璃开着、当前不在运算期间。
 func TestGlassYieldsWhileBusy(t *testing.T) {
 	for _, r := range blurRules(t) {
 		sel := strings.Join(strings.Fields(r.sel), " ")
@@ -209,21 +186,17 @@ func TestGlassYieldsWhileBusy(t *testing.T) {
 				t.Errorf("这条模糊规则少了 %s，等于绕开了那道闸：\n  %s", want, sel)
 			}
 		}
-		// 总开关的属性名一旦重新出现，就说明那个开关又被加回来了（或改了一半留下死规则）。
+		// 总开关属性名重新出现即说明它被加回（或改了一半留下死规则）。
 		if strings.Contains(sel, `data-vfx="`) {
 			t.Errorf("这条模糊规则还在引用已撤销的总开关属性：\n  %s", sel)
 		}
 	}
 }
 
-// 档位取消后，原来那条「不透明度逐档递减、模糊逐档递增且有界」的用例没有对象了：
-// 现在只有开态一组取值。它的两条实质约束搬到了 glass_toggle_test.go：
-//   · TestGlassOnUsesTheMostTransparentState —— 开态取值有界（面板 24px、浮层 32px，跟性能预算走）；
-//   · TestNoNumericGlassLevelsRemain —— 不留数字档位的死规则。
-// 而「开态必须让文字守住 4.5」仍由下面的 TestGlassOverPageKeepsTextReadable 盯着。
+// 开态一组取值的约束见 glass_toggle_test.go 的 TestGlassOnUsesTheMostTransparentState
+// 与 TestNoNumericGlassLevelsRemain；文字对比度由 TestGlassOverPageKeepsTextReadable 盯着。
 
-// 整段可删：模糊必须全部落在视觉美化那一段里，段外一处都不许有。
-// 这条就是"美化模块独立、方便移除"的可执行版本 —— 段外有模糊，删那一段就会留下半拉样式。
+// 整段可删：模糊必须全部落在视觉美化那一段里，段外有模糊则删段后留下半拉样式。
 func TestBackdropFilterIsConfinedToTheVFXBlock(t *testing.T) {
 	inside := vfxCSS(t)
 	if !strings.Contains(inside, "backdrop-filter") {
@@ -235,9 +208,9 @@ func TestBackdropFilterIsConfinedToTheVFXBlock(t *testing.T) {
 	}
 }
 
-// 不写 will-change 是个决定，不是遗漏：给玻璃容器挂它会为每一块永久分配一个合成层。
+// 不写 will-change：给玻璃容器挂它会为每一块永久分配一个合成层。
 func TestNoWillChangeOnGlass(t *testing.T) {
-	// 剥注释：那一段的说明里正好写着"这里一个 will-change 都没写"，不剥就会拿说明当声明判
+	// 剥注释：说明里写着 will-change，不剥会拿说明当声明判
 	body := regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(vfxCSS(t), "")
 	if strings.Contains(body, "will-change") {
 		t.Error("视觉美化那一段里出现了 will-change —— 它会让每一块玻璃常驻一个合成层，" +
@@ -245,8 +218,7 @@ func TestNoWillChangeOnGlass(t *testing.T) {
 	}
 }
 
-// 面板淡入只准动 opacity。一旦动 transform，背后那层模糊就要每帧重新采样 ——
-// 那正是原来那条红线被触发的机制。
+// 面板淡入只准动 opacity：动 transform 会让背后那层模糊每帧重新采样。
 func TestFadeOnlyAnimatesOpacity(t *testing.T) {
 	css := cssRegion(t)
 	i := strings.Index(css, "@keyframes vfx-fade")
@@ -272,9 +244,7 @@ func TestFadeOnlyAnimatesOpacity(t *testing.T) {
 	}
 }
 
-// 占满视口的图层不许带模糊、滤波或动画。原来这条只盯着 .aurora，
-// 这里推广到所有整屏规则：以后有人往背景上再叠一层，同样会被拦住。
-// （mask 不受此限 —— 它只光栅一次，之后就是一个带遮罩的四边形。）
+// 占满视口的图层不许带模糊、滤波或动画（mask 例外，它只光栅一次）。
 func TestGuiNeverBlursAFullScreenLayer(t *testing.T) {
 	reFull := regexp.MustCompile(`inset\s*:\s*0(px)?\s*;`)
 	checked := 0
@@ -298,8 +268,7 @@ func TestGuiNeverBlursAFullScreenLayer(t *testing.T) {
 
 // ---- 扁平化 ----
 
-// 扁平化的规则不许出现背景层的选择器：背景光效归 data-backdrop 管，背景图归 data-wall 管，
-// 三个开关各管各的，否则会互相打架，也判不清是谁改的。
+// 扁平化的规则不许出现背景层选择器：背景归 data-backdrop 与 data-wall 管。
 func TestFlatNeverTouchesTheBackdropLayer(t *testing.T) {
 	found := 0
 	for _, r := range cssRules(cssRegion(t)) {
@@ -319,16 +288,13 @@ func TestFlatNeverTouchesTheBackdropLayer(t *testing.T) {
 	}
 }
 
-// 扁平化去掉的是外阴影，不是焦点可见性：原来靠 box-shadow 画的聚焦环必须换成 outline，
-// 否则键盘用户会完全看不到焦点落在哪。
+// 扁平化去掉外阴影但须保留焦点可见性：原靠 box-shadow 画的聚焦环必须换成 outline。
 func TestFlatKeepsFocusVisible(t *testing.T) {
-	// 逐选择器核对，而不是"整段里出现过 outline 就算过" —— 后者把 outline 的值改成 none
-	// 也照样通过，等于没测。
+	// 逐选择器核对，不能只判整段是否出现过 outline。
 	type rule struct{ sel, body string }
 	var flat []rule
 	for _, r := range cssRules(cssRegion(t)) {
-		// 用完整的（多行拼平的）选择器，不能用 effSel：它只留最后一行，
-		// 分组规则里前面的选择器会被丢掉。
+		// 用多行拼平的完整选择器，不能用 effSel：它只留最后一行。
 		sel := strings.Join(strings.Fields(r.sel), " ")
 		if strings.Contains(sel, `data-flat="on"`) {
 			flat = append(flat, rule{sel, r.body})
@@ -337,7 +303,7 @@ func TestFlatKeepsFocusVisible(t *testing.T) {
 	if len(flat) == 0 {
 		t.Fatal("找不到 data-flat 的规则 —— 这个开关被删了吗？这条检查等于没做")
 	}
-	// 这几处原本都靠 box-shadow 画环，扁平化必须给每一处补上看得见的描边
+	// 这几处原本靠 box-shadow 画环，扁平化必须给每一处补上看得见的描边
 	need := []string{".search input:focus", ".fld input[type=text]:focus", ".mtxt:focus", ".mdot.on", ".qbtn.on"}
 	reOutline := regexp.MustCompile(`outline\s*:\s*(\d+)px\s+solid\s+var\(--sig`)
 	for _, want := range need {
@@ -367,7 +333,7 @@ func TestFlatKeepsFocusVisible(t *testing.T) {
 	}
 }
 
-// 「扁平」必须真的把圆角归零，否则只是换了个说法。
+// 「扁平」必须把圆角归零。
 func TestFlatZeroesRadiusTokens(t *testing.T) {
 	blk := cssVars(cssBlock(t, `:root[data-flat="on"]`))
 	for _, name := range []string{"--r1", "--r2", "--r3", "--pill"} {
@@ -391,8 +357,7 @@ func TestFlatAndGlassAreWiredEndToEnd(t *testing.T) {
 	if got := segOptions(t, "flat"); strings.Join(got, ",") != "off,on" {
 		t.Errorf("uiSeg('flat') 的取值是 %v，期望 off,on", got)
 	}
-	// 毛玻璃与「扁平化」同为两态开关：取值清单必须与 CSS 的块一一对应，
-	// 否则会出现"设置里给了一个样式表认不得的取值"这种选了没反应的死开关。
+	// 毛玻璃与扁平化同为两态开关：取值清单必须与 CSS 的块一一对应，否则是死开关。
 	if got := segOptions(t, "glass"); strings.Join(got, ",") != "off,on" {
 		t.Errorf("uiSeg('glass') 的取值是 %v，期望 off,on", got)
 	}
@@ -407,14 +372,14 @@ func TestFlatAndGlassAreWiredEndToEnd(t *testing.T) {
 		{"默认毛玻璃", normalizeUI(guiUIState{}).Glass, uiGlassDefault},
 		{"非法毛玻璃", normalizeUI(guiUIState{Glass: "yes"}).Glass, uiGlassDefault},
 		{"合法毛玻璃", normalizeUI(guiUIState{Glass: "on"}).Glass, "on"},
-		// 旧数字档（0…10）与更早的 off/low/mid/high 落到两态上的逐格核对，见 glass_toggle_test.go。
+		// 旧数字档与更早的 off/low/mid/high 的迁移核对见 glass_toggle_test.go。
 		{"默认淡入", normalizeUI(guiUIState{}).Fade, "on"},
 	} {
 		if c.got != c.want {
 			t.Errorf("%s：得到 %q，期望 %q", c.name, c.got, c.want)
 		}
 	}
-	// 首屏注入：每个开关都要显式写在 <html> 上，缺省等于把语义交给猜测
+	// 首屏注入：每个开关都要显式写在 <html> 上，不能缺省。
 	a := normalizeUI(guiUIState{Flat: "on", Glass: "off", Fade: "on"}).htmlAttr()
 	for _, want := range []string{`data-flat="on"`, `data-glass="off"`,
 		`data-fade="on"`} {
@@ -429,8 +394,7 @@ func TestFlatAndGlassAreWiredEndToEnd(t *testing.T) {
 			t.Errorf("默认也要显式写 %s，否则默认值就靠猜", want)
 		}
 	}
-	// 撤销的「视觉美化总开关」不许再回头：属性一旦重新出现，说明那个开关又被加回来了。
-	// 这条同时挡住"改了一半"——把 CSS 里的老选择器留着、属性却不再输出，那种规则会静默失效。
+	// 撤销的视觉美化总开关不许回头：属性重新出现即说明它被加回（或改了一半留下静默失效的规则）。
 	for _, s := range []string{a, d} {
 		if strings.Contains(s, "data-vfx") {
 			t.Errorf("htmlAttr 里又出现了 data-vfx：%q", s)
@@ -440,9 +404,7 @@ func TestFlatAndGlassAreWiredEndToEnd(t *testing.T) {
 		t.Error("样式表里还留着 data-vfx 的选择器 —— 那个属性已不再输出，这些规则会静默失效" +
 			"（轮廓微光、毛玻璃与淡入都会跟着不见）")
 	}
-	// 改完要立刻生效，不能等重开界面。
-	// 这几项属性由 VFX 统一写（它要先过一遍"浏览器认不认 backdrop-filter"），
-	// 所以这里查的是"uiApply 有没有把它递进去"。
+	// 改完要立刻生效：这几项属性由 VFX 统一写，这里查 uiApply 有没有递进去。
 	apply := bodyBetween(t, "function uiApply", "async function uiSave")
 	if !strings.Contains(apply, "VFX.apply(u)") {
 		t.Error("uiApply 没有把设置递给 VFX —— 改完档位要重开界面才看得到")
@@ -450,28 +412,25 @@ func TestFlatAndGlassAreWiredEndToEnd(t *testing.T) {
 	if !strings.Contains(apply, "data-flat") {
 		t.Error("uiApply 没有设置 data-flat")
 	}
-	// VFX 自己必须把这几项都写出来，少一项就等于那个开关失效
+	// VFX 自己必须把这几项都写出来，少一项即那个开关失效
 	vfx := bodyBetween(t, "var VFX = (function(){", "async function api")
 	for _, want := range []string{"data-glass", "data-fade"} {
 		if !strings.Contains(vfx, want) {
 			t.Errorf("VFX.apply 没有写 %s —— 那个开关点了没反应", want)
 		}
 	}
-	// 撤销的两项不许再回头：外壳属性一旦重新出现，说明设置项又被加回来了
+	// 撤销的两项不许回头：外壳属性重新出现即说明设置项被加回
 	if strings.Contains(a, "data-glow") || strings.Contains(vfx, "data-glow") {
 		t.Error("data-glow 又出现了 —— 「科幻轮廓微光」那一项已撤销，轮廓微光改为跟随总开关")
 	}
-	// 支持性检测与降级必须在内：不认 backdrop-filter 的老内核上要退成"档位 0 不做模糊"，而不是报错破版
+	// 支持性检测与降级必须在内：不认 backdrop-filter 的老内核上要退成"0 档不做模糊"，而不是报错破版
 	if !strings.Contains(vfx, "CSS.supports") || !strings.Contains(vfx, "'0'") {
 		t.Error("VFX 里没有 backdrop-filter 的支持性检测与降级（退成 0 档）—— 老内核上会直接少一层样式")
 	}
 }
 
-// 开关切换下，工具本身必须完全一样。
-//
-// 这是需求里「核心功能不受任何特效开关状态影响」的可执行版本：把毛玻璃的每种取值各渲染一份页面，
-// 抹掉两处**本来就该变**的注入点（<html> 上的属性、首屏那份 JSON）之后逐字节比对。
-// 也就是说美化只准通过属性与 CSS 起作用 —— 一旦它开始改结构、改脚本、改按钮文案，这条就红。
+// 开关切换下工具本身必须完全一样：把毛玻璃每种取值各渲染一份页面，
+// 抹掉两处本来就该变的注入点（<html> 属性、首屏 JSON）后逐字节比对。
 func TestGlassLevelsChangeNothingButAttributes(t *testing.T) {
 	blank := func(p string) string {
 		p = regexp.MustCompile(`<html lang="zh-CN"[^>]*>`).ReplaceAllString(p, "<html>")
@@ -483,7 +442,7 @@ func TestGlassLevelsChangeNothingButAttributes(t *testing.T) {
 		u := normalizeUI(guiUIState{Glass: lv})
 		p := strings.Replace(guiPageHTML, "@@UIATTRS@@", u.htmlAttr(), 1)
 		p = strings.Replace(p, "@@UIJSON@@", u.uiStartupJSON(), 1)
-		// 注入点必须真的被替换掉了，否则下面比的是同一个没渲染的模板，等于没测
+		// 注入点必须真的被替换，否则比的是同一个未渲染模板。
 		if strings.Contains(p, "@@UI") {
 			t.Fatalf("档位 %s：渲染后还剩着占位符", lv)
 		}
@@ -497,7 +456,7 @@ func TestGlassLevelsChangeNothingButAttributes(t *testing.T) {
 				"美化只准通过 <html> 属性与 CSS 起作用，不许改结构、脚本或文案", lv)
 		}
 	}
-	// 反过来确认这条不是空转：属性那一处确实随开关变
+	// 确认这条不是空转：属性那一处确实随开关变
 	a := normalizeUI(guiUIState{Glass: "off"}).htmlAttr()
 	b := normalizeUI(guiUIState{Glass: "on"}).htmlAttr()
 	if a == b {
@@ -506,11 +465,7 @@ func TestGlassLevelsChangeNothingButAttributes(t *testing.T) {
 }
 
 // 外观能力都要在设置页上有入口，取值也要与 CSS 的块一一对应。
-//
-// 设置页改成"只放真设置"的三分类之后判据也变了：页上每一项都必须有服务端字段，
-// 那条由 TestPanelOnlyShowsRealSettings 管；这里只管两件它管不到的事：
-// 一是每个能力在页上真的有控件，二是控件给的取值在样式表里真的有对应规则 ——
-// 少一处就是"选了这个档位什么都不会发生"的死开关。
+// 页上每项须有服务端字段那条由 TestPanelOnlyShowsRealSettings 管。
 func TestAppearanceControlsExistInThePanel(t *testing.T) {
 	panel := bodyBetween(t, "function uiThemeHTML(u){", "function uiAboutHTML(u){")
 	for _, want := range []string{
@@ -539,7 +494,7 @@ func TestAppearanceControlsExistInThePanel(t *testing.T) {
 	if sharp := strings.Index(css, `:root[data-radii="sharp"]`); sharp > flat {
 		t.Error("圆角档位的规则排在扁平之后 —— 扁平下圆角会重新冒出来，与「扁平 = 去掉圆角」冲突")
 	}
-	// 改了要立刻看见的项，必须都写进 uiApply()：漏一个的症状是"选完没反应，刷新才变"
+	// 改完要立刻看见的项必须都写进 uiApply()，漏一个的症状是刷新才变
 	apply := bodyBetween(t, "function uiApply(u){", "function uiRefreshHints(u){")
 	for _, want := range []string{"data-radii", "data-rail", "data-flat", "data-scale"} {
 		if !strings.Contains(apply, want) {
@@ -558,7 +513,7 @@ func TestAppearanceControlsExistInThePanel(t *testing.T) {
 	}
 }
 
-// 背景光效的开关只管极光与网格：它不该把用户自选的背景图一起关掉。
+// 背景光效的开关只管极光与网格，不该把用户自选的背景图一起关掉。
 func TestBackdropSwitchLeavesTheWallpaperAlone(t *testing.T) {
 	if strings.Contains(cssRegion(t), `data-backdrop="off"] .bg{`) {
 		t.Error("背景光效关掉时整层 .bg 都被隐藏了 —— 用户自选的背景图会跟着一起消失")
@@ -572,7 +527,7 @@ func TestBackdropSwitchLeavesTheWallpaperAlone(t *testing.T) {
 
 // ---- 背景图片 ----
 
-// 背景图必须是静态贴图：它一旦被动画、平移或缩放，就变成整屏逐帧重新光栅化。
+// 背景图必须是静态贴图：被动画、平移或缩放即变成整屏逐帧重新光栅化。
 func TestWallpaperLayerStaysStatic(t *testing.T) {
 	// 壁纸那一叠有两层，都占满视口，都不能动
 	for _, sel := range []string{".wall", ".scrim"} {
@@ -591,14 +546,8 @@ func TestWallpaperLayerStaysStatic(t *testing.T) {
 	}
 }
 
-// 背景图与毛玻璃从"互斥"改成了"共存"，这里把新契约钉在样式表上：
-//
-//	· 玻璃规则**不再**排除 [data-wall="on"]（排除＝用户一设背景图，毛玻璃就消失）；
-//	· 但设了背景图必须有补偿（--w1/--w2/--w3），否则照片的明暗会把文字压到 4.5 以下。
-//
-// 旧实现选择"让位"，理由是实测深色+白图 3.97、浅色+黑图 4.15（门槛 4.5）。放宽的根据是：
-// 决定对比度的不是"能不能半透明"，而是照片落在哪个亮度区间 —— 压暗层把照片收进一个有界区间，
-// 再补一点不透明度就够了。数值由下一条用例逐档核对，不是"应该没问题"。
+// 背景图与毛玻璃共存：玻璃规则不排除 [data-wall="on"]，但设了背景图必须有补偿
+// （--w1/--w2/--w3），否则照片明暗会把文字压到 4.5 以下。数值由下一条用例逐档核对。
 func TestGlassCoexistsWithWallpaper(t *testing.T) {
 	css := regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(cssRegion(t), "")
 	rules := 0
@@ -625,20 +574,14 @@ func TestGlassCoexistsWithWallpaper(t *testing.T) {
 	}
 }
 
-// 逐档核对：每一档、每一种主题，连同"设了背景图"的极端照片，压在文字下面都必须守住 4.5。
-//
-// 与改造前那条的关键差别有两个：
-//
-//	· 玻璃颜色不再是写死的 rgba，而是 rgba(--glass-rgb, --g1a/--g2a/--g3a + --w1/--w2/--w3)，
-//	  所以这里按"主题 × 档位 × 有无背景图"把有效不透明度还原出来；
-//	· 背景图那一叠的极端值由用户那张照片决定 —— 取纯白与纯黑两端各叠一次压暗层，
-//	  这正是旧实现放弃共存的那个情形，也正因为它是"最坏情况"才要穷举。
+// 逐档核对：每种主题、每档取值，连同设了背景图的极端照片，压在文字下都必须守住 4.5。
+// 玻璃颜色为 rgba(--glass-rgb, --g1a/--g2a/--g3a + --w1/--w2/--w3)，按主题×档位×有无背景图还原。
 func TestGlassOverPageKeepsTextReadable(t *testing.T) {
 	type layer struct {
 		name string
 		col  rgba
 	}
-	// 三档承载文字的面，各对应 CSS 里一层毛玻璃规则，以及它在背景图下的补偿量。
+	// 三档承载文字的面，各对应 CSS 里一层毛玻璃规则及其在背景图下的补偿量。
 	surfaces := []struct{ name, alphaVar, addVar string }{
 		{"主容器", "--g1a", "--w1"},
 		{"次级卡片", "--g2a", "--w2"},
@@ -661,16 +604,15 @@ func TestGlassOverPageKeepsTextReadable(t *testing.T) {
 			if !ok {
 				t.Fatalf("%s+%s：--glass-rgb 不是 r,g,b 三元组（%q）", theme, acc, v["--glass-rgb"])
 			}
-			// 没有背景图：面板背后只有我们自己定的那三层（底色 + 极光 + 网格）。
+			// 没有背景图：面板背后只有底色 + 极光 + 网格三层。
 			noWall := []layer{{"只有底色", bg}}
 			for _, av := range []string{"--aurora-a", "--aurora-b", "--grid-ink"} {
 				if a, ok := parseColor(v[av]); ok {
 					noWall = append(noWall, layer{av, over(a, bg)})
 				}
 			}
-			// 有背景图：背后是「用户照片 + 压暗层」，取纯白与纯黑两个极端。
-			// 压暗层的颜色与深浅现在是拆开的两个变量（浅深那一项要能被高级选项覆盖），
-			// 这里按同一组取值合成回来，语义与拆分前一致。
+			// 有背景图：背后是用户照片 + 压暗层，取纯白与纯黑两个极端。
+			// 压暗层颜色与深浅是两个变量，这里合成回来。
 			scrimRGB, ok := parseRGBTriple(v["--wall-scrim-rgb"])
 			if !ok {
 				t.Fatalf("%s+%s：--wall-scrim-rgb 不是 r,g,b 三元组（%q）", theme, acc, v["--wall-scrim-rgb"])
@@ -684,13 +626,11 @@ func TestGlassOverPageKeepsTextReadable(t *testing.T) {
 				{"纯白照片+压暗层", over(scrim, rgba{255, 255, 255, 1})},
 				{"纯黑照片+压暗层", over(scrim, rgba{0, 0, 0, 1})},
 			}
-			// 档位取消后只剩开态一组取值；这里仍留一层循环，是为了让高对比主题那一支
-			// 与普通主题走同一条路径（两者取值的来源不同）。
+			// 只剩开态一组取值；保留循环是为了让高对比主题与普通主题走同一条路径。
 			for _, lv := range []string{"开态"} {
 				alpha := cssVars(cssRule(t, `:root[data-glass="on"]:not([data-theme="contrast"])`))
 				if theme == "contrast" {
-					// 高对比主题不参与玻璃：开态块用 :not([data-theme="contrast"]) 把它排除了，
-					// 它取的是主题块自己钉死的那一组不透明度。
+					// 高对比主题不参与玻璃：开态块用 :not([data-theme="contrast"]) 排除它，取主题块钉死的不透明度。
 					alpha = cssVars(cssRule(t, `:root[data-theme="contrast"]`))
 				}
 				for _, wall := range []bool{false, true} {
@@ -764,9 +704,8 @@ func parseRGBTriple(s string) ([3]float64, bool) {
 	return out, true
 }
 
-// 换过图之后，旧的那份缓存会被清掉；此时再切回旧图必须重新生成，
-// 而不是把记忆里的旧地址直接交出去 —— 那样界面会拿到 404：整屏被压暗层盖住却没有图，
-// 而且要重启程序才恢复。
+// 换图后旧缓存被清掉，再切回旧图必须重新生成而非交出记忆里的旧地址。
+// 否则界面拿到 404（有压暗层却没有图），且需重启才恢复。
 func TestPrepareWallRebuildsAfterPrune(t *testing.T) {
 	dir := withTempWall(t)
 	tmp := t.TempDir()
@@ -797,13 +736,12 @@ func TestPrepareWallRebuildsAfterPrune(t *testing.T) {
 	}
 }
 
-// 手机拍的照片在文件里多半是"横着"存的，靠 EXIF 的方向标签告诉看图程序转多少度。
-// 标准库不认这个标签，所以要自己转 —— 不做的话，用户挑一张竖拍的照片，壁纸是躺倒的。
+// 照片像素常按未旋转方向存储，方向由 EXIF 标签给出；标准库不认，需自行旋转，否则竖拍照片会躺倒。
 func TestPrepareWallAppliesEXIFOrientation(t *testing.T) {
 	withTempWall(t)
 	dir := t.TempDir()
 
-	// 4x2 的图：上面一行红、下面一行蓝，方便判断转没转
+	// 4x2 的图：上一行红、下一行蓝，用于判断旋转
 	base := image.NewRGBA(image.Rect(0, 0, 4, 2))
 	for x := 0; x < 4; x++ {
 		base.SetRGBA(x, 0, color.RGBA{R: 255, A: 255})
@@ -839,7 +777,7 @@ func TestPrepareWallAppliesEXIFOrientation(t *testing.T) {
 		}
 	}
 
-	// 再核一次像素方向：顺时针 90 度之后，原来在上面的那一行会跑到右边去
+	// 再核一次像素方向：顺时针 90 度之后，原来在上的那一行会跑到右边
 	src := filepath.Join(dir, "cw90.jpg")
 	if err := os.WriteFile(src, jpegWithOrientation(t, buf.Bytes(), 6), 0o644); err != nil {
 		t.Fatal(err)
@@ -853,7 +791,7 @@ func TestPrepareWallAppliesEXIFOrientation(t *testing.T) {
 	}
 }
 
-// 读不到方向时要安静地返回 1，不能把一张正常照片弄坏。
+// 读不到方向时须静默返回 1，不得损坏正常照片。
 func TestExifOrientationDefaultsToOne(t *testing.T) {
 	for _, c := range []struct {
 		name string
@@ -905,7 +843,7 @@ func jpegWithOrientation(t *testing.T, raw []byte, orient uint16) []byte {
 	return append(out, raw[2:]...)
 }
 
-// 只有内容哈希形式的文件名可以被提供出去：名字来自 URL，白名单必须窄到没有第二种解释。
+// 只有内容哈希形式的文件名可以被提供出去：名字来自 URL，白名单须窄。
 func TestServeWallAcceptsOnlyHashNames(t *testing.T) {
 	dir := withTempWall(t)
 	good := "bg-0123456789abcdef.jpg"
@@ -938,7 +876,7 @@ func TestServeWallAcceptsOnlyHashNames(t *testing.T) {
 	}
 }
 
-// 大图必须缩到上限以内：4K 图解码后是 33 MB，而窗口再大也用不到那个分辨率。
+// 大图必须缩到上限以内：4K 图解码后约 33 MB，而窗口用不到那个分辨率。
 func TestPrepareWallShrinksLargeImages(t *testing.T) {
 	dir := withTempWall(t)
 	src := filepath.Join(t.TempDir(), "big.jpg")
@@ -1024,8 +962,7 @@ func TestWallAttrOnlyForAReadyImage(t *testing.T) {
 	}
 }
 
-// 配置里存的是「导入后的文件名」，不是路径。
-// 这条把新语义钉住：存名字读回来还是名字；而旧配置里那种绝对路径会被复制进图库换成名字。
+// 配置里存的是导入后的文件名而非路径；读回来仍是名字，旧配置里的绝对路径会被复制进图库换成名字。
 func TestBgImageRoundTrips(t *testing.T) {
 	withTempConfig(t)
 	withTempWall(t)
@@ -1040,7 +977,7 @@ func TestBgImageRoundTrips(t *testing.T) {
 		t.Errorf("名字应当去掉引号与空白，得到 %q", got)
 	}
 
-	// 二、旧配置里那种绝对路径要被复制进图库并换成名字
+	// 二、旧配置里的绝对路径要被复制进图库并换成名字
 	src := filepath.Join(t.TempDir(), "老壁纸.jpg")
 	writeTestJPEG(t, src, 320, 200)
 	if _, err := saveUI(guiUIState{BgImage: src}); err != nil {
@@ -1058,7 +995,7 @@ func TestBgImageRoundTrips(t *testing.T) {
 	}
 }
 
-// 导入把图复制进存档。扩展名以文件头为准，不信上传时的文件名 —— 后者完全由客户端说了算。
+// 导入把图复制进存档。扩展名以文件头为准，不信上传时的文件名，后者完全由客户端说了算。
 func TestImportWallCopiesIntoGallery(t *testing.T) {
 	withTempWall(t)
 	gallery := withTempGallery(t)
@@ -1106,7 +1043,7 @@ func TestImportWallCopiesIntoGallery(t *testing.T) {
 	}
 }
 
-// 图库列表只算真正的图片：改了后缀的假图片不算（PCL2 为这类问题修过两次 bug）。
+// 图库列表只算真正的图片：改了后缀的假图片不算。
 func TestWallListCountsOnlyRealImages(t *testing.T) {
 	withTempWall(t)
 	gallery := withTempGallery(t)

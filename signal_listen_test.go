@@ -19,7 +19,7 @@ func TestDefaultListenAddrIsWildcard(t *testing.T) {
 	}
 }
 
-// 源码中不得再出现字符串字面量 "0.0.0.0:8090"（仅扫描带引号的字符串）。
+// 源码中不得出现字符串字面量 "0.0.0.0:8090"（仅扫描带引号的字符串）。
 func TestNoHardcodedIPv4OnlyListen(t *testing.T) {
 	entries, err := filepath.Glob("*.go")
 	if err != nil {

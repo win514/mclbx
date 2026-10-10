@@ -1,6 +1,6 @@
 package main
 
-// bedrock_test.go —— 基岩版端口识别测试。
+// bedrock_test.go 覆盖基岩版端口识别测试。
 
 import (
 	"strings"

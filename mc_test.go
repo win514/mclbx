@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// 握手包解析是门卫的安全边界：玩家输入的名字在其中，解析错误会导致校验失效。
+// 握手包解析是准入校验的安全边界：玩家输入的名字在其中，解析错误会导致校验失效。
 
 func buildHandshake(proto int32, addr string, port uint16, next int32) []byte {
 	var b []byte
@@ -62,7 +62,7 @@ func TestLoginStartUsername(t *testing.T) {
 	name := "ethanacrter"
 	b = appendVarint(b, int32(len(name)))
 	b = append(b, name...)
-	b = append(b, 0x00) // 后面还有 UUID，但门卫只取名字
+	b = append(b, 0x00) // 后面还有 UUID，但校验只取名字
 
 	got, err := parseLoginStart(b)
 	if err != nil {
@@ -73,7 +73,7 @@ func TestLoginStartUsername(t *testing.T) {
 	}
 }
 
-// 帧读写需原样往返（门卫读完后要把字节补发给服务端）。
+// 帧读写须原样往返（校验读完后要把字节补发给服务端）。
 func TestFrameRoundTrip(t *testing.T) {
 	body := buildHandshake(-1, "abc123.example", 25570, 2)
 	var buf bytes.Buffer

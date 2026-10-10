@@ -1,14 +1,9 @@
 package main
 
-// cli_surface_test.go —— “只增不减”的可执行形式。
+// cli_surface_test.go 能力面“只增不减”：允许新增子命令与改动默认值，既有能力不得消失。
 //
-// 后端重构允许新增子命令、也允许改动默认值，但不允许任何一条既有能力消失。
-// 这里把重构开始时的 22 个子命令写死成清单，再从 main.go 的分发 switch 里抽出
-// 实际存在的子命令，断言“清单里的每一个都还在”。删掉任何一个都会在这里失败，
-// 改名同样会失败 —— 改名对用户来说和删除是一回事。
-//
-// 为什么不从 usageText 反推：帮助文本是要随档位一起改的，拿它当基线等于把基线
-// 建在了一个会被本次改动触碰的地方。分发 switch 才是能力面的真实边界。
+// cliSurfaceBaseline 记录重构起始的 22 个子命令，断言它们都能被 main.go 分发到。
+// 删除或改名都会失败：改名对用户等同于删除。
 
 import (
 	"os"
@@ -17,8 +12,7 @@ import (
 	"testing"
 )
 
-// cliSurfaceBaseline 是重构开始时的子命令全集，按 main.go 的 `switch os.Args[1]` 统计。
-// 顺序按 switch 里的出现顺序，便于人工核对。
+// cliSurfaceBaseline 是重构起始的子命令全集，按 main.go 的 `switch os.Args[1]` 统计，顺序同 switch。
 var cliSurfaceBaseline = []string{
 	"gui", "expose", "room", "join", "stun", "mailbox", "probe", "ice",
 	"punch", "relay", "relaybox", "tcptunnel", "relaycheck", "natmap",
@@ -53,7 +47,7 @@ func dispatchCases(t *testing.T) map[string]bool {
 	return found
 }
 
-// 基线清单自身不能有重复，否则一个手误就会掩盖掉某个子命令已经消失这件事。
+// 基线清单自身不得重复，否则手误会掩盖某个子命令已消失。
 func TestCommandSurfaceBaselineIsClean(t *testing.T) {
 	seen := map[string]bool{}
 	for _, name := range cliSurfaceBaseline {
@@ -87,7 +81,7 @@ func TestCommandSurfaceStaysAdditive(t *testing.T) {
 			"先改 cliSurfaceBaseline 并说明理由", missing)
 	}
 
-	// 顺带报一句新增情况，便于发版时核对“只增”这一半。
+	// 一并报出新增情况，便于发版时核对“只增”。
 	var added []string
 	for name := range found {
 		dup := false

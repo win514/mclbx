@@ -133,7 +133,7 @@ func TestDiagTaskIsWired(t *testing.T) {
 
 // 诊断包首句必须是隐私提醒。
 func TestDiagTextWarnsAboutAddresses(t *testing.T) {
-	// 只测文件头，不跑体检。
+	// 只测文件头，不执行体检。
 	head := diagHeader()
 	if !strings.Contains(head, "诊断包") {
 		t.Errorf("文件头应当标明这是诊断包：%q", head)

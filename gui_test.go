@@ -34,7 +34,7 @@ func spewToStdout() {
 	for i := 0; i < 20000; i++ {
 		_, _ = fmt.Fprintf(out, "line-%05d\n", i)
 	}
-	// ③ 结尾不带换行：半行也要收下
+	// ③ 结尾不带换行：末尾半行也须读入
 	_, _ = out.WriteString("tail-without-newline")
 	_ = out.Flush()
 }
@@ -84,7 +84,7 @@ func TestPumpLinesKeepsPartialLastLine(t *testing.T) {
 	}
 }
 
-// 回归测试：子进程输出 3 MiB 单行 + 2 万行时，读循环须一直读到子进程结束。
+// 子进程输出 3 MiB 单行 + 2 万行时，读循环须一直读到子进程结束。
 func TestRunnerDrainsChildThatSpews(t *testing.T) {
 	if testing.Short() {
 		t.Skip("耗时用例，-short 时跳过")

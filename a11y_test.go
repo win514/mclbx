@@ -1,9 +1,7 @@
 package main
 
 // a11y_test.go —— 键盘可用性的接线。
-//
-// 这一组判据有个共同点：删掉它们，界面照样跑、鼠标照样能用，只有键盘与读屏用户会掉坑，
-// 而掉坑既不报错也不崩、截图里也看不出来。所以只能靠源码级用例钉住。
+// 这些约束只在键盘与读屏下才暴露，不报错、不崩、截图看不出，只能靠源码级用例钉住。
 // 契约来自 WAI-ARIA 的 dialog 模式（浮层）与 log 角色（输出区）。
 
 import (
@@ -11,7 +9,7 @@ import (
 	"testing"
 )
 
-// 浮层要满足 dialog 模式的三条：语义（role/aria-modal/标签）、焦点进框、焦点圈在框内且关掉归还。
+// 浮层要满足 dialog 模式：语义（role/aria-modal/标签）、焦点移入、焦点限制在框内且关闭时归还。
 func TestModalFollowsDialogContract(t *testing.T) {
 	for _, want := range []string{
 		`role="dialog"`, `aria-modal="true"`, `aria-labelledby="modalTitle"`,
@@ -31,8 +29,7 @@ func TestModalFollowsDialogContract(t *testing.T) {
 	if !strings.Contains(guiPageHTML, "addEventListener('keydown', modalTrap, true)") {
 		t.Error("没有挂 Tab 拦截器：焦点会从浮层漏到后面的页面上")
 	}
-	// 关闭只准有一条路。直接设 hidden 的写法只应出现在 closeModal 里；
-	// 多出一处，就有一条路径不归还焦点 —— 这种问题只在键盘上出现，鼠标点不出来。
+	// 关闭只准有一条路：直接设 hidden 只应出现在 closeModal 里，多一处即有一条路径不归还焦点。
 	if n := strings.Count(guiPageHTML, "setHidden($('modal'), true)"); n != 1 {
 		t.Errorf("直接关浮层的地方有 %d 处，应当只有 closeModal() 里那一处 —— "+
 			"多出来的路径不会把焦点还给当初打开它的按钮", n)
@@ -56,7 +53,7 @@ func TestLogIsALiveRegion(t *testing.T) {
 	}
 }
 
-// 视觉上的"高亮 / 选中 / 当前"必须同时有语言级的说法 —— 那层颜色对读屏不可见。
+// 视觉上的高亮/选中/当前必须同时有语言级说法，颜色对读屏不可见。
 func TestVisualStateHasAnAccessibleEquivalent(t *testing.T) {
 	for _, want := range []string{
 		`setAttribute('aria-current', 'page')`,                 // 当前在哪一页
@@ -69,16 +66,14 @@ func TestVisualStateHasAnAccessibleEquivalent(t *testing.T) {
 	if !strings.Contains(guiShellHTML, `aria-label="页面"`) {
 		t.Error("页面导航没有名字：读屏会把三个按钮念成「按钮 按钮 按钮」")
 	}
-	// 勾选框的真 input 是 opacity:0 铺在上面的，焦点环必须画在旁边看得见的方框上
+	// 勾选框的真 input 是 opacity:0，焦点环必须画在旁边可见的方框上
 	if !strings.Contains(cssRegion(t), ".ck input:focus-visible+.bx{outline:") {
 		t.Error("勾选框没有可见的焦点环：键盘用户看不出焦点落在哪一项（真 input 是透明的）")
 	}
 }
 
-// 状态栏那个音符按钮：左键播放/暂停，右键下一首。
-// 右键这条入口必须拦掉 contextmenu（否则弹出的是 WebView2 自带菜单，右键看起来"没反应"），
-// 而且必须复用「下一首」按钮走的同一个 bgmStep —— 各写一套，两处迟早会走偏。
-// 键盘用户的通路是设置里那三个显式按钮，所以这里不另外发明快捷键（这是有意的，不是漏了）。
+// 状态栏音符按钮：左键播放/暂停，右键下一首；右键须拦 contextmenu 并与「下一首」按钮共用 bgmStep。
+// 键盘通路是设置里那三个显式按钮。
 func TestMusicButtonHasBothClicks(t *testing.T) {
 	if !strings.Contains(guiPageHTML, "$('bgmToggle').oncontextmenu") ||
 		!strings.Contains(guiPageHTML, "e.preventDefault(); bgmStep(1)") {
@@ -92,7 +87,7 @@ func TestMusicButtonHasBothClicks(t *testing.T) {
 	}
 }
 
-// 音量是 0-100 的滑动条，而且滑杆的值必须真的被收集上去（拖完要能存住）。
+// 音量是 0-100 的滑动条，滑杆的值必须被收集（拖动后可保存）。
 func TestVolumeIsASliderThatGetsCollected(t *testing.T) {
 	if !strings.Contains(guiPageHTML, "uiRange('musicVol', u.musicVol, 0, 100)") {
 		t.Error("音量不是 0-100 的滑动条")
@@ -100,7 +95,7 @@ func TestVolumeIsASliderThatGetsCollected(t *testing.T) {
 	if !strings.Contains(guiPageHTML, "querySelectorAll('#settingsBody [data-rng]')") {
 		t.Error("滑杆没有被收集 —— 拖动之后保存不上去")
 	}
-	// 服务端那一侧也要认这个区间（0-100 之外会被归一化，用例见 uiconfig_test.go）
+	// 服务端也要认这个区间，0-100 之外会被归一化（用例见 uiconfig_test.go）
 	if !strings.Contains(guiPageHTML, "musicVol:u.musicVol || '70'") {
 		t.Error("默认音量没了 —— 没渲染设置页时这一项会丢")
 	}

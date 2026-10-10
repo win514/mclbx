@@ -2,7 +2,7 @@
 
 package main
 
-// winnative_inputs_test.go —— 校验 inputs() 记录勾选项的未勾状态。
+// winnative_inputs_test.go 校验 inputs() 记录勾选项的未勾状态。
 
 import (
 	"syscall"

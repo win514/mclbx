@@ -2,7 +2,7 @@
 
 package main
 
-// winnative_text_test.go —— 界面文字自检：对 contentTexts / listTexts / headerTexts 的每段文字
+// winnative_text_test.go 界面文字自检：对 contentTexts / listTexts / headerTexts 的每段文字
 // 检查矩形非空、单行放得下、字体覆盖该串字。
 
 import (

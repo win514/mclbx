@@ -1,6 +1,6 @@
 package main
 
-// errhint_test.go —— 报错提示的漏报与误报测试。
+// errhint_test.go 报错提示的漏报与误报测试。
 
 import (
 	"strings"
@@ -56,7 +56,7 @@ var realRawErrors = []struct {
 		"listen tcp 0.0.0.0:80: bind: An attempt was made to access a socket in a way forbidden by its access permissions.",
 		"无法使用",
 	},
-	// Windows 平台的原文：同一毛病措辞与 Linux 不同，需单独覆盖。
+	// Windows 平台原文：同类错误措辞与 Linux 不同，需单独覆盖。
 	{
 		"dial tcp 127.0.0.1:1: connectex: No connection could be made because the target machine actively refused it.",
 		"无服务响应",

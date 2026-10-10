@@ -1,10 +1,7 @@
 package main
 
 // gui_assets_test.go 盯住"样式与脚本是独立文件、由程序自己托管"这条接线。
-//
-// 拆分之后最容易出的事不是样式写错，而是接线断掉，而且断的方式都很安静：
-// 骨架里的路径与处理器对不上、缓存策略漏了这两个路径（换新版 exe 后拿到旧脚本）、
-// 或者有人图省事又把样式内联回页面 —— 这三种都能正常跑起来，但都不再是约定的结构。
+// 易断的是接线而非样式：路径与处理器对不上、缓存策略漏路径、样式被内联回页面。
 
 import (
 	"net/http"
@@ -28,8 +25,8 @@ func TestGuiShellReferencesExternalAssets(t *testing.T) {
 	if strings.Contains(guiShellHTML, "<style>") {
 		t.Error("骨架里又出现了 <style> —— 样式只应当放在 assets/gui.css 里")
 	}
-	// 首屏那个小脚本必须仍然是内联的：它要在样式生效之前把"跟随系统"解析成具体主题，
-	// 改成外链就会先闪一下默认主题。所以骨架里应当恰好只有这一个内联 <script>。
+	// 首屏小脚本必须仍内联：它要在样式生效前把"跟随系统"解析成具体主题，改外链会先闪默认主题。
+	// 骨架里应当恰好只有这一个内联 <script>。
 	if n := strings.Count(guiShellHTML, "<script>"); n != 1 {
 		t.Errorf("骨架里应当只有首屏那一个内联 <script>，实际 %d 个", n)
 	}
@@ -44,9 +41,7 @@ func TestGuiAssetsAreEmbedded(t *testing.T) {
 	}
 }
 
-// 摊平出来的源码必须与两份文件对得上。
-// 这条是给 guiPageHTML 那个 var 兜底的：有人只改了 assets/ 下的文件、却把摊平逻辑改错了，
-// 上面一大批"在源码里找某段规则"的用例就会开始测一个不存在的东西。
+// 摊平出来的源码必须与两份文件对得上：否则一大批"在源码里找规则"的用例会测一个不存在的东西。
 func TestGuiPageFlatMatchesAssets(t *testing.T) {
 	if !strings.Contains(guiPageHTML, "<style>\n"+guiAssetString("gui.css")+"</style>") {
 		t.Error("摊平后的源码里没有 assets/gui.css 的内容")
@@ -59,11 +54,8 @@ func TestGuiPageFlatMatchesAssets(t *testing.T) {
 	}
 }
 
-// 服务端真的把这两份资源发出去了：状态码、正文、缓存头、以及 Content-Type。
-// Content-Type 不是小事：类型不对时浏览器会直接拒绝执行脚本（样式同理），
-// 界面会整块失效，而错误只出现在浏览器的控制台里 —— 程序这一侧看不出任何异常。
-// 这条用例也钉住了"这两个类型是我们写死的、不随机器变"：本机实测 .js 曾被判成
-// application/javascript（来自注册表），别的机器上常见 text/plain，那一种浏览器不接受。
+// 服务端把这两份资源发出去了：状态码、正文、缓存头与 Content-Type。
+// Content-Type 不对时浏览器拒绝执行脚本或忽略样式，界面整块失效且程序侧看不出异常。
 func TestGuiAssetsAreServedWithUsableHeaders(t *testing.T) {
 	h, ok := guiAssetHandler()
 	if !ok {
@@ -92,7 +84,7 @@ func TestGuiAssetsAreServedWithUsableHeaders(t *testing.T) {
 				c.url, got, c.wantType)
 		}
 	}
-	// 顺带确认内嵌目录里就是这两个文件名，别是路径写岔了却刚好有别的文件顶上
+	// 确认内嵌目录里就是这两个文件名，避免路径写岔却有别的文件顶上
 	if _, err := guiAssetFS.ReadFile(path.Join("assets", "gui.css")); err != nil {
 		t.Errorf("assets/gui.css 不在内嵌目录里：%v", err)
 	}

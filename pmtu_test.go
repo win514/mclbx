@@ -1,6 +1,6 @@
 package main
 
-// pmtu_test.go —— 进程内 MTU 黑洞实验台，复现与验证 MTU 相关的修法。
+// pmtu_test.go 是进程内 MTU 黑洞实验台，复现与验证 MTU 相关的修法。
 
 import (
 	"crypto/tls"
@@ -153,7 +153,7 @@ func (cfg mtuLab) run(t *testing.T) (int, time.Duration, string, error) {
 	default:
 		dtlsRec = dtlsMTUFor(mtu)
 	}
-	// 不做「拆小 SCTP 写入」：该做法已证伪，链路放不下时改为报错并建议走 TCP 中继。
+	// 链路放不下时改为报错并建议走 TCP 中继；不拆分 SCTP 写入。
 	split := 0
 	desc := fmt.Sprintf("探测=%d DTLS记录上限=%d 拆分上限=%d", mtu, dtlsRec, split)
 	t.Logf("  %s", desc)
@@ -436,4 +436,4 @@ func (c *countingConn) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// 注：曾测「把 SCTP 写入拆小」的做法，已证伪并删除（pion/sctp 会自行解析分片边界）。
+// 注：pion/sctp 会自行解析分片边界，故不采用「拆小 SCTP 写入」的做法。

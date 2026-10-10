@@ -1,6 +1,6 @@
 package main
 
-// natmap_test.go —— 端口映射（UPnP/NAT-PMP/PCP）测试，用本机假网关覆盖三条路径。
+// natmap_test.go 覆盖端口映射（UPnP/NAT-PMP/PCP）测试，用本机假网关覆盖三条路径。
 
 import (
 	"encoding/binary"

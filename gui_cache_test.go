@@ -1,8 +1,7 @@
 package main
 
 // gui_cache_test.go 管界面服务的缓存口径。
-// 页面无缓存头时浏览器会按启发式规则缓存旧页面，换新版 exe 后仍打开旧界面；
-// 但不能一刀切 no-store：音频要 Range 拖动，背景图名字里带内容哈希。
+// 无缓存头时浏览器会启发式缓存旧页面；但不能一律 no-store：音频要 Range 拖动，背景图名字带内容哈希。
 
 import (
 	"net/http"
@@ -23,8 +22,8 @@ func TestGuiCachePolicyCoversPageAndAPIs(t *testing.T) {
 	}
 }
 
-// 音频、背景图、其它静态资源各按自己的策略缓存，不能被这个中间件顺手抹掉。
-// 注意 /assets/ 下只有界面样式与脚本走 no-store，favicon 不在其列。
+// 音频、背景图、其它静态资源各按自己的策略缓存，不能被这个中间件抹掉。
+// /assets/ 下只有界面样式与脚本走 no-store，favicon 不在其列。
 func TestGuiCachePolicyLeavesMediaAlone(t *testing.T) {
 	for _, p := range []string{"/music/歌.mp3", "/bg/bg-0123456789abcdef.jpg", "/assets/favicon.png", "/manual", "/apiary"} {
 		if guiNoStorePath(p) {
@@ -58,7 +57,7 @@ func TestGuiCachePolicyHeaderPerPath(t *testing.T) {
 	}
 }
 
-// 策略必须真的挂在服务上；少了这一行，上面的用例全都照样通过。
+// 策略须真的挂在服务上；少了这一行，上面的用例照样通过。
 func TestGuiCachePolicyIsWired(t *testing.T) {
 	b, err := os.ReadFile("gui.go")
 	if err != nil {

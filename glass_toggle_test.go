@@ -1,16 +1,9 @@
 package main
 
-// glass_toggle_test.go —— 毛玻璃从「0-10 档」收成「开 / 关」两态。
+// glass_toggle_test.go —— 毛玻璃收成「开 / 关」两态。
 //
-// 为什么收掉档位：实测相邻档位看不出差别（0 到 10 的三档不透明度只差 0.35，模糊只差 13px），
-// 而每一档都要在 CSS 里维护一块、在设置里解释一遍。一个调了看不出效果的滑杆，比一个开关更糟：
-// 用户会以为是自己没调对。
-//
-// 新的契约只有两句话：
-//   · 只有 off / on 两个取值，默认 on；
-//   · on 就是此前最透明的那一档（面板模糊 16px、浮层 20px），不再有中间态。
-//
-// 旧配置里的数字（"0"…"10"）与更早的 low/mid/high 一律迁移成新的两态，不打回默认。
+// 契约：只有 off / on 两个取值，默认 on；on 即此前最透明的那一档，无中间态。
+// 旧配置的数字（"0"…"10"）与更早的 low/mid/high 一律迁移成两态，不打回默认。
 
 import (
 	"strconv"
@@ -61,7 +54,7 @@ func TestGlassIsATwoStateToggle(t *testing.T) {
 	}
 }
 
-// 开态用的是此前最透明的那一档，且不许越既有上限。
+// 开态取最透明的那一档，且不许越过上限。
 func TestGlassOnUsesTheMostTransparentState(t *testing.T) {
 	body := cssRule(t, `:root[data-glass="on"]:not([data-theme="contrast"])`)
 	for _, k := range []string{"--g1a", "--g2a", "--g3a", "--glass-blur", "--blur-3"} {
@@ -69,9 +62,8 @@ func TestGlassOnUsesTheMostTransparentState(t *testing.T) {
 			t.Errorf("开态块里缺少 %s —— 档位表收成一块之后，这一块要给出全部取值：%q", k, body)
 		}
 	}
-	// 开态的模糊半径是**跟着性能预算定的**，不是随手写的上限：
-	// 预算由产品给定（空闲时 GPU 接近 0，使用峰值不超过 5%），据此把此前 16px/20px 提到 24px/32px。
-	// 写成等值断言而不是上限断言，是为了让"再往上加"必须是一次有意识的改动。
+	// 开态模糊半径跟性能预算走（空闲 GPU 接近 0，峰值不超过 5%）；写成等值断言，
+	// 使"再往上加"必须是一次有意识的改动。
 	const (
 		wantBlur  = 24
 		wantBlur3 = 32
@@ -95,7 +87,7 @@ func TestGlassOnUsesTheMostTransparentState(t *testing.T) {
 	}
 }
 
-// 档位表收成一块之后，CSS 里不该再有任何数字档位块 —— 留着就是"改了不生效"的死规则。
+// 档位收成一块后 CSS 里不该再有数字档位块，留着就是死规则。
 func TestNoNumericGlassLevelsRemain(t *testing.T) {
 	region := cssRegion(t)
 	if strings.Contains(region, `:root[data-glass="0"]`) {
@@ -108,7 +100,7 @@ func TestNoNumericGlassLevelsRemain(t *testing.T) {
 	}
 }
 
-// 玻璃规则挂在开态上：关闭时就该完全不参与，而不是靠"不等于 0"这种反向条件。
+// 玻璃规则挂在开态上：关闭时完全不参与，而不是靠"不等于 0"这种反向条件。
 func TestGlassRulesKeyOnTheOnState(t *testing.T) {
 	region := cssRegion(t)
 	if !strings.Contains(region, `:root[data-glass="on"]`) {

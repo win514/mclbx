@@ -1,6 +1,6 @@
 package main
 
-// mailbox_ttl_test.go —— 信箱过期回收与续登记测试。
+// mailbox_ttl_test.go 覆盖信箱过期回收与续登记测试。
 
 import (
 	"fmt"
@@ -52,7 +52,7 @@ func TestMailboxExpiredEntriesFreeCapacityAgain(t *testing.T) {
 		t.Fatalf("第 %d 个新键才被挡住，期望正好是规格上限 %d", posted+1, mailboxSpecSides)
 	}
 
-	// 先确认旧行为：满时新键进不来。
+	// 先确认未回收时：满时新键进不来。
 	if code := postStatus(t, srv.URL+"/blob/late-guest"); code != http.StatusServiceUnavailable {
 		t.Fatalf("信箱满时新键应当被拒(503)，实际 %d", code)
 	}

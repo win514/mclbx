@@ -1,6 +1,6 @@
 package main
 
-// room_test.go —— 房间码归一、IPv6 方括号、监听地址端口提取的回归测试。
+// room_test.go 覆盖房间码归一、IPv6 方括号、监听地址端口提取的回归测试。
 
 import (
 	"strings"
@@ -19,7 +19,7 @@ func TestNormalizeRoomCode(t *testing.T) {
 			t.Errorf("%q 不该被接受", bad)
 		}
 	}
-	// 只填空白必须按「什么都没填」处理并生成随机码，不能返回空串（空串会让门卫校验失效）。
+	// 仅空白输入按「什么都没填」处理并生成随机码，不得返回空串（空串会让门卫校验失效）。
 	for _, blank := range []string{" ", "   ", "\t", "\n  "} {
 		got, err := normalizeRoomCode(blank)
 		if err != nil {

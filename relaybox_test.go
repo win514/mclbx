@@ -1,6 +1,6 @@
 package main
 
-// relaybox_test.go —— 联机点分享链接与端到端转发验证。
+// relaybox_test.go 覆盖联机点分享链接与端到端转发验证。
 
 import (
 	"bytes"
@@ -11,10 +11,8 @@ import (
 	"time"
 )
 
-// 分享链接里的地址，就是别人要连的地址。本机中继把中继跑在自己机器上，于是链接里那个地址
-// 就是房主自己的 —— 这不是缺陷（玩家总得能连到中继），但"以为中继藏住了自己"是这里最危险
-// 的误解：它会让人把链接发到群里。所以卡片、操作详情、说明书三处都必须明说，用例钉住，
-// 免得哪天被当成啰嗦话顺手删掉。
+// 本机中继的分享链接里的地址即房主自身地址，此为用户最易误解之处。
+// 卡片、操作详情、说明书三处都必须明说地址会被暴露，用例钉住这三处。
 func TestRelayboxSaysTheAddressInTheLinkIsYours(t *testing.T) {
 	card, err := os.ReadFile("relaybox.go")
 	if err != nil {

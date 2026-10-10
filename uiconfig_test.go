@@ -1,11 +1,9 @@
 package main
 
-// uiconfig_test.go —— 覆盖设置面板的两条硬规矩、配置读写、以及重置与变更记录。
+// uiconfig_test.go 覆盖设置面板的两条规约、配置读写、以及重置与变更记录。
 //
-// 两条硬规矩（来自本项目的设置面板规格）：
-//   一、面板上的每一项都必须是**真的会生效**的设置，不许有改了没反应的假开关；
-//   二、只读区不许出现任何可编辑控件。
-// 这两条都写成了用例，因为它们是"以后加东西时最容易破坏"的那两处。
+// 一、面板上每项都须是真正生效的设置，不得有改了无反应的开关。
+// 二、只读区不得出现任何可编辑控件。
 
 import (
 	"encoding/json"
@@ -31,11 +29,11 @@ func withTempArchive(t *testing.T) string {
 	return dir
 }
 
-// ---- 规矩一：面板上只有真设置 ----
+// ---- 规约一：面板上只有生效的设置 ----
 
-// 面板上出现的每一个可编辑控件，都必须有服务端字段（登记在 uiFieldLabels 里）；
-// 反过来，登记过的每一项也必须在面板上出现，guiUIState 的每个字段也必须登记过。
-// 三向对齐，任何一头多出来或少掉都会被这条抓住。
+// 面板上每个可编辑控件都须有服务端字段（登记在 uiFieldLabels 里）；
+// 登记过的每一项也须出现在面板上，guiUIState 的每个字段也须登记过。
+// 三向须对齐，任一侧多出或缺失都判为失败。
 func TestPanelOnlyShowsRealSettings(t *testing.T) {
 	panel := bodyBetween(t, "function uiThemeHTML(u){", "function uiAboutHTML(u){")
 	keyRe := regexp.MustCompile(`ui(?:Seg|Sw|Field|Range)\('([A-Za-z]+)'`)
@@ -43,13 +41,12 @@ func TestPanelOnlyShowsRealSettings(t *testing.T) {
 	for _, m := range keyRe.FindAllStringSubmatch(panel, -1) {
 		seen[m[1]] = true
 	}
-	// 强调色用的是圆点而不是分段控件，单独认一下
+	// 强调色用圆点控件而非分段控件，单独识别
 	if strings.Contains(panel, "uiAccentDots(u)") {
 		seen["accent"] = true
 	}
-	// 背景图那一项走的是自定义控件（下拉选图 + 导入），控件体在同名的 uiWallPicker 里，
-	// 所以这里既要认「面板上确实调了它」，也要认「它确实绑在 bgImage 字段上」——
-	// 只认前者会漏掉"控件换了字段名"的情况。
+	// 背景图用自定义控件 uiWallPicker（下拉选图 + 导入）。
+	// 既须确认面板调用了它，也须确认它绑在 bgImage 字段上，只认前者会漏掉控件换字段名的情况。
 	if strings.Contains(panel, "uiWallPicker(") {
 		picker := bodyBetween(t, "function uiWallPicker(u){", "function uiMusicList(u){")
 		if !strings.Contains(picker, `data-in="bgImage"`) {
@@ -61,7 +58,7 @@ func TestPanelOnlyShowsRealSettings(t *testing.T) {
 	for _, m := range regexp.MustCompile(`data-in="([A-Za-z]+)"`).FindAllStringSubmatch(panel, -1) {
 		seen[m[1]] = true
 	}
-	// 自定义控件（滑杆）同理：认它的 data- 钩子。
+	// 自定义滑杆控件同理：识别它的 data- 钩子。
 	for _, m := range regexp.MustCompile(`data-rng="([A-Za-z]+)"`).FindAllStringSubmatch(panel, -1) {
 		seen[m[1]] = true
 	}
@@ -87,18 +84,15 @@ func TestPanelOnlyShowsRealSettings(t *testing.T) {
 	}
 }
 
-// ---- 规矩三：面板上的每个按钮都有人接 ----
+// ---- 规约三：面板上的每个按钮都有处理者 ----
 
-// 面板里带 data-act 的按钮，必须能落到一个真实处理者上 —— 要么客户端的 uiAction / uiBind，
-// 要么服务端 /api/settings 的 action 分支。三处都不认的按钮，点下去什么都不发生。
-//
-// 这条是"漏接线"的护栏：本面板重做时就出现过按钮被留下、处理逻辑却跟着旧版面一起删掉的情况，
-// 页面能打开、按钮能点、只是毫无反应，光看代码不容易发现。
+// 面板里带 data-act 的按钮都须落到真实处理者：客户端的 uiAction / uiBind，
+// 或服务端 /api/settings 的 action 分支。三处都不认的按钮点了不会发生任何事。
 func TestEveryPanelActionHasAHandler(t *testing.T) {
 	client := bodyBetween(t, "async function uiAction(a, btn){", "\n/* 起手：先按地址栏的 hash")
 	bind := bodyBetween(t, "function uiBind(){", "function uiCollect(){")
 
-	// 服务端的 action 分支：只认 settingsSave 里那个 switch，别把文件里其它 switch 也算进来
+	// 服务端的 action 分支：只取 settingsSave 里的 switch，不纳入文件中其它 switch
 	src, err := os.ReadFile("gui.go")
 	if err != nil {
 		t.Fatalf("读不到 gui.go：%v", err)
@@ -130,11 +124,10 @@ func TestEveryPanelActionHasAHandler(t *testing.T) {
 	}
 }
 
-// 分段控件的取值必须与服务端白名单一致。
+// 分段控件的取值须与服务端白名单一致。
 //
-// 不一致的两种后果都很难查：界面上多一个取值 = 选了它什么都不会发生（归一化把它打回默认）；
-// 服务端多一个取值 = 那个档位永远选不到。字号那一项在 scale_test.go 里单独盯着，
-// 这里补上圆角与侧边栏样式这两项新维度。
+// 界面多一个取值：选了它不生效（归一化打回默认）。
+// 服务端多一个取值：该档位永远选不到。字号另见 scale_test.go。
 func TestNewSegmentOptionsMatchTheWhitelist(t *testing.T) {
 	for _, c := range []struct {
 		key  string
@@ -151,7 +144,7 @@ func TestNewSegmentOptionsMatchTheWhitelist(t *testing.T) {
 	}
 }
 
-// ---- 规矩二：只读区里不许有可编辑控件 ----
+// ---- 规约二：只读区不得有可编辑控件 ----
 
 func TestReadonlyBlockHasNoEditableControls(t *testing.T) {
 	ro := bodyBetween(t, "function uiAboutHTML(u){", "function uiChangesHTML(u){")
@@ -160,7 +153,7 @@ func TestReadonlyBlockHasNoEditableControls(t *testing.T) {
 			t.Errorf("「关于与状态」里出现了 %s —— 这一块是纯展示，不许留任何编辑入口", bad)
 		}
 	}
-	// 反向确认这段真的在渲染内容，而不是一个空函数
+	// 反向确认这段确实在渲染内容，而非空函数
 	if !strings.Contains(ro, "uiInfoRow(") || !strings.Contains(ro, "uiStat(") {
 		t.Error("只读区没有渲染任何信息行 —— 这条检查等于没做")
 	}
@@ -189,8 +182,8 @@ func TestCorrectedValuesAreReported(t *testing.T) {
 		if f["name"] == "" || f["name"] == want {
 			t.Errorf("%s 报出来的是字段名而不是选项名（%q）—— 用户看不懂字段名", want, f["name"])
 		}
-		// 三道都要有内容：提示是按「选项名（提交值 → 生效值）」拼出来的，
-		// 任何一处是空串，用户看到的就是一句说了等于没说的话。
+		// sent 与 used 都须有内容：提示按「选项名（提交值 → 生效值）」拼出，
+		// 任一处为空串则提示没有信息量。
 		if f["sent"] == "" || f["used"] == "" {
 			t.Errorf("%s 的提示缺了内容：%q → %q", want, f["sent"], f["used"])
 		}
@@ -218,7 +211,7 @@ func TestBrokenConfigIsDiscardedAndReported(t *testing.T) {
 	}
 	resetGuiConfigCache()
 
-	// 半截 JSON 被解析成"半个设置"是最坏的结果：整份丢弃、回到默认
+	// 半截 JSON 不得被采用：整份丢弃、回到默认
 	if got := loadUI().Theme; got == "dark" {
 		t.Error("损坏文件里的半截内容被采用了 —— 应当整份丢弃、回到默认")
 	}
@@ -272,7 +265,7 @@ func TestExportImportRoundTrip(t *testing.T) {
 		t.Errorf("自己导出的文件里出现了不认识的条目：%v", res.Skipped)
 	}
 	got := loadUI()
-	// 毛玻璃在这里顺手验一遍迁移：存进去的 "high" 是更早那版的写法，归一化后应当是 on（开）。
+	// 毛玻璃一并验证迁移：存入 "high"（旧写法）归一化后应为 on。
 	if got.Theme != "dark" || got.Glass != "on" || got.LogKeep != "1500" {
 		t.Errorf("导入后取值不对：theme=%q glass=%q logKeep=%q", got.Theme, got.Glass, got.LogKeep)
 	}
@@ -349,8 +342,8 @@ func TestResetOnlyTouchesItsOwnBoard(t *testing.T) {
 	if n, err := resetUIScope("主题外观"); err != nil || n != 0 {
 		t.Errorf("第二次重置同样是默认值，应当返回 0 项改动，实际 %d（err=%v）", n, err)
 	}
-	// 另一个板块的名字必须同样能通过校验：范围名与 uiFaces 不一致时，
-	// 界面上点「仅辅助工具」会得到"没有这个板块"，而那只在真机上才看得见。
+	// 另一个板块名也须通过校验：范围名与 uiFaces 不一致时，
+	// 界面点「仅辅助工具」会得到"没有这个板块"，只在真机上才暴露。
 	if _, err := resetUIScope("辅助工具"); err != nil {
 		t.Errorf("辅助工具板块重置失败：%v", err)
 	}
@@ -391,9 +384,9 @@ func TestChangesRecordBoardAndItemName(t *testing.T) {
 	}
 }
 
-// 存档目录取不到时，变更记录与导出都不许退化成相对路径 ——
-// filepath.Join("", "ui-changes.json") 会变成一个相对当前目录的文件名，
-// 那等于往用户的任意工作目录里丢文件。
+// 存档目录取不到时，变更记录与导出都不得退化成相对路径。
+// filepath.Join("", "ui-changes.json") 会变成相对当前目录的文件名，
+// 等于往用户的任意工作目录里丢文件。
 func TestChangeLogAndExportRefuseToWriteWithoutDataDir(t *testing.T) {
 	withTempConfig(t)
 	clearDirCaches()

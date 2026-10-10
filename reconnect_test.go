@@ -1,6 +1,6 @@
 package main
 
-// reconnect_test.go —— 断线重连四项基础的回归测试。
+// reconnect_test.go 覆盖断线重连四项基础的回归测试。
 
 import (
 	"context"
@@ -64,7 +64,7 @@ func TestGuestRegistrySweepsIdleButNotBusy(t *testing.T) {
 	g := newGuestRegistry()
 	g.claim("guest-idle", 1)
 	g.release("guest-idle")
-	g.claim("guest-live", 1) // 一直忙
+	g.claim("guest-live", 1) // 保持未释放
 
 	g.mu.Lock()
 	g.m["guest-idle"].seenAt = time.Now().Add(-time.Hour)
@@ -224,7 +224,7 @@ func TestMailboxRevAdvancesOnEveryWrite(t *testing.T) {
 		t.Fatalf("写入一次之后应当是 1，实际 rev=%d ok=%v", rev1, ok)
 	}
 
-	// 同一个键再写一次（重连就是这个动作）：计数必须继续往前走
+	// 同一个键再写一次（重连即此动作）：计数必须继续递增
 	if err := postBlob(srv.URL, "guest-a", candBlob{Room: "r1", Gen: 2}, 5*time.Second); err != nil {
 		t.Fatal(err)
 	}
@@ -233,7 +233,7 @@ func TestMailboxRevAdvancesOnEveryWrite(t *testing.T) {
 		t.Fatalf("同一个键再写一次也要让计数往前走（否则房主会漏掉重连），实际 rev=%d", rev2)
 	}
 
-	// 没有任何写入时读数不能变，否则房主每轮都会去列表取信
+	// 无写入时读数不得变化，否则房主每轮都会去列表取信
 	rev3, _ := mailboxRev(srv.URL, 3*time.Second)
 	if rev3 != rev2 {
 		t.Fatalf("没有写入时计数不该变：%d -> %d", rev2, rev3)

@@ -64,7 +64,7 @@ func TestSafetyCodeIsSymmetric(t *testing.T) {
 	}
 }
 
-// verifyProof 是绑定核心，以下覆盖多种拒绝与通过情况。
+// verifyProof 是身份绑定的核心检查点。
 func TestVerifyProof(t *testing.T) {
 	id, err := newIdentity()
 	if err != nil {

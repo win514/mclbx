@@ -1,6 +1,6 @@
 package main
 
-// guitasks_test.go —— 界面按钮的底线：每个任务都要能拼出可识别的子命令，必填项留空须报错。
+// guitasks_test.go 界面按钮的底线：每个任务都要能拼出可识别的子命令，必填项留空须报错。
 
 import (
 	"fmt"
@@ -202,7 +202,7 @@ var guiSampleValues = map[string]string{
 
 func guiSampleFor(f guiField) string {
 	if f.Kind == "check" {
-		return "" // 勾选项留空就是"不勾"
+		return "" // 勾选项留空表示"不勾"
 	}
 	if v, ok := guiSampleValues[f.ID]; ok && v != "" {
 		return v

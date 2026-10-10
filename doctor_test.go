@@ -1,6 +1,6 @@
 package main
 
-// doctor_test.go —— 体检判断逻辑（纯函数）的回归测试。
+// doctor_test.go 体检判断逻辑（纯函数）的回归测试。
 
 import (
 	"strings"

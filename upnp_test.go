@@ -23,7 +23,7 @@ func TestUpnpAddPortMapping(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// 用 127.0.0.1 当内网地址，使断言稳定。
+	// 用固定内网地址，使断言稳定。
 	err := upnpAddPortMapping(srv.URL+"/ctl", "1.2.3.4", 25565, 25566, "TCP", "mclbx", 3600)
 	if err != nil {
 		t.Fatalf("AddPortMapping 出错: %v", err)

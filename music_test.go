@@ -1,6 +1,6 @@
 package main
 
-// 音乐：曲库只算真正的音频，提供文件那条路不接受任何路径；播放交给界面的 <audio>。
+// 音乐：曲库只收录真实音频，文件提供接口不接受任何路径；播放交给界面的 <audio>。
 
 import (
 	"encoding/json"
@@ -40,13 +40,13 @@ func writeTestMP3(t *testing.T, p string, size int, id3 bool) {
 	}
 }
 
-// 只算真正的音频：改了后缀的其它文件不算（PCL2 为这类问题修过两次 bug）。
+// 只收录真实音频：改了后缀的其它文件不算。
 func TestMusicListCountsOnlyRealAudio(t *testing.T) {
 	dir := withTempMusic(t)
 
 	writeTestMP3(t, filepath.Join(dir, "有标签.mp3"), 512, true)
 	writeTestMP3(t, filepath.Join(dir, "无标签.mp3"), 512, false)
-	// 假货四连：改了后缀的非音频、没有扩展名的、空文件、同名目录
+	// 四类需排除：改了后缀的非音频、无扩展名、空文件、同名目录
 	if err := os.WriteFile(filepath.Join(dir, "假的.mp3"), []byte("这不是音频的内容"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -104,14 +104,14 @@ func TestServeMusicOnlyServesPlainAudioNames(t *testing.T) {
 	}
 }
 
-// 曲库报出来的每一首，都必须真的取得到。
-// 载荷把每首序列化成 {name, size}，列表与提供文件两条路必须对同一批文件达成一致。
+// 曲库列出的每一首都必须确实可取。
+// 载荷把每首序列化成 {name, size}，列表与文件提供两处须对同一批文件达成一致。
 func TestEveryListedTrackIsServable(t *testing.T) {
 	dir := withTempMusic(t)
 	writeTestMP3(t, filepath.Join(dir, "带标签.mp3"), 4096, true)
 	writeTestMP3(t, filepath.Join(dir, "无标签.mp3"), 4096, false)
 
-	// 第三首：前面塞一段垃圾（有些下载工具会这样做）；宽松解码器会跳过去照放，曲库也得认它。
+	// 第三首：前缀含垃圾字节（部分下载工具会这样写）；宽松解码器会跳过垃圾，曲库也须识别。
 	junkPath := filepath.Join(dir, "前面有垃圾.mp3")
 	writeTestMP3(t, junkPath, 4096, false)
 	raw, err := os.ReadFile(junkPath)
@@ -145,7 +145,7 @@ func TestEveryListedTrackIsServable(t *testing.T) {
 		}
 	}
 
-	// 载荷的形状也钉住：界面按 name 取文件名
+	// 载荷的形状也固定：界面按 name 取文件名
 	b, err := json.Marshal(tracks)
 	if err != nil {
 		t.Fatal(err)
@@ -155,7 +155,7 @@ func TestEveryListedTrackIsServable(t *testing.T) {
 	}
 }
 
-// 曲库名单里不该混进纯文本之类改了后缀的东西 —— 上面那条放宽了 MP3 识别，这条守住另一头。
+// 曲库名单不得混进纯文本之类改了后缀的文件：上条放宽 MP3 识别，本条守住另一头。
 func TestMusicSniffDoesNotSwallowText(t *testing.T) {
 	dir := withTempMusic(t)
 	if err := os.WriteFile(filepath.Join(dir, "其实是文本.mp3"), []byte("这是一段普通的文字内容，里面没有任何音频帧。"), 0o644); err != nil {
@@ -171,7 +171,7 @@ func TestMusicSniffDoesNotSwallowText(t *testing.T) {
 	}
 }
 
-// 偏好值必须被夹到合法范围：非法值退回默认，而不是原样存进去后在界面上表现成「选了没反应」。
+// 偏好值须落在合法范围：非法值退回默认，不得原样存入后在界面上表现为「选了没反应」。
 func TestMusicPrefsAreNormalized(t *testing.T) {
 	withTempConfig(t)
 	cases := []struct{ mode, loop, vol, wantMode, wantLoop, wantVol string }{
@@ -192,7 +192,7 @@ func TestMusicPrefsAreNormalized(t *testing.T) {
 	}
 }
 
-// 音乐要在界面上真的有入口：底栏那个按钮、<audio> 元素、设置里的音乐组，缺一个用户就找不到。
+// 音乐须在界面上有入口：底栏按钮、<audio> 元素、设置里的音乐组，缺一即用户找不到入口。
 func TestMusicControlsExistInThePage(t *testing.T) {
 	for _, want := range []string{
 		`id="bgm"`, `id="bgmToggle"`, `id="bgmName"`,

@@ -1,6 +1,6 @@
 package main
 
-// personas_test.go —— 房间参与者行为约定（文案与纯函数）断言。
+// personas_test.go 房间参与者行为约定（文案与纯函数）断言。
 
 import (
 	"strings"
