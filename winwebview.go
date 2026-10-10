@@ -2,7 +2,7 @@
 
 package main
 
-// winwebview.go —— 用系统自带的 WebView2 运行时创建原生窗口（单 exe、单进程），
+// winwebview.go 用系统自带的 WebView2 运行时创建原生窗口（单 exe、单进程），
 // 通过 syscall 直接调用 COM 接口；失败时由调用方退回 Edge 应用模式。
 
 import (
@@ -185,7 +185,7 @@ type minMaxInfoT struct {
 }
 
 type comHandler struct {
-	vtbl   *[4]uintptr // 必须放在第一个字段：接口指针就指向这里
+	vtbl   *[4]uintptr // 必须是第一个字段：接口指针指向这里
 	refs   int32
 	invoke func(a, b uintptr) // a/b 为两个入参的原始值（HRESULT 或接口指针）
 }
@@ -309,7 +309,7 @@ func hiddenConsoleProcAttr() *syscall.SysProcAttr {
 }
 
 // materialize 将内嵌的 WebView2Loader.dll / 图标解出到 internalDir（首次运行时）。
-// 不去存档目录：这些是 exe 里解出的机器内部产物，不该出现在用户拷走的存档里。
+// 不放入存档目录：这些是 exe 解出的机器内部产物。
 func materialize(name string, data []byte) (string, error) {
 	p := filepath.Join(internalDir(), name)
 	if st, err := os.Stat(p); err == nil && st.Size() == int64(len(data)) {
@@ -413,7 +413,7 @@ func requestClose() bool {
 		return false
 	}
 	if r, _, _ := pIsWindow.Call(hwnd); r == 0 {
-		return false // 窗口已经没了，调用方自己退
+		return false // 窗口已不存在，调用方自行退出
 	}
 	pPostMessageW.Call(hwnd, wmClose, 0, 0)
 	return true
@@ -594,7 +594,7 @@ func (h *webviewHost) watchdog() {
 			continue
 		}
 		if r, _, _ := pIsWindow.Call(h.hwnd); r == 0 {
-			return // 窗口已经销毁，看门狗下班
+			return // 窗口已销毁，停止探测
 		}
 		r, _, err := pSendMessageTimeW.Call(h.hwnd, wmNull, 0, 0, smtAbortIfHung, 2500, uintptr(unsafe.Pointer(&out)))
 		if r == 0 {

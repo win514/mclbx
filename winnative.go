@@ -2,7 +2,7 @@
 
 package main
 
-// winnative.go —— 原生界面：用 Windows 自带控件绘制，不依赖浏览器引擎。
+// winnative.go 原生界面：用 Windows 自带控件绘制，不依赖浏览器引擎。
 // 任务列表自绘，输入用系统控件，日志用 RichEdit，仅用一个 500ms 定时器轮询且状态未变不重绘。
 
 import (
@@ -31,7 +31,7 @@ const (
 	natGroupH    = 26  // 分组标题高度
 	natFieldH    = 54  // 一个字段占的高度（标签 + 输入框）
 	natAddrH     = 104 // 地址卡片高度（值一行放得下）
-	natAddrH2    = 136 // 地址卡片高度（值要折成两行 —— 中继链接常常就是这么长）
+	natAddrH2    = 136 // 地址卡片高度（值折成两行；中继链接常较长）
 	natAddrLineH = 26  // 地址卡片里那行值的行高
 	natCtlH      = 32  // 输入框/按钮高度
 	natMinLogH   = 130
@@ -225,7 +225,7 @@ const (
 	dtWordBreak   = 0x00000010
 	dtNoPrefix    = 0x00000800
 
-	// GetGlyphIndicesW 的开关：字体里没有这个字形时，返回 0xFFFF 而不是瞎编一个
+	// GetGlyphIndicesW 的开关：字形缺失时返回 0xFFFF
 	ggiMarkNonExisting = 0x0001
 
 	transparent = 1
@@ -309,7 +309,7 @@ type nativeUI struct {
 	errMsg    string
 
 	addr, room, join string
-	addrKey          string // 上一次的地址/房间码/加入命令，用来发现"卡片出现了或没了"
+	addrKey          string // 上一次的地址/房间码/加入命令，用于判断卡片是否出现或消失
 
 	// rosterRaw 是上次推来的 ##GUESTS## 原文，用于去重。
 	rosterRaw string
@@ -409,7 +409,7 @@ func runNativeUI(ctl *guiController) error {
 	// 建窗与建后 DPI 可能不同（多显示器），窗口尺寸按最终生效 DPI 重算。
 	if need := natWinW * u.dpi / 96; need != winW {
 		winW, winH = need, natWinH*u.dpi/96
-		x, y = (int32(sw)-winW)/2, (int32(sh)-winH)/2 // 位置也要跟着重算，别让它跑到屏幕外面
+		x, y = (int32(sw)-winW)/2, (int32(sh)-winH)/2 // 位置随之重算，避免窗口落到屏幕外
 		pSetWindowPos.Call(hwnd, 0, uintptr(x), uintptr(y),
 			uintptr(winW), uintptr(winH), swpNoZOrder|swpNoActivate)
 	}
@@ -523,7 +523,7 @@ func (u *nativeUI) measure(s string, font uintptr) int32 {
 	var sz struct{ Cx, Cy int32 }
 	pGetTextExtentPoin.Call(u.dcMeasure, uintptr(unsafe.Pointer(&w16[0])),
 		uintptr(len(w16)-1), uintptr(unsafe.Pointer(&sz)))
-	runtime.KeepAlive(w16) // 拴住 Go 堆上的 UTF-16 缓冲区，防止本次调用期间被 GC 回收
+	runtime.KeepAlive(w16) // 保持 Go 堆上的 UTF-16 缓冲区存活，防止调用期间被 GC 回收
 	pSelectObject.Call(u.dcMeasure, old)
 	return sz.Cx
 }
@@ -541,7 +541,7 @@ func (u *nativeUI) fontCovers(font uintptr, sample string) bool {
 	out := make([]uint16, len(w16)-1)
 	r, _, _ := pGetGlyphIndicesW.Call(u.dcMeasure, uintptr(unsafe.Pointer(&w16[0])),
 		uintptr(len(w16)-1), uintptr(unsafe.Pointer(&out[0])), ggiMarkNonExisting)
-	runtime.KeepAlive(w16) // 拴住 Go 堆上的 UTF-16 缓冲区，防止本次调用期间被 GC 回收
+	runtime.KeepAlive(w16) // 保持 Go 堆上的 UTF-16 缓冲区存活，防止调用期间被 GC 回收
 	pSelectObject.Call(u.dcMeasure, old)
 	if r == 0xFFFFFFFF { // GDI_ERROR
 		return false
@@ -583,7 +583,7 @@ type natText struct {
 	flags uint32
 }
 
-// headerBox 顶部栏里会互相挤的几块（名字、版本、状态点、状态文字、退出按钮）
+// headerBox 顶部栏中会相互挤占的几块（名字、版本、状态点、状态文字、退出按钮）
 type headerBox struct {
 	Title  rectT
 	Ver    rectT
@@ -940,7 +940,7 @@ func (u *nativeUI) splitTwoLines(s string, avail int32, font uintptr) (string, s
 	cut := 0
 	for i := 1; i < len(s); i++ {
 		if s[i]&0xC0 == 0x80 {
-			continue // 多字节字符的续字节，不能在这儿断
+			continue // 多字节字符的续字节，不可在此断开
 		}
 		if u.measure(s[:i], font) > avail {
 			break
@@ -1155,7 +1155,7 @@ func (u *nativeUI) rebuildFields() {
 			h := u.mkChild("BUTTON", f.Label, wsChild|wsVisible|wsTabStop|bsCheckbox, id)
 			// 显式指定与标签相同的字体，避免一屏混用两种字形。
 			pSendMessageW.Call(h, wmSetFont, u.fSmall, 1)
-			// 上次怎么勾的还怎么勾（没存过就按字段自己的默认值）
+			// 沿用上次的勾选状态（无记录则用字段默认值）
 			if fieldChecked(key, f) {
 				pSendMessageW.Call(h, bmSetCheck, 1, 0)
 			}
@@ -1386,7 +1386,7 @@ func addrCardTitle(v string) string {
 
 // minMaxInfoT（WM_GETMINMAXINFO 的 lParam）已在 winwebview.go 声明，两种界面共用。
 
-// drawItemT 就是 Windows 的 DRAWITEMSTRUCT，只有 BS_OWNERDRAW 的控件才会收到
+// drawItemT 对应 Windows 的 DRAWITEMSTRUCT，仅 BS_OWNERDRAW 控件会收到
 type drawItemT struct {
 	CtlType    uint32
 	CtlID      uint32
@@ -1508,7 +1508,7 @@ func (u *nativeUI) appendLine(s string) {
 	start, _, _ := pSendMessageW.Call(h, 0x000E, 0, 0)        // WM_GETTEXTLENGTH
 	txt := utf16z(s + "\r\n")
 	pSendMessageW.Call(h, emReplaceSel, 0, uintptr(unsafe.Pointer(&txt[0])))
-	runtime.KeepAlive(txt) // 拴住 Go 堆上的 UTF-16 缓冲区，防止本次调用期间被 GC 回收
+	runtime.KeepAlive(txt) // 保持 Go 堆上的 UTF-16 缓冲区存活，防止调用期间被 GC 回收
 	if u.richEdit {
 		end := start + uintptr(len(txt)-1)
 		pSendMessageW.Call(h, emSetSel, start, end)
@@ -1559,7 +1559,7 @@ func (u *nativeUI) clearLog() {
 	}
 	txt, _ := syscall.UTF16FromString("")
 	pSetWindowTextW.Call(u.logHwnd, uintptr(unsafe.Pointer(&txt[0])))
-	runtime.KeepAlive(txt) // 拴住 Go 堆上的 UTF-16 缓冲区，防止本次调用期间被 GC 回收
+	runtime.KeepAlive(txt) // 保持 Go 堆上的 UTF-16 缓冲区存活，防止调用期间被 GC 回收
 	u.logText = nil
 	u.logLines = 0
 }
@@ -1658,7 +1658,7 @@ func keepOwnerDraw(h uintptr) {
 	pInvalidateRect.Call(h, 0, 0)
 }
 
-// GWL_STYLE 就是 -16；这里按无符号写成补码形式，省得每次转换（32/64 位都对）
+// GWL_STYLE 为 -16；此处按无符号写成补码形式，避免每次转换（32/64 位均适用）
 const gwlStyle = ^uintptr(15)
 
 func windowStyle(h uintptr) uintptr {
@@ -1673,7 +1673,7 @@ func setWindowStyle(h uintptr, style uintptr) {
 	if h == 0 {
 		return
 	}
-	// 32 位下没有 SetWindowLongPtrW（那是个宏），要分开挑
+	// 32 位下没有 SetWindowLongPtrW（宏），需分开处理
 	if unsafe.Sizeof(uintptr(0)) == 4 {
 		pSetWindowLongW.Call(h, gwlStyle, style)
 		return
@@ -1744,7 +1744,7 @@ func rosterLine(val string) string {
 	return fmt.Sprintf("[在场] %d 人：%s", p.N, strings.Join(parts, "；"))
 }
 
-// humanSince 把「已连秒数」写成人话。界面那一格很窄，所以不追求精度。
+// humanSince 把已连秒数转为可读时长。界面该格较窄，不追求精度。
 func humanSince(sec int64) string {
 	if sec < 0 {
 		sec = 0
@@ -1814,7 +1814,7 @@ func natWndProc(hwnd uintptr, msg uint32, wParam, lParam uintptr) uintptr {
 		return 0
 
 	case wmEraseBkg:
-		return 1 // 自己画，别擦
+		return 1 // 自行绘制，不擦背景
 
 	case wmTimer:
 		if wParam == natTimerID {
@@ -1888,7 +1888,7 @@ func natWndProc(hwnd uintptr, msg uint32, wParam, lParam uintptr) uintptr {
 		}
 
 	case wmCtlColorEdit, wmCtlColorBtn, wmCtlColorStatic:
-		// 子控件统一用暗色，不然一块白底会特别刺眼
+		// 子控件统一用暗色，避免白底刺眼
 		pSetBkMode.Call(wParam, transparent)
 		pSetTextColor.Call(wParam, natInk)
 		if lParam == u.logHwnd {

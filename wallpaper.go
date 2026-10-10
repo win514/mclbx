@@ -1,7 +1,7 @@
 package main
 
-// wallpaper.go —— 背景图片：把用户选的本地图片缩到长边 2560 后缓存到存档，网页版经 /bg/<内容哈希>.jpg 取用。
-// 指纹为「路径+修改时间+大小」（非内容），变了就换 URL，故可给 immutable 长缓存；URL 只含指纹不含路径，无目录穿越面。
+// wallpaper.go 背景图片：把用户选的本地图片缩到长边 2560 后缓存到存档，网页版经 /bg/<内容哈希>.jpg 取用。
+// 指纹为「路径+修改时间+大小」（非内容），变化即换 URL，故可给 immutable 长缓存；URL 只含指纹不含路径，无目录穿越面。
 // 仅用标准库解码 JPEG/PNG/GIF；EXIF 方向标签标准库不认，下面自己按 1~8 纠偏。
 
 import (
@@ -79,7 +79,7 @@ var (
 	}
 )
 
-// errNoWall 表示用户没有配背景图 —— 这不是错误，只是一条"没有"的路径。
+// errNoWall 表示用户没有配置背景图，它不是错误。
 var errNoWall = errors.New("没有配置背景图")
 
 // wallFingerprint 用路径 + 修改时间 + 大小标识一份源文件。
@@ -95,7 +95,7 @@ func wallFingerprint(p string) (string, error) {
 		return "", errors.New("文件是空的")
 	}
 	if st.Size() > wallSrcMaxBytes {
-		return "", fmt.Errorf("文件有 %.0f MB，太大", float64(st.Size())/(1<<20))
+		return "", fmt.Errorf("文件为 %.0f MB，超过上限", float64(st.Size())/(1<<20))
 	}
 	return fmt.Sprintf("%s\x00%d\x00%d", p, st.ModTime().UnixNano(), st.Size()), nil
 }
@@ -106,7 +106,7 @@ func wallErrText(err error) string {
 	case errors.Is(err, errNoWall):
 		return ""
 	case errors.Is(err, errWallMissing):
-		return "这张图不在存档里了 —— 可能存档目录被清理过，或者你手动删掉了它"
+		return "该图片不在存档目录中：存档目录可能被清理过，或图片已被删除"
 	case os.IsNotExist(err):
 		return "找不到这个文件"
 	case os.IsPermission(err):
@@ -191,7 +191,7 @@ func isWallImageExt(ext string) bool {
 }
 
 // importWallFile 把上传上来的图片存进图库，返回存下的文件名。
-// 扩展名以文件头嗅探结果为准，不信上传时的文件名 —— 后者完全由客户端说了算。
+// 扩展名以文件头嗅探结果为准，不采用上传时的文件名（后者由客户端决定）。
 func importWallFile(name string, data []byte) (string, error) {
 	dir := wallGalleryDir()
 	if dir == "" {
@@ -359,7 +359,7 @@ func decodeWall(src string) (image.Image, error) {
 }
 
 // exifOrientation 从 JPEG 头部读出方向标签（EXIF tag 0x0112）；读不到或取值超出 1~8 一律返回 1。
-// 只顺着标记段往前扫，遇到 SOS（图像数据开始）就停 —— APP1 只可能在那之前。
+// 只沿标记段向前扫，遇到 SOS（图像数据开始）即停：APP1 只可能在那之前。
 func exifOrientation(r io.Reader) int {
 	var soi [2]byte
 	if _, err := io.ReadFull(r, soi[:]); err != nil || soi[0] != 0xFF || soi[1] != 0xD8 {
@@ -578,7 +578,7 @@ func pruneWallCache(keep string) {
 }
 
 // wallName 允许出现的缓存文件名：只有 bg-<16 位十六进制>.jpg。
-// 这个白名单是这一段的安全边界 —— 名字来自 URL，所以它必须窄到没有第二种解释。
+// 这个白名单是安全边界：名字来自 URL，必须窄到没有第二种解释。
 var wallName = regexp.MustCompile(`^bg-[0-9a-f]{16}\.jpg$`)
 
 // serveWall 按指纹提供背景图；名字含指纹，换图必换名，可给一年期长缓存。

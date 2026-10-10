@@ -1,6 +1,6 @@
 package main
 
-// datadir.go —— 本程序的两个目录只在这里算一次：存档 dataDir()（用户可见、可整个拷走：配置、日志、图片、音乐）
+// datadir.go 本程序的两个目录只在此处算一次：存档 dataDir()（用户可见、可整个拷走：配置、日志、图片、音乐）
 // 与内部 internalDir()（机器产物：WebView2 用户目录、解出的 DLL，不进存档）。
 // 「可写」用探测文件判断而非 Stat：Windows 的 mode 位反映不了 ACL、只读属性与 UAC 虚拟化。
 

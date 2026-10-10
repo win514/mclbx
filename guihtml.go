@@ -1,24 +1,21 @@
 package main
 
-// guihtml.go —— 控制台的页面骨架（编在 exe 里，不落文件、不依赖外网）。
-// 界面按信号链组织（本机 → 入口 → 房间 → 玩家），空闲时无无限动画以控制显卡占用。
-//
-// 这里只有 DOM 骨架与资源引用：样式在 assets/gui.css、脚本在 assets/gui.js，
-// 两者随 exe 内嵌、由本程序自己托管在 /assets/ 下（见 guiassets.go）。
-// Go 这一侧不操作 DOM、也不生成任何动画逻辑 —— 它只把当前设置写进 <html> 的属性与
-// 首屏 JSON，动效、交互与状态过渡全部由浏览器端的 CSS/JS 完成。
+// guihtml.go 控制台页面骨架，编在 exe 内，不落文件、不依赖外网。
+// 界面按信号链组织（本机 → 入口 → 房间 → 玩家），空闲时无无限动画。
+// 只有 DOM 骨架与资源引用：样式在 assets/gui.css、脚本在 assets/gui.js，
+// 两者随 exe 内嵌并由本程序托管在 /assets/ 下（见 guiassets.go）。
+// Go 侧不操作 DOM、不生成动画逻辑，只把当前设置写进 <html> 属性与首屏 JSON。
 
 const guiShellHTML = `<!doctype html>
 <!--
-  界面页：由服务端一次性渲染，不依赖外网；设置存在存档目录的 config.json 里。
+  界面页：服务端一次性渲染，不依赖外网；设置存在存档目录的 config.json 里。
 
-  样式改动需守住的性能约束（每一条都有对应的用例）：
-    · 模糊只加在局部面板上，禁止整屏图层（.bg / .aurora / .grid / .modal）；
-    · 内容持续追加、或会随滚动与搜索重算的地方不加模糊（.logpanel / .log / .tasks / .op / 侧栏面板）；
-    · 任务执行期间整体让位（data-vfx-busy），跑完立刻恢复；
-    · 不写 will-change；淡入只动 opacity。
-    · 全部美化（assets/gui.css 里「视觉美化（VFX）」那一段 + assets/gui.js 里的 VFX 模块）
-      可整段删除，删掉之后界面回到实心扁平外观，功能不受影响。
+  样式改动的性能约束：
+    模糊只加在局部面板，整屏图层（.bg / .aurora / .grid / .modal）与
+    持续追加或随滚动、搜索重算的区域（.logpanel / .log / .tasks / .op / 侧栏面板）不加；
+    任务执行期间整体让位（data-vfx-busy），结束后恢复；不写 will-change，淡入只动 opacity。
+    美化层（gui.css 的「视觉美化（VFX）」段与 gui.js 的 VFX 模块）可整段删除，
+    界面回到实心扁平外观，功能不受影响。
 -->
 <html lang="zh-CN"@@UIATTRS@@>
 <head>
@@ -27,10 +24,8 @@ const guiShellHTML = `<!doctype html>
 <title>mclbx 联机工具</title>
 <link rel="icon" href="/assets/favicon.png">
 <script>
-/* 主题在首屏之前就定下来。
-   服务端已经把用户选的（或者"跟随系统"）写进 <html> 的属性里，这里只做一件事：
-   把"跟随系统"解析成当前的系统偏好，并跟着它变 —— 不能等界面脚本加载完，
-   否则开着浅色系统的机器会先闪一下深色。 */
+/* 主题在首屏之前定下来：把"跟随系统"解析成当前系统偏好并跟随它变化。
+   服务端已把用户选择写进 <html> 属性；此处不能等界面脚本加载完，否则浅色系统会先闪深色。 */
 (function(){
   var u = @@UIJSON@@;
   window.MCLBX_UI = u;
@@ -43,8 +38,8 @@ const guiShellHTML = `<!doctype html>
   }
   resolve();
   if(u.followOS && mq && mq.addEventListener){ mq.addEventListener('change', resolve); }
-  // 设置面板改主题时从这里走：切到"跟随系统"要重新解析一次，
-  // 而且那个解析函数只在这儿有一份，别的地方不该再写一遍。
+  // 设置面板改主题的唯一入口：切到"跟随系统"时重新解析。
+  // 解析函数只此一份，别处不得重复实现。
   window.MCLBX_THEME = function(theme){
     u.theme = theme || 'auto';
     u.followOS = (u.theme === 'auto');
@@ -58,9 +53,8 @@ const guiShellHTML = `<!doctype html>
 <div class="bg"><div class="wall"></div><div class="scrim"></div><div class="aurora"></div><div class="grid"></div></div>
 
 <div class="shell" id="app">
-  <!-- 顶栏 = 身份 + 页面导航 + 连接进展 + 当前状态。
-       四件事各占一段，顺序固定；窗口变窄时先让位的依次是进度链、导航说明，
-       身份与状态永远留着（它们是"这是哪个工具、现在在干什么"的答案）。 -->
+  <!-- 顶栏 = 身份 + 页面导航 + 连接进展 + 当前状态，顺序固定。
+       窗口变窄时依次让位进度链、导航说明；身份与状态始终保留。 -->
   <header class="topbar">
     <span class="glyph"></span>
     <div class="brand"><b>mclbx</b><span class="sub">联机工具</span></div>
@@ -88,9 +82,7 @@ const guiShellHTML = `<!doctype html>
         <div class="ph"><h2>本机环境</h2></div>
         <div class="cap" id="cap"></div>
       </section>
-      <!-- 操作列表常驻。它以前收在「更多功能」后面，于是这一列平时只剩一张环境表，
-           而"操作在哪"又变成一个新问题（分享出去后最多的一句反馈就是不知道点哪个）。
-           现在列表本身就是这一列的用途：按用途分组、带搜索，快速开始那两张卡仍是默认动线。 -->
+      <!-- 操作列表常驻：按用途分组、带搜索。 -->
       <section class="panel panel-flat grow">
         <div class="ph"><h2>操作</h2>
           <button class="linkbtn" id="btnProbe" title="重新执行环境检测">重新检测</button></div>
@@ -101,8 +93,7 @@ const guiShellHTML = `<!doctype html>
     </aside>
 
     <div class="stage">
-      <!-- 一步开局：默认入口。房主要给的就一个房间码，玩家要做的就一次粘贴；
-           其余参数与说明都后置到侧栏操作列表与悬浮提示里。 -->
+      <!-- 一步开局：房主填一个房间码，玩家一次粘贴；其余参数后置到侧栏操作列表与悬浮提示。 -->
       <section class="panel quick" id="quick">
         <div class="qhead">
           <span class="qt">快速开始</span>
@@ -120,8 +111,6 @@ const guiShellHTML = `<!doctype html>
         </div>
 
         <div class="qform" id="qHostForm" hidden>
-          <!-- 这条前置说明是实测补出来的：新手点"开一个房间"时，游戏里的世界往往还没开，
-               程序只能回一句"端口无法连接"，看着像工具坏了。 -->
           <div class="qpre">请先在游戏内开启局域网：<b>Esc → 对局域网开放</b>，然后回到此处创建房间。</div>
           <label for="qRoom">房间码</label>
           <input id="qRoom" placeholder="留空自动生成" maxlength="24" autocomplete="off">
@@ -149,7 +138,7 @@ const guiShellHTML = `<!doctype html>
         <button class="linkbtn" id="fwSkip">忽略</button>
       </div>
 
-      <!-- 入口地址卡：本工具唯一要交付给用户的东西，所以字号最大、位置最靠前 -->
+      <!-- 入口地址卡：本工具唯一交付物，字号最大、位置最靠前 -->
       <section class="panel hero" id="cardAddr" hidden>
         <span class="shine" id="sheen"></span>
         <div class="k">玩家入口地址</div>
@@ -158,8 +147,7 @@ const guiShellHTML = `<!doctype html>
           <button class="btn sm" id="btnCopyAddr">复制地址</button>
           <span class="chip grp" id="roomChip" hidden></span>
         </div>
-        <!-- 邀请卡：房主唯一需要"转发出去"的东西 —— 地址、房间码、没装工具的连法、
-             装了工具的命令，全在这一段里，只配一个复制按钮。 -->
+        <!-- 邀请卡：地址、房间码、未装工具的连法、已装工具的命令，配一个复制按钮。 -->
         <div class="invite" id="inviteWrap" hidden>
           <div class="invhead">
             <span>发送给玩家的邀请</span>
@@ -167,8 +155,7 @@ const guiShellHTML = `<!doctype html>
           </div>
           <div class="invtext" id="inviteText"></div>
         </div>
-        <!-- 在场名单：只在有人真的通过身份校验之后出现（光连上不算）。
-             安全码是要和玩家对着念的那一串，所以放在最显眼的位置。 -->
+        <!-- 在场名单：仅在有人通过身份校验后出现（连上不算）。安全码放在显眼位置。 -->
         <div class="guests" id="guestWrap" hidden>
           <div class="ghead">在场玩家 <span id="guestN">0</span> 人</div>
           <ul id="guestList"></ul>
@@ -201,15 +188,12 @@ const guiShellHTML = `<!doctype html>
     <div class="mset" id="settingsBody"></div>
   </main>
 
-  <!-- ── 页三：说明书。它是一份独立文档（iframe 内自带排版），
-       以前是个整屏覆盖层，现在是一页 —— 少一层弹窗叠加，返回也交给顶栏导航。 -->
+  <!-- ── 页三：说明书。独立文档（iframe 内自带排版）。 -->
   <main class="page" id="pageManual" hidden>
     <iframe id="manualFrame" title="使用说明书"></iframe>
   </main>
 
-  <!-- 状态栏 = 当前任务 + 保存状态 + 常驻小工具 + 快捷键 + 生命周期动作。
-       停止/退出从顶栏挪到这里：它们作用于"当前这次运行"，和上面那行状态是同一件事，
-       顶栏则专管"我是谁、在哪个页、连到哪一步"。 -->
+  <!-- 状态栏 = 当前任务 + 保存状态 + 常驻小工具 + 快捷键 + 生命周期动作。 -->
   <footer class="statusbar">
     <span class="sb-task" id="ftTask">未选择操作</span>
     <span class="sb-save" id="saveState"></span>
@@ -223,11 +207,11 @@ const guiShellHTML = `<!doctype html>
   </footer>
 </div>
 
-<!-- 背景音乐：播放完全交给界面内核的 <audio>，Go 侧只负责列出曲库与提供文件。
-     preload=none 是有意的：不点播放就不去碰磁盘，空闲时这条路径的开销是零。 -->
+<!-- 背景音乐：播放交给界面内核的 <audio>，Go 侧只列曲库与提供文件。
+     preload=none：不点播放不读写磁盘，空闲时路径开销为零。 -->
 <audio id="bgm" preload="none"></audio>
 
-<!-- 唯一的浮层：操作原理性说明（点开看完就关）。设置不再是浮层，说明书也已经是页。 -->
+<!-- 唯一的浮层：操作原理性说明（点开看完即关）。 -->
 <div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modalTitle">
   <div class="mbox" tabindex="-1">
     <div class="mhead"><span class="mt" id="modalTitle"></span><span class="spacer"></span>

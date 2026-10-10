@@ -1,6 +1,6 @@
 package main
 
-// pmtu.go —— 建链前探测路径 MTU，决定 DTLS 记录上限与能否承载 SCTP。
+// pmtu.go 建链前探测路径 MTU，决定 DTLS 记录上限与能否承载 SCTP。
 // 每侧按 1400/1200/1000/800/600 字节 UDP 载荷发探测包，对端同尺寸回一个应答；取可通过的最大值减去协议开销即 DTLS MTU。
 
 import (
@@ -13,14 +13,14 @@ import (
 
 const (
 	pmtuMagic = "MCLBXPMT" // 8 字节前缀，避免和别的流量混淆
-	pmtuQuery = 'Q'        // 我发的探测
+	pmtuQuery = 'Q'        // 本端发出的探测
 	pmtuEcho  = 'E'        // 对探测的应答
 )
 
 // 探测尺寸（UDP 载荷）。上限 1400；1200~1400 间加密（1250/1300）以贴合 SCTP 约 1225 字节的包。
 var pmtuSizes = []int{1400, 1300, 1250, 1200, 1000, 800, 600}
 
-// 周期性重发，拿到最大尺寸回音即提前结束；两端探测起始时间可能不同，只发一次会双双失败。
+// 周期性重发，收到最大尺寸应答即提前结束；两端起始时间不同，只发一次会双方都失败。
 const (
 	pmtuWindow = 1200 * time.Millisecond // 总时长上限
 	pmtuResend = 250 * time.Millisecond  // 重发间隔
@@ -110,7 +110,7 @@ func (c *pmtuConn) ReadFrom(p []byte) (int, net.Addr, error) {
 	return c.PacketConn.ReadFrom(p)
 }
 
-// probePathMTU 跑一次探测，返回最大可通过 UDP 载荷与供 DTLS 使用的连接；失败返回 0。
+// probePathMTU 执行一次探测，返回最大可通过 UDP 载荷与供 DTLS 使用的连接；失败返回 0。
 func probePathMTU(pc net.PacketConn) (int, net.PacketConn) {
 	var ra net.Addr
 	if rc, ok := pc.(interface{ RemoteAddr() net.Addr }); ok {
@@ -121,7 +121,7 @@ func probePathMTU(pc net.PacketConn) (int, net.PacketConn) {
 		return 0, wrapped
 	}
 
-	// 周期重发边发边收；收到最大尺寸回音立即收工。
+	// 周期重发并同时接收，收到最大尺寸应答即结束。
 	echoed := map[int]bool{}
 	deadline := time.Now().Add(pmtuWindow)
 	lastSend := time.Time{}

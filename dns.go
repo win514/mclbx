@@ -1,6 +1,6 @@
 package main
 
-// dns.go —— 房主把「短名字 -> 地址+端口」写成 AAAA + SRV 记录，客户端查 _minecraft._tcp.<名字> 的 SRV 即可连接；含 DNS 编解码器与本地权威服务。
+// dns.go 把「短名字 -> 地址+端口」写成 AAAA 与 SRV 记录，客户端查 _minecraft._tcp.<名字> 的 SRV 即可连接；含 DNS 编解码器与本地权威服务。
 
 import (
 	"context"

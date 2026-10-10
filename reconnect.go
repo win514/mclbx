@@ -1,6 +1,6 @@
 package main
 
-// reconnect.go —— 断线自动重连：玩家侧监督循环 + 房主侧按代次接纳。
+// reconnect.go 断线自动重连：玩家侧监督循环与房主侧按代次接纳。
 // ICE agent 进入 Failed 后不可自愈，只能整条重建。
 
 import (
@@ -191,7 +191,7 @@ func establishGuestTunnel(ctx context.Context, sess *guestSession, gen int, onIc
 	return newGuestTunnel(assoc), a, nil
 }
 
-// runGuest 是玩家侧的监督循环：建立 → 等它断 → 重建，直到出现不可重试的失败。
+// runGuest 玩家侧监督循环：建立、等待断开、重建，直到出现不可重试的失败。
 func runGuest(sess *guestSession, ref *tunnelRef, onUp func(gen int, first bool)) error {
 	failures := 0
 	everUp := false
@@ -278,7 +278,7 @@ type claimResult int
 const (
 	claimAccepted claimResult = iota // 认领成功，交给调用方去建链
 	claimBusy                        // 上一代还在处理中，等它结束再试
-	claimStale                       // 代次不比已接纳的更高，没什么可做
+	claimStale                       // 代次不高于已接纳的，无需动作
 )
 
 func (r claimResult) String() string {

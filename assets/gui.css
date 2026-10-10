@@ -16,16 +16,15 @@
   --scroll:#1E3040; --scroll-hi:#2A4356;
   --aurora-a:rgba(62,224,161,.045); --aurora-b:rgba(99,169,255,.10);
   /* ---- 字 ----
-     四级灰阶 + 一组"彩色字"：后者只用在状态与日志上，作用是让人一眼看出这句话是什么性质。
-     **四级都必须读得清**（对比度见 uisettings_test.go 的那张表）：原来的四级 muted2 只有
-     2.08（它是行号与底栏），等于把"读不清"当成了"层次"。层次靠字号与位置去做，不靠让人看不见。 */
+     四级灰阶 + 一组"彩色字"（只用于状态与日志，标示性质）。
+     四级都必须读得清（对比度见 uisettings_test.go 表）；层次靠字号与位置，不靠降低可见度。 */
   --ink:#E9F2FB; --ink2:#9DB1C6; --muted:#8190A1; --muted2:#7C8B98;
   --ok-ink:#7CF0C4; --bad-ink:#FFB0BE; --warn-ink:#FFD79A; --info-ink:#A8CDFF;
   --addr-ink:#DDFFF2; --violet-ink:#E4DDFF; --bar-ink:#06120C; --cheek:#062A1E;
   --on-sig:#07231A; --sel:rgba(62,224,161,.28);
   /* ---- 强调色 ----
-     这一个色族由 data-accent 换（见下）。深浅两套主题共用同一组半透明值，
-     只有"实心色"和"压在实心色上的字"需要按主题分别给 —— 浅底上必须更深才够对比。 */
+     该色族由 data-accent 切换。深浅主题共用同一组半透明值；
+     实心色与压在实心色上的字需按主题分别给，浅底上必须更深才够对比。 */
   --sig:#3EE0A1; --sig-deep:#1FA87A; --sig-soft:rgba(62,224,161,.13);
   --sig-edge:rgba(62,224,161,.34); --sig-ring:rgba(62,224,161,.14);
   --sig-focus:rgba(62,224,161,.55); --sig-live:rgba(62,224,161,.7); --sig-glow:rgba(62,224,161,.9);
@@ -41,50 +40,40 @@
   --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px;
   --r1:6px; --r2:9px; --r3:13px; --pill:999px;
   /* ---- 层次：三档外阴影 + 一条顶边高光 ----
-     深色界面里"看起来有层次"其实只靠三样东西：外阴影、顶边那一条内高光、边框明度差。
-     原来只有第三样，于是所有面都停在同一层，整页像一堆并排的方框。三档对三层：
-       sh1 卡片（操作行、次级卡）／sh2 浮起的面板与主按钮／sh3 真正的浮层（弹窗、提示条）。
-     --edge-hi 压在顶边内侧：它让平面看起来"受光"，是深色里最省钱的立体感来源。
-     扁平档把三档都归零 —— 扁平化的定义就是"去掉外阴影"，这里必须跟着一起归零，
-     否则那个档位只会去掉一半。 */
+     三档对三层：sh1 卡片（操作行、次级卡）／sh2 浮起的面板与主按钮／sh3 浮层（弹窗、提示条）。
+     --edge-hi 压在顶边内侧，提供受光感。扁平档把三档与它一并归零。 */
   --sh1:0 1px 2px rgba(0,0,0,.30),0 2px 6px -3px rgba(0,0,0,.26);
   --sh2:0 2px 6px -2px rgba(0,0,0,.36),0 10px 24px -16px rgba(0,0,0,.48);
   --sh3:0 6px 16px -6px rgba(0,0,0,.44),0 22px 48px -28px rgba(0,0,0,.58);
   --edge-hi:rgba(255,255,255,.055);
   /* ---- 动效 ----
-     三档时长 + 一条缓动曲线，界面里不该出现第二种手感。
-       d1 按压等即时反馈／d2 悬停与状态切换／d3 出现与消失。
-     只许动 transform / opacity / color / background / border-color —— 动别的等于每帧重绘。 */
+     三档时长 + 一条缓动曲线。d1 即时反馈／d2 悬停与状态切换／d3 出现与消失。
+     只许动 transform / opacity / color / background / border-color；动别的等于每帧重绘。 */
   --d1:110ms; --d2:170ms; --d3:260ms;
   --ease:cubic-bezier(.22,.61,.36,1);
-  /* 输出面（日志这类"内容往下滚"的区域）用一条内凹阴影：它读起来是嵌进去的槽，
-     而不是又一块浮在面板上的卡片。扁平档同样归零。 */
+  /* 输出面（日志这类下拉滚动区）用内凹阴影，读起来是嵌进去的槽。扁平档同样归零。 */
   --well:inset 0 1px 3px rgba(0,0,0,.30);
-  /* 字号：**名字就是它当前的像素值**（--fs-12-5 = 12.5px）。取这个名字是为了"看上去是几号字"和
-     变量名一一对应，加减档位时不会记错。规矩只有一条：**所有字号只能写 var(--fs-*)，不许再写裸 px**
-     —— 界面的"大字号"开关靠的就是这一点（见 TestEveryFontSizeGoesThroughToken）。 */
+  /* 字号 token 名即其像素值（--fs-12-5 = 12.5px）。
+     所有字号只能写 var(--fs-*)，不得写裸 px；界面的"大字号"开关依赖这一点（见 TestEveryFontSizeGoesThroughToken）。 */
   --fs-10:10px; --fs-10-5:10.5px; --fs-11:11px; --fs-11-5:11.5px; --fs-12:12px; --fs-12-5:12.5px;
   --fs-13:13px; --fs-13-5:13.5px; --fs-14:14px; --fs-15:15px; --fs-16:16px; --fs-17:17px; --fs-18:18px;
   --fs-9:9px; --fs-26:26px;
-  /* 顶栏与状态栏的高度跟着字号走：字号一放大，固定高度的这两条会把字切掉。
-     状态栏比原来高 10px —— 停止/退出挪进来之后它要放得下按钮，不再只是一行小字。 */
+  /* 顶栏与状态栏高度跟着字号走，否则字号放大后固定高度会把字切掉。 */
   --row-top:56px; --row-bot:40px;
-  /* 背景图片的地址由服务端按当前设置注入到 <html> 的行内样式里。这里必须给一个默认值：
-     样式表里一旦写了 var(--wall)，定义它的地方就得在样式表里（有用例逐个变量核对）。 */
+  /* 背景图片地址由服务端注入 <html> 行内样式。此处必须给默认值：
+     样式表里一旦写 var(--wall)，其定义也须在样式表内（有用例逐个变量核对）。 */
   --wall:none;
   /* ---- 毛玻璃（三档） ----
-     写死成 rgba() + calc() 而不是用 color-mix() 现算：color-mix() 需要 Chromium 111+，
-     而这个界面跑在系统自带的 WebView2 上，内核版本不由本程序决定。不支持的引擎会在解析期
-     丢掉整条声明 —— 毛玻璃那几条只是"没效果"，但暗化层消失会让照片上的字失去衬托。
-     三档对应界面上三层：--glass-1 主容器（最实）／--glass-2 次级卡片（更透，靠 1px 边框成形）
-     ／--glass-3 浮层（最实 + 最强模糊）。层次靠不透明度差 + 边框 + 阴影，不靠每层都加模糊。
-     不透明度 = 档位给的 --g1a/--g2a/--g3a（见下面的档位表）+ 设了背景图时的补偿
-     --w1/--w2/--w3（默认 0）。颜色只由每个主题的 --glass-rgb 决定，三层共用同一个色族。 */
+     用 rgba() + calc() 写死而非 color-mix()：界面运行在系统自带 WebView2 上，内核版本不可控，
+     解析期丢声明会让暗化层一起消失。
+     三档对应三层：--glass-1 主容器（最实）／--glass-2 次级卡片（更透，靠 1px 边框成形）
+     ／--glass-3 浮层（最实 + 最强模糊）。不透明度 = 档位值 --g1a/--g2a/--g3a + 背景图补偿
+     --w1/--w2/--w3（默认 0）；颜色由主题的 --glass-rgb 决定。 */
   --glass-rgb:13,21,30;
   --w1:0; --w2:0; --w3:0;
   --g1a:.94; --g2a:.84; --g3a:.97; --glass-blur:3px; --blur-3:6px;
-  /* 三层都乘一个"高级选项"倍率：未设置时回落到 1，于是出厂观感逐值不变。
-     min(1,…) 把"更实"那一侧的上限写在取值里，而不是靠浏览器对越界 alpha 的兜底。 */
+  /* 三层都乘"高级选项"倍率：未设置时回落到 1，出厂观感逐值不变。
+     min(1,…) 把"更实"一侧的上限写进取值。 */
   --glass-1:rgba(var(--glass-rgb),min(1,calc((var(--g1a) + var(--w1)) * var(--adv-glass,1))));
   --glass-2:rgba(var(--glass-rgb),min(1,calc((var(--g2a) + var(--w2)) * var(--adv-glass,1))));
   --glass-3:rgba(var(--glass-rgb),min(1,calc((var(--g3a) + var(--w3)) * var(--adv-glass,1))));
@@ -95,17 +84,16 @@
 }
 
 /* ==========================================================================
-   主题 = 纯属性选择器 + 变量覆盖，运行时没有分支、动画与额外资源。
-   加一个主题只动两处：这里的一组选择器块，以及 guiconfig.go 的 normalizeUI 取值表。
-   服务端注入（renderGuiPage）是唯一的闸门，它只认归一化后的取值。
+   主题 = 纯属性选择器 + 变量覆盖，运行时无分支、无动画、无额外资源。
+   加主题只动两处：这里的选择器块与 guiconfig.go 的 normalizeUI 取值表。
+   服务端注入（renderGuiPage）是唯一闸门，只认归一化后的取值。
 
    变量分三类：
-     · 主题私有：每个主题块必须自己声明全部，漏一个的症状是"某一块还是上一个主题的颜色"；
-     · 强调色私有：--sig / --sig-deep / --sel / --pre-bg / --aurora-a；
-       只有强调色块与浅色主题才准动它（浅底需要重新调实心色）；
-     · 共用：尺寸与字体，以及强调色那一族的半透明值。
-   --pre-bg 与 --aurora-a 是"强调色顺带决定页面氛围"的耦合；若要加背景类主题，
-   必须先把这两个从强调色块里拿出来交给主题，否则会得到"主题 × 强调色"的全组合。
+     · 主题私有：每个主题块必须自己声明全部，漏一个会出现"某块仍用上一个主题的颜色"；
+     · 强调色私有：--sig / --sig-deep / --sel / --pre-bg / --aurora-a，仅强调色块与浅色主题可动；
+     · 共用：尺寸与字体，以及强调色族的半透明值。
+   --pre-bg 与 --aurora-a 由强调色顺带决定；若要加背景类主题，须先把这两个移出强调色块，
+   否则会得到"主题 × 强调色"的全组合。
    ========================================================================== */
 
 /* 强调色：只换这一个色族，不区分深浅主题（半透明的那些在两种底色上都成立）。 */
@@ -121,14 +109,12 @@
   --sig-focus:rgba(176,140,255,.55); --sig-live:rgba(176,140,255,.7); --sig-glow:rgba(176,140,255,.45);
   --sel:rgba(176,140,255,.28); --pre-bg:rgba(176,140,255,.06); --aurora-a:rgba(176,140,255,.05);
 }
-/* 这里**没有**琥珀色。琥珀在这套界面里已经是一个专用含义（"要注意"：未放行入站、
-   名单超限、警告行），把它同时做成"正常路径"的颜色，两者就分不出来了。
-   宁可少一个口味，也不要一个"看着一样、意思相反"的组合。 */
+/* 此处不提供琥珀强调色：琥珀已作为"注意"语义色（未放行入站、名单超限、警告行），
+   再作强调色会与正常状态混淆。 */
 
-/* 浅色主题：同一套变量、同一个版式，只换底色与字色。
-   有意不做成"另一个界面" —— 版式、间距、层级都不动，这样两种主题下的操作习惯是同一套。
-   注意它必须在强调色那一组之后：两边特异性相同（都是 :root + 一个属性选择器），
-   靠源序决定谁赢；真正需要"浅色 × 某个强调色"的值时，用下面的复合选择器单独给。 */
+/* 浅色主题：同一套变量与版式，只换底色与字色。
+   必须排在强调色那一组之后：两边特异性相同，靠源序决定优先级；
+   需要"浅色 × 某强调色"的值时用下面的复合选择器单独给。 */
 :root[data-theme="light"]{
   --bg:#F2F5F9; --bg2:#E9EEF5;
   --surf:#FFFFFF; --surf2:#F6F9FC; --surf3:#EDF2F8;
@@ -140,8 +126,7 @@
   --aurora-a:rgba(14,159,110,.05); --aurora-b:rgba(42,111,214,.06);
   --glass-rgb:255,255,255;
   --wall-scrim-rgb:242,245,249;--wall-scrim-a:.80;
-  /* 浅底上的层次靠阴影的"扩散"而不是"黑度"：同样的 alpha 压在浅色上会显脏，
-     所以三档都更淡、更散，顶边高光改成压白。 */
+  /* 浅底上的层次靠阴影扩散：三档都更淡更散，顶边高光改为压白。 */
   --sh1:0 1px 2px rgba(9,17,26,.06),0 2px 6px -3px rgba(9,17,26,.10);
   --sh2:0 2px 6px -2px rgba(9,17,26,.09),0 12px 26px -18px rgba(9,17,26,.20);
   --sh3:0 6px 16px -6px rgba(9,17,26,.12),0 24px 52px -30px rgba(9,17,26,.26);
@@ -151,9 +136,7 @@
   --ok-ink:#0B7A4F; --bad-ink:#C42744; --warn-ink:#8A5300; --info-ink:#1F5FA8;
   --addr-ink:#0B3B2A; --violet-ink:#4A2E86; --bar-ink:#FFFFFF; --cheek:#FFFFFF;
   --on-sig:#FFFFFF; --sel:rgba(14,159,110,.20);
-  /* 实心色必须压到白字读得清为止：#0E9F6E 上压白字只有 3.39，而"浅色 + 默认强调色"
-     恰恰是最常被用到的一格（顶栏进度链点亮的段、设置面板里被选中的那一格）。
-     压深到 #0B7A54 之后白字 5.35，同时它自己做文字/描边在浅底上也有 4.89。 */
+  /* 实心色压深到白字可读为止：#0B7A54 上白字对比度 5.35，其自身作文字/描边在浅底上为 4.89。 */
   --sig:#0B7A54; --sig-deep:#076242; --sig-glow:rgba(14,159,110,.35);
   --amber:#B26A00; --amber-soft:rgba(178,106,0,.10); --amber-edge:rgba(178,106,0,.30);
   --amber-ink:#7A4700; --amber-on:#FFFFFF;
@@ -172,13 +155,10 @@
   --sel:rgba(122,79,208,.20); --pre-bg:rgba(122,79,208,.08); --aurora-a:rgba(122,79,208,.06);
 }
 
-/* 高对比：给"看不清"而不是"不喜欢"的处境用 —— 低端 TN 屏、白天靠窗的反光、投屏给旁边的人看。
-   它**不是**第 4 种口味，而是深色那一套把对比度推到顶：正文 20:1、次级 16:1、最低一级也有 8:1。
-   两点刻意的取舍：
-     · 不动强调色族（那一族本来就是为深底调的，所以这一个主题只有这一块，不需要
-       『主题 × 强调色』的复合规则 —— 那是加法里最贵的一种）；
-     · 页面氛围（极光 + 网格）让位给对比度：装饰与"看清"在这类处境里是直接冲突的。
-   命名与取值口径见项目内部开发记录的对应轮次。 */
+/* 高对比：面向"看不清"的处境（低端 TN 屏、白天靠窗反光、投屏）。
+   它不是第 4 种口味，而是深色把对比度推到顶：正文 20:1、次级 16:1、最低一级 8:1。
+   两点取舍：不动强调色族（故本主题只有这一块，无需复合规则）；
+   页面氛围（极光 + 网格）让位给对比度。 */
 :root[data-theme="contrast"]{
   --bg:#000308; --bg2:#04070C;
   --surf:#080D13; --surf2:#0C1219; --surf3:#111922;
@@ -188,14 +168,12 @@
   --grid-ink:rgba(255,255,255,0); --sheen:rgba(255,255,255,.10);
   --scroll:#3A5470; --scroll-hi:#4E7092;
   --aurora-a:rgba(0,0,0,0); --aurora-b:rgba(0,0,0,0);
-  /* 高对比这一档不参与毛玻璃：它的存在理由是"看不清"，半透明与模糊都与"看清"直接冲突。
-     颜色与三档不透明度都在这里钉死，且档位表用 :not([data-theme="contrast"]) 把它排除在外 ——
-     于是无论用户把档位拉到多少，这一档三面始终接近实心。 */
+  /* 高对比不参与毛玻璃：半透明与模糊与"看清"冲突。颜色与三档不透明度在此钉死，
+     开态选择器用 :not([data-theme="contrast"]) 将其排除，故这一档三面始终接近实心。 */
   --glass-rgb:8,13,19;
   --g1a:.97; --g2a:.92; --g3a:.99;
   --wall-scrim-rgb:0,3,8;--wall-scrim-a:.58;
-  /* 高对比这一档的层次压到最低：外阴影与受光边都属于"氛围"，而这一档只服务"看清"。
-     数值比深色主题更收敛，也不引入任何新颜色。 */
+  /* 高对比的层次压到最低：外阴影与受光边属"氛围"，此档只服务"看清"，数值比深色更收敛。 */
   --sh1:0 1px 2px rgba(0,0,0,.50);
   --sh2:0 2px 8px -2px rgba(0,0,0,.60);
   --sh3:0 8px 20px -8px rgba(0,0,0,.70);
@@ -214,29 +192,26 @@
   --toast-bad-bg:rgba(30,0,8,.97); --toast-bad-ink:#FFDCE2; --toast-bad-edge:rgba(255,138,160,.7);
 }
 
-/* 动效「精简」：效果上等同于系统的 prefers-reduced-motion，但**这里是手抄的第二份**
-   （系统那一份见本文件末尾的 @media 块）。两处必须逐条相同 —— 只改一处就会走偏，
-   而"走偏"之后没有任何症状，所以有一条用例把两个集合逐条比对（TestLiteMotionMatchesSystemPreference）。
-   注意执行中的状态点仍然留着（它是"正在干活"的唯一反馈），只是不呼吸。
-   另：这一档**不许**碰背景光效（那是 data-backdrop 的事），用例会拦住。 */
+/* 动效「精简」：等同于系统的 prefers-reduced-motion，但这里是手抄的第二份
+   （系统那份见文件末尾的 @media 块）。两处必须逐条相同，有用例逐条比对
+   （TestLiteMotionMatchesSystemPreference）。执行中的状态点保留，只是不呼吸。
+   本档不得碰背景光效（归 data-backdrop 管），有用例拦截。 */
 :root[data-motion="lite"] *{transition:none !important}
 :root[data-motion="lite"] .dot.run::after{animation:none;opacity:.45}
-/* 面板淡入也是一处"动"。它走的是时长变量而不是 transition，所以光有关掉 transition 那条还不够 ——
-   把时长归零即等于关掉（下面 @media 里必须逐条相同，用例会比对两份）。 */
+/* 面板淡入走时长变量而非 transition，故关掉 transition 不足够：把时长归零即等于关掉
+   （下面 @media 里须逐条相同，有用例比对）。 */
 :root[data-motion="lite"]{--vfx-fade:0s}
-/* 内容入场（.op / .ln）走的是 animation 而不是 transition，所以上面那条"关掉 transition"
-   管不到它，得单独关一次。下面 @media 里必须有一条逐字相同的（用例会比对两份）。 */
+/* 内容入场（.op / .ln）走 animation 而非 transition，需单独关一次。
+   下面 @media 里须有一条逐字相同的（有用例比对）。 */
 :root[data-motion="lite"] .op,
 :root[data-motion="lite"] .ln{animation:none}
-/* 背景光效关掉：极光与网格是纯装饰，关掉不影响任何信息。
-   它只管这两层 —— 自选背景图片是另一件事（由 data-wall 决定），关掉光效不该把图一起关掉。 */
+/* 背景光效开关只管极光与网格两层；自选背景图片由 data-wall 决定，不受它影响。 */
 :root[data-backdrop="off"] .aurora,
 :root[data-backdrop="off"] .grid{display:none}
 
 /* ---- 大字号（独立开关，不属于主题） ----
-   字号动的是版式，主题动的是配色，两者是两个维度：塞进主题会得到"主题 × 字号"的组合。
-   它只覆盖字号 token 与顶栏/状态栏高度，不给任何控件单独写样式。
-   加档位时必须覆盖 :root 里声明的每一个 --fs-*，少一个就会出现"大部分变大、某一块没变"。 */
+   字号改版式，主题改配色，两者独立。它只覆盖字号 token 与顶栏/状态栏高度。
+   加档位时必须覆盖 :root 里每一个 --fs-*，少一个会出现"大部分变大、某一块没变"。 */
 :root[data-scale="big"]{
   --fs-10:11px; --fs-10-5:11.5px; --fs-11:12px; --fs-11-5:12.5px; --fs-12:13px; --fs-12-5:13.5px;
   --fs-13:14px; --fs-13-5:14.5px; --fs-14:15px; --fs-15:16px; --fs-16:17.5px; --fs-17:18.5px; --fs-18:19.5px;
@@ -244,8 +219,8 @@
   --row-top:62px; --row-bot:46px;
 }
 /* ---- 背景图片（独立于背景光效） ----
-   一层静态贴图 + 一层压暗。静态是硬要求：平移、缓慢缩放或视差都是整屏逐帧重新光栅化。
-   压暗层不是装饰 —— 它让任意一张照片上的文字仍然读得清，颜色取自当前主题底色。 */
+   一层静态贴图 + 一层压暗。静态为硬要求：平移、缩放或视差都会整屏逐帧重新光栅化。
+   压暗层保证任意照片上的文字可读，颜色取自当前主题底色。 */
 .wall{position:absolute;inset:0;background-image:var(--wall);
   background-size:cover;background-position:center;background-repeat:no-repeat}
 .scrim{position:absolute;inset:0;display:none}
@@ -254,15 +229,14 @@
   background:rgba(var(--wall-scrim-rgb),min(1,calc(var(--wall-scrim-a) * var(--adv-scrim,1))))}
 
 /* ---- 扁平化（独立开关，不属于主题） ----
-   它动的是材质与层次（圆角、阴影、渐变、光晕），全是减法。两条边界：
-     · 焦点态必须留下：外阴影聚焦环换成 outline，焦点看不见等于键盘不能用；
-     · 不许出现 .bg / .aurora / .grid —— 背景光效归 data-backdrop 管。 */
-/* 圆角大小：三个离散档，改的是同一组圆角令牌。放在「扁平」之前 —— 扁平把圆角一律归零。 */
+   去掉材质与层次（圆角、阴影、渐变、光晕）。两条边界：
+     · 焦点态必须留下：外阴影聚焦环换成 outline；
+     · 不碰 .bg / .aurora / .grid，背景光效归 data-backdrop 管。 */
+/* 圆角大小：三个离散档，改同一组圆角令牌。排在「扁平」之前，因扁平会把圆角归零。 */
 :root[data-radii="sharp"]{--r1:3px;--r2:4px;--r3:6px}
 :root[data-radii="round"]{--r1:10px;--r2:14px;--r3:20px}
 
-/* 侧边栏样式「紧凑」：去掉操作行里的说明行、收紧行距，一屏能多看几项。
-   只动侧栏的排版，操作的名称、顺序与行为一概不变。 */
+/* 侧边栏样式「紧凑」：去掉操作行的说明行、收紧行距。只动排版，名称、顺序与行为不变。 */
 :root[data-rail="compact"] .op{padding:6px 10px 6px 11px;margin-bottom:3px}
 :root[data-rail="compact"] .op .ds{display:none}
 :root[data-rail="compact"] .op .nm{margin-bottom:0}
@@ -300,24 +274,22 @@
 /* ============ 视觉美化（VFX）：可整段删除的装饰层 ============
    本段与脚本里的 VFX 模块不参与业务判断，删掉后界面回到实心扁平外观。
 
-   这一层恒开，不再有总开关（实测它对帧率没有可测影响，"关掉"省不下什么、
-   却要一套三处接线的开关）。属性（首屏由服务端注入，避免"先实心、再闪成玻璃"）：
-     data-glass     on/off             毛玻璃：off = 实心不模糊，on = 最透明那一档
-     data-fade      on/off              浮层淡入
-     data-vfx-busy  on/off              运算期间让位（脚本在任务执行时挂上）
+   属性（首屏由服务端注入，避免"先实心、再闪成玻璃"）：
+     data-glass     on/off   毛玻璃：off = 实心不模糊，on = 最透明那一档
+     data-fade      on/off   浮层淡入
+     data-vfx-busy  on/off   运算期间让位（脚本在任务执行时挂上）
 
-   边界 —— 成本随「玻璃面积 × 变化频率」增长，以下几条就是压住这两个乘数的手段：
+   边界（成本随「玻璃面积 × 变化频率」增长）：
      · 只给局部面板加模糊；整屏层（.modal / .bg / .aurora / .grid）、
        随滚动与搜索重排的列表（.tasks / .op / 侧栏面板）、持续追加的日志（.logpanel / .log）不加；
-     · 运算期间 backdrop-filter 全部退回 none，跑完恢复；
-     · 不写 will-change（那会为每块玻璃常驻一个合成层）；
-     · .mbox 用 contain:layout paint（独立浮层）；.panel 等只用 layout ——
-       paint 会把 .panel 四角的 -1px 描边裁掉。
+     · 运算期间 backdrop-filter 全部退回 none，结束后恢复；
+     · 不写 will-change（会为每块玻璃常驻一个合成层）；
+     · .mbox 用 contain:layout paint（独立浮层）；.panel 等只用 layout，
+       paint 会裁掉 .panel 四角的 -1px 描边。
 
-   层次：--glass-1 主容器（带模糊）／--glass-2 面板内的次级卡片（只半透明）／--glass-3 浮层（模糊更强）。
-   设了背景图时**不再整段让位**：那样等于"用户一设背景图就把毛玻璃关掉"，两个本该并存的功能被做成互斥。
-   照片的明暗由压暗层（--wall-scrim）与背景图补偿（--w1/--w2/--w3）收进一个有界区间，
-   文字对比度就还守得住 —— 开态的取值由 TestGlassOverPageKeepsTextReadable 核对，不靠眼睛。 */
+   层次：--glass-1 主容器（带模糊）／--glass-2 面板内次级卡片（只半透明）／--glass-3 浮层（模糊更强）。
+   设了背景图时不让位：两者并存；照片明暗由压暗层与背景图补偿收进有界区间，文字对比度仍守得住
+   （开态取值由 TestGlassOverPageKeepsTextReadable 核对）。 */
 /* ---- 层次一：主容器的面 ---- */
 :root[data-glass="on"] .panel,
 :root[data-glass="on"] .topbar,
@@ -326,50 +298,39 @@
 :root[data-glass="on"] .op,
 :root[data-glass="on"] .capcell,
 :root[data-glass="on"] .log{background-color:var(--glass-2)}
-/* 顶边比其余三边亮一档。顶栏只有下边框（它贴的是视口上沿），那一档得落在下边框上 ——
-   给它写 border-top-color 是一条永远不生效的死规则。 */
+/* 顶边比其余三边亮一档。顶栏只有下边框，亮度落在下边框上；
+   给顶栏写 border-top-color 是永不生效的死规则。 */
 :root[data-glass="on"] .panel,
 :root[data-glass="on"] .op,
 :root[data-glass="on"] .log,
 :root[data-glass="on"] .statusbar{border-top-color:var(--line2)}
 :root[data-glass="on"] .topbar{border-bottom-color:var(--line2)}
-/* 面板自己的悬停/选中态原本是实心色，玻璃下要跟着一起变透明，否则鼠标一划过就"啪"地变实了 */
+/* 玻璃下面板的悬停/选中态须一起变透明，否则鼠标划过会突然变实 */
 :root[data-glass="on"] .op:hover,
 :root[data-glass="on"] .op.on{background-color:var(--glass-1)}
-/* 被判定"环境不支持"的条目本来就是置灰的，鼠标划过不该亮起玻璃悬停色。
-   上面那条 :hover 的特异性比 .op.off:hover 高，所以这里必须显式压回去。 */
+/* 环境不支持的条目已置灰，划过不应亮起玻璃悬停色。
+   上面 :hover 的特异性高于 .op.off:hover，故须显式压回。 */
 :root[data-glass="on"] .op.off:hover{background-color:var(--surf)}
 
-/* 开态：此前最透明的那一档。
-   档位表已经取消 —— 实测相邻档位看不出差别（0 到 10 的三档不透明度只差 0.35、面板模糊
-   只差 13px），十个中间态于是只换来十块要维护的规则和一根调了没反应的滑杆。
-   所以这里只留最透明那一组的取值。模糊半径跟着**性能预算**走，不由视觉单独决定：
-     · 产品给的预算是"空闲时 GPU 接近 0、使用峰值不超过 5%"。空闲那一半是结构保证的 ——
-       这一层没有常驻动画，玻璃不动就不重绘；有 TestNoIdleAnimation 盯着。
-     · 据此把此前 16px / 20px 的上限提到 24px / 32px。上限仍然存在，只是抬高了：
-       再往上加必须是一次有意识的改动，而不是顺手调一个数。
-     · 有效果的是半径，不是不透明度：面板透不透由"文字守不守得住 4.5"卡住（含设了背景图的
-       极端情形），实测余量只剩约 0.05 个不透明度，低于可察觉的差别，所以透明度已经到顶，
-       预算能换来的是更明显的磨砂感。逐条由 TestGlassOnUsesTheMostTransparentState 与
-       TestGlassOverPageKeepsTextReadable 核对，不靠眼睛。
-   高对比主题排除在外：它的三档面本来就接近实心，随档位变透明等于把"看清"这件事交出去。
-   把排除写进选择器而不是靠源码顺序，是为了让"这一态作用于哪些主题"一眼看得出来。 */
+/* 开态：只保留最透明那一组的取值（档位表已取消）。
+   模糊半径跟性能预算走（产品预算：空闲 GPU 接近 0、峰值不超过 5%）：
+     上限为面板 24px、浮层 32px，再往上加须是有意识的改动。
+   面板透明度由"文字对比度不低于 4.5"卡住（含设背景图情形），透明度已到顶。
+   逐条由 TestGlassOnUsesTheMostTransparentState 与 TestGlassOverPageKeepsTextReadable 核对。
+   高对比主题排除在外（其三档面接近实心），排除写进选择器而非靠源码顺序。 */
 :root[data-glass="on"]:not([data-theme="contrast"]){--g1a:.57;--g2a:.40;--g3a:.90;--glass-blur:24px;--blur-3:32px}
-/* 设了背景图：照片的明暗不由我们决定，除压暗层之外再补一点不透明度。
-   补偿量与开态配对，合起来正好还是原来那组取值 —— 背景图下的观感不动，
-   让出来的差额全归普通模式，玻璃整体更透。和上面一样不能越 1。 */
+/* 设了背景图：除压暗层外再补一点不透明度，补偿量与开态配对，取值同样不得越 1。 */
 :root[data-wall="on"]:not([data-theme="contrast"]){--w1:.14;--w2:.28;--w3:.05}
 
-/* 真毛玻璃只在这几处 —— 一是薄条或静止内容的主容器，二是浮层。
-   :not([data-vfx-busy="on"]) 就是运算期间的让位；高对比主题排除在外 ——
-   它的三档面本来就接近实心，给它挂模糊只会白花 GPU。 */
+/* 真毛玻璃只加在薄条或静止内容的主容器与浮层上。
+   :not([data-vfx-busy="on"]) 为运算期间的让位；高对比主题排除在外。 */
 :root[data-glass="on"]:not([data-theme="contrast"]):not([data-vfx-busy="on"]) .topbar,
 :root[data-glass="on"]:not([data-theme="contrast"]):not([data-vfx-busy="on"]) .statusbar,
 :root[data-glass="on"]:not([data-theme="contrast"]):not([data-vfx-busy="on"]) .stage>.panel:not(.logpanel){
   contain:layout;
   backdrop-filter:blur(var(--glass-blur)) saturate(1.08)}
-/* 设置页外壳：一页占满，内部滚动。模糊加在外壳上而不是那些分类卡上 ——
-   外壳不动，背后那层静止背景的模糊结果就能一直复用；卡片跟着滚，加在卡上就要每帧重算。 */
+/* 设置页外壳占满一页、内部滚动。模糊加在外壳而非分类卡上：
+   外壳不动，背后静止背景的模糊结果可复用；卡片滚动，加在卡上须每帧重算。 */
 :root[data-glass="on"]:not([data-theme="contrast"]):not([data-vfx-busy="on"]) .setpage{
   contain:layout;
   backdrop-filter:blur(var(--glass-blur)) saturate(1.08)}
@@ -379,32 +340,27 @@
   backdrop-filter:blur(var(--blur-3)) saturate(1.12)}
 :root[data-glass="on"] .mbox{background-color:var(--glass-3)}
 
-/* 科幻轮廓微光：静态的一次性光晕，**不挂 transition** ——
-   给阴影挂过渡等于每次过渡都逐帧重新光栅化，那正是扁平化那一段里记下的坑。
-   它原来是一个独立开关（「科幻轮廓微光」），现在恒开：实测它对帧率没有可测影响。 */
+/* 科幻轮廓微光：静态光晕，不挂 transition（阴影过渡会逐帧重新光栅化）。恒开。 */
 :root .panel:not(.logpanel){
   box-shadow:var(--sh1),inset 0 1px 0 var(--edge-hi),0 0 0 1px var(--sig-ring),0 0 16px -10px var(--sig-glow)}
 :root .mbox,
 :root .toast{
   box-shadow:var(--sh3),inset 0 1px 0 var(--edge-hi),0 0 0 1px var(--sig-ring),0 0 22px -12px var(--sig-glow)}
-/* 轮廓微光同时把四角描边点亮一档：细描边是这套界面的科幻感来源，光晕只是它的补充。 */
+/* 轮廓微光同时把四角描边点亮一档。 */
 :root .panel:not(.logpanel)::before,
 :root .panel:not(.logpanel)::after{opacity:.55}
 
-/* 面板淡入。只动 opacity，**不动 transform** ——
-   玻璃面板一旦位移，背后那块纹理就得每帧重新采样，等于自己把红线请回来。
-   时长走变量，精简动效与系统的"减少动态效果"把变量归零即等于关掉（两处必须逐条相同）。 */
+/* 面板淡入只动 opacity，不动 transform：玻璃面板位移会让背后纹理每帧重新采样。
+   时长走变量，精简动效与系统"减少动态效果"将其归零即等于关掉（两处须逐条相同）。 */
 :root{--vfx-fade:.16s}
 @keyframes vfx-fade{from{opacity:0}to{opacity:1}}
 :root[data-fade="on"] .mbox{animation:vfx-fade var(--vfx-fade) ease-out both}
 
-/* ---- 内容入场：只给"不与玻璃同层"的东西 ----
-   上面那条淡入的注释里写着红线：玻璃面一旦位移或参与整体淡入，背后那块纹理就得每帧重新
-   采样。所以入场只发给这两类元素 —— 操作列表的行与日志的行，它们本来就不在模糊白名单里
-   （见 VFX 那一段对 .tasks / .op / .log 的排除），动起来不碰任何模糊面。
-   一次性、只动 opacity 与 2px 位移，时长写成字面量（用例要能一眼看出它总共有多少毫秒）；
-   不开 fill-mode，因为结束帧就等于元素的自然状态 —— 开了反而会盖住 .op:active 的按压位移。
-   关闭方式是下面两处覆盖块里的 animation:none，不是把时长归零。 */
+/* ---- 内容入场：只给不与玻璃同层的元素 ----
+   玻璃面位移或整体淡入会让背后纹理每帧重新采样，故入场只发给操作列表行与日志行，
+   它们不在模糊白名单里（见 VFX 段对 .tasks / .op / .log 的排除）。
+   一次性、只动 opacity 与 2px 位移，时长写字面量（用例可一眼看出毫秒数）；
+   不开 fill-mode，否则会盖住 .op:active 的按压位移。关闭靠下面两处的 animation:none。 */
 @keyframes vfx-in{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
 .op,.ln{animation:vfx-in .18s var(--ease)}
 
@@ -417,7 +373,7 @@ input{font:inherit;color:inherit}
 ::selection{background:var(--sel)}
 [hidden]{display:none !important}
 
-/* 背景：静态。这一层占满视口，所以它绝对不能带 filter / backdrop-filter / 动画。 */
+/* 背景：静态。此层占满视口，不得带 filter / backdrop-filter / 动画。 */
 .bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
 .aurora{position:absolute;inset:0;background:
     linear-gradient(180deg,var(--aurora-a),transparent 42%),
@@ -429,13 +385,11 @@ input{font:inherit;color:inherit}
   mask-image:radial-gradient(130% 100% at 50% 0,#000 24%,transparent 92%)}
 
 /* ===== 外壳：顶栏 / 页面 / 状态栏 三段纵向 =====
-   三段高度都由 token 决定（--row-top / --row-bot），字号一放大它们跟着长，
-   否则字会被切掉。三条横向带夹着中间那一页，是这套界面唯一的结构。 */
+   三段高度由 token（--row-top / --row-bot）决定，随字号放大而增长，否则字会被切掉。 */
 .shell{position:relative;z-index:1;display:grid;grid-template-rows:var(--row-top) 1fr var(--row-bot);height:100%}
 
 /* ---------------------------------------------------------------- 顶栏 ----
-   四段各司其职：身份（这是哪个工具）、页面导航（我在哪、能去哪）、
-   连接进展（现在走到哪一步）、当前状态（此刻在干什么）。 */
+   四段：身份、页面导航、连接进展、当前状态。 */
 .topbar{display:flex;align-items:center;gap:var(--s3);padding:0 18px;
   border-bottom:1px solid var(--line);background:var(--chrome)}
 .glyph{position:relative;width:22px;height:22px;flex:0 0 auto;border-radius:6px;
@@ -447,8 +401,7 @@ input{font:inherit;color:inherit}
 .brand .sub{font-size:var(--fs-12-5);color:var(--ink2)}
 .spacer{flex:1}
 
-/* 页面导航：三段式，当前页高亮。它替代了原先散在右上角的两个按钮 ——
-   "我在哪、能去哪"现在只有一处答案，说明书也顺势从整屏覆盖层降成了一页。 */
+/* 页面导航：三段式，当前页高亮。 */
 .nav{display:flex;align-items:center;gap:2px;padding:3px;border:1px solid var(--line);
   border-radius:var(--pill);background:var(--surf)}
 .navi{padding:5px 13px;border-radius:var(--pill);font-size:var(--fs-12-5);color:var(--muted);
@@ -474,9 +427,8 @@ input{font:inherit;color:inherit}
 @keyframes beat{0%{transform:scale(1);opacity:.9}70%{transform:scale(3);opacity:0}100%{transform:scale(3);opacity:0}}
 .stat span{font-size:var(--fs-12-5);color:var(--ink2);white-space:nowrap}
 
-/* 按钮：一套四级体系（默认 / 主 / 幽灵 / 危险），高度、圆角、时长、焦点态全部一致。
-   按压用 transform 往下 1px —— 合成器负责，不触发重排；阴影不进 transition 列表，
-   过渡它等于每帧重新光栅化（那正是扁平化那一段记下的坑）。 */
+/* 按钮：四级（默认 / 主 / 幽灵 / 危险），高度、圆角、时长、焦点态一致。
+   按压用 transform 下移 1px（合成器负责，不触发重排）；阴影不进 transition 列表。 */
 .btn{padding:7px 14px;border:1px solid var(--line);border-radius:var(--r1);
   color:var(--ink2);font-size:var(--fs-12-5);background:var(--surf2);
   transition:color var(--d2) var(--ease),background var(--d2) var(--ease),
@@ -487,23 +439,22 @@ input{font:inherit;color:inherit}
 .btn.sm{padding:5px 10px;font-size:var(--fs-11-5)}
 .btn.danger{color:var(--rose-ink);border-color:var(--rose-edge);background:var(--rose-soft)}
 .btn.danger:hover:not(:disabled){background:var(--rose-soft2)}
-/* 幽灵按钮：没有底色，只在自己那一行里当次要动作，不与主按钮争视线 */
+/* 幽灵按钮：无底色，作次级动作 */
 .btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
 .btn.ghost:hover:not(:disabled){background:var(--surf2);border-color:var(--line);color:var(--ink2)}
 
-/* 键盘焦点：一律用 outline，绝不用 box-shadow 画的环 —— 阴影环在「扁平」档会被抹掉，
-   而焦点看不见等于键盘不能用（那五处有专门用例盯着，见 TestFlatKeepsFocusVisible）。
-   :focus-visible 只在键盘操作时出现，鼠标点击不会留下一圈边框。 */
+/* 键盘焦点一律用 outline，不用 box-shadow 环（阴影环在「扁平」档会被抹掉）。
+   见 TestFlatKeepsFocusVisible。:focus-visible 仅在键盘操作时出现。 */
 :focus-visible{outline:2px solid var(--sig-focus);outline-offset:2px}
 
-/* 顶部提示条：界面只有一扇窗，凡是"本来会弹个黑框告诉你"的事都写在这里 */
+/* 顶部提示条：原会弹系统提示的事都写在这里 */
 .notice{display:none;align-items:center;gap:10px;padding:9px 20px;font-size:var(--fs-12-5);color:var(--amber-ink);
   background:var(--amber-soft);border-bottom:1px solid var(--amber-edge)}
 .notice i{width:6px;height:6px;border-radius:50%;background:var(--amber);flex:0 0 auto}
 
 /* ---------------------------------------------------------------- 页面 ----
-   一页 = 侧栏 + 主区。工作台用这个两列；设置与说明书是整页内容，另有自己的排法。
-   窗口变窄时侧栏让位到上面（见文件末尾的媒体查询），主区永远保持可读宽度。 */
+   一页 = 侧栏 + 主区。工作台用两列，设置与说明书为整页内容。
+   窗口变窄时侧栏移到上方（见文件末尾媒体查询）。 */
 .page{display:grid;grid-template-columns:330px minmax(0,1fr);gap:var(--s4);
   min-height:0;padding:var(--s4) 18px}
 .side{display:flex;flex-direction:column;min-height:0;gap:var(--s2)}
@@ -513,12 +464,11 @@ input{font:inherit;color:inherit}
 ::-webkit-scrollbar-thumb:hover{background:var(--scroll-hi);background-clip:content-box}
 ::-webkit-scrollbar-track{background:transparent}
 
-/* 侧栏的两块：环境结论 + 操作。都是"面板"，但用 panel-flat ——
-   它们的面由 --glass-2 这一级给（见 VFX 那一段），因为它们的内容会随搜索与滚动重算。 */
+/* 侧栏两块（环境结论 + 操作）用 panel-flat，其面由 --glass-2 给（见 VFX 段），
+   因内容随搜索与滚动重算。 */
 .side>.panel{flex:0 0 auto;padding:var(--s3)}
 .side>.panel.grow{flex:1;min-height:0;display:flex;flex-direction:column}
-/* 面板自己的小标题。它替代了原来"每块内容各写一种标题样式"的做法：
-   现在整页只有 .ph 这一种面板标题，字号、字距、左侧短横线都一致。 */
+/* 面板小标题。整页只用 .ph 这一种，字号、字距、左侧短横线一致。 */
 .ph{display:flex;align-items:center;gap:var(--s2);margin:0 0 var(--s2)}
 .ph h2{font:600 var(--fs-12)/1.1 var(--disp);letter-spacing:.08em;color:var(--ink2)}
 .ph h2::before{content:"";display:inline-block;width:10px;height:1px;background:var(--muted2);
@@ -549,20 +499,17 @@ input{font:inherit;color:inherit}
 .capcell.ok .cv{color:var(--sig)}
 .capcell.no .cv{color:var(--rose)}
 .capcell.unk .cv{color:var(--muted2)}
-/* 未检测时并成一格：横跨两列，值那一侧用信号绿，明确它是"可点的动作"而不是结论 */
+/* 未检测时并成一格：横跨两列，值侧用信号绿，标示它是可点动作而非结论 */
 .capcell.wide{grid-column:1 / -1;cursor:pointer}
 .capcell.wide .cv{color:var(--sig)}
-/* 未选操作时主区那一句话。轻量到不抢视线，只负责把"其他操作在哪"说清楚。 */
+/* 未选操作时主区的提示句 */
 .idle{font-size:var(--fs-12-5);color:var(--muted2);line-height:1.7}
 .idle b{color:var(--ink2);font-weight:600}
 
 /* ---- 操作列表：常驻，按用途分组 ----
-   行名 .op 是"operation"，不再叫 .t（那个名字读不出是什么）。
-   悬停只换边框与底色、**不做位移**：位移会让这一行所在的玻璃面每帧重新取样，
-   而它带来的观感收益只有 2px 那么多。
-   注意这里用的是**实心**的 --surf/--surf2：半透明与玻璃只在 VFX 那一段里覆写
-   （那一段的选择器都带着"设了背景图就让位"的排除）。基础样式一旦自己用玻璃色，
-   美化层就删不干净，设了背景图时也没有东西把它压回实心。 */
+   悬停只换边框与底色，不做位移（位移会让所在玻璃面每帧重新取样）。
+   基础样式用实心的 --surf/--surf2：半透明与玻璃只在 VFX 段覆写，
+   基础样式若自用玻璃色，美化层将无法干净删除。 */
 .tasks{flex:1;min-height:0;overflow:auto;padding-right:5px}
 .opgrp{display:flex;align-items:center;gap:8px;margin:var(--s4) 0 var(--s2);
   padding:5px 0 5px 2px}
@@ -599,9 +546,7 @@ input{font:inherit;color:inherit}
 .opempty{padding:26px 10px;text-align:center;color:var(--muted2);font-size:var(--fs-12-5)}
 
 /* ---- 面板：一级容器 ----
-   面板 = 界面上所有"一块内容"的统一容器。以前这里有三套写法（内容用 .card、
-   浮层用 .mbox、设置用 .mset），圆角与边框各写一遍、命名也读不出同一件事；
-   现在统一到 .panel 这一套，只有浮层例外 —— 它要压在一切之上，圆角与阴影都更重一档。 */
+   所有"一块内容"统一用 .panel；浮层例外，圆角与阴影更重一档。 */
 .panel{position:relative;border:1px solid var(--line);border-radius:var(--r3);
   background:linear-gradient(180deg,var(--surf),var(--bg2));box-shadow:var(--sh1)}
 .panel::before,.panel::after{content:"";position:absolute;width:10px;height:10px;pointer-events:none;
@@ -609,7 +554,7 @@ input{font:inherit;color:inherit}
 .panel::before{top:-1px;left:-1px;border-top:1px solid var(--sig);border-left:1px solid var(--sig);border-radius:var(--r3) 0 0 0}
 .panel::after{bottom:-1px;right:-1px;border-bottom:1px solid var(--sig);border-right:1px solid var(--sig);border-radius:0 0 var(--r3) 0}
 .panel:hover::before,.panel:hover::after{opacity:.9}
-/* panel-flat：面板里还嵌着面板时用。去掉渐变，只留一层更透的底，靠边框分层。 */
+/* panel-flat：面板嵌套时用。去掉渐变，只留更透的底，靠边框分层。 */
 .panel-flat{background:var(--surf)}
 
 .k{display:flex;align-items:center;gap:8px;font:var(--fs-11)/1 var(--mono);letter-spacing:.14em;
@@ -623,8 +568,7 @@ input{font:inherit;color:inherit}
 .whTop{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap}
 .whTop h2{font:600 var(--fs-17)/1.3 var(--disp);letter-spacing:.01em}
 .chip{font:var(--fs-10-5)/1 var(--mono);padding:3px 7px;border-radius:4px;border:1px solid var(--line2);color:var(--ink2)}
-/* 在场玩家：房主唯一能看到"谁进来了"的地方。安全码用等宽字体放大一点，
-   因为它是要和玩家对着念、逐位核对的一串字符。 */
+/* 在场玩家：安全码用等宽字体放大，便于逐位核对。 */
 .guests{margin-top:var(--s5);padding-top:var(--s4);border-top:1px solid var(--line)}
 .guests .ghead{font:var(--fs-11)/1 var(--mono);letter-spacing:.14em;color:var(--muted);margin-bottom:10px}
 .guests ul{list-style:none;margin:0;padding:0}
@@ -661,8 +605,7 @@ input{font:inherit;color:inherit}
 .ck input:checked+.bx::after{content:"";position:absolute;left:4.5px;top:1.5px;width:5px;height:9px;
   border-right:2px solid var(--cheek);border-bottom:2px solid var(--cheek);transform:rotate(42deg)}
 .ck input:checked~.tx{color:var(--ink)}
-/* 勾选框的可见焦点：真 input 是 opacity:0 铺在上面（鼠标点要用它、键盘也要能 Tab 到），
-   所以焦点环必须画在旁边那个看得见的方框上 —— 否则键盘用户完全看不出焦点落在哪一项。 */
+/* 勾选框的可见焦点：真 input 为 opacity:0 铺在上层，故焦点环须画在旁边的方框上。 */
 .ck input:focus-visible+.bx{outline:2px solid var(--sig-focus);outline-offset:2px}
 .runbar{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) var(--s5) var(--s4);
   border-top:1px solid var(--line)}
@@ -674,7 +617,7 @@ input{font:inherit;color:inherit}
 .run:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
 .runhint{font-size:var(--fs-11-5);color:var(--muted2);margin-left:auto;text-align:right;line-height:1.45}
 
-/* 入口地址卡：本工具唯一要交付给用户的东西，所以出现在最上面、字号最大 */
+/* 入口地址卡：唯一交付物，放在最上面、字号最大 */
 .hero{padding:var(--s4) var(--s5) var(--s5);overflow:hidden;border-color:var(--sig-edge);
   background:linear-gradient(160deg,var(--sig-soft),var(--surf) 46%);box-shadow:var(--sh2)}
 .hero .k{color:var(--sig)} .hero .k::before{background:var(--sig)}
@@ -687,14 +630,11 @@ input{font:inherit;color:inherit}
   -webkit-user-select:all;user-select:all}
 .rack{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s3)}
 
-/* 说明书页：它本身就是一份独立文档（iframe 内自带排版与主题），这里只负责给它一块地方。
-   以前它是整屏覆盖层，还自带一条标题栏与关闭按钮 —— 标题栏由顶栏导航承担之后，
-   那一整层（定位、层级、关闭语义）连同它的按钮一起删掉了。 */
+/* 说明书页：独立文档（iframe 内自带排版与主题），此处只给它一块地方。 */
 #pageManual{display:block;padding:0}
 #manualFrame{width:100%;height:100%;border:0;background:#fff;display:block}
 
-/* 一步开局：默认入口。房主只要一个房间码，玩家只要一次粘贴。
-   颜色与圆角沿用既有配色（信号绿 var(--sig) / 四级文字 / 圆角 8-16），不引第二套样式。 */
+/* 一步开局：房主填一个房间码，玩家一次粘贴。沿用既有配色与圆角，不引第二套样式。 */
 .quick{padding:16px 16px 18px}
 .qhead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 .qhead .qt{font:600 var(--fs-18)/1.25 var(--disp);color:var(--ink)}
@@ -707,8 +647,7 @@ input{font:inherit;color:inherit}
     transform var(--d1) var(--ease)}
 .qbtn .qi{font-size:var(--fs-15);font-weight:600}
 .qbtn .qd{font-size:var(--fs-12-5);font-weight:400;color:var(--muted)}
-/* 悬停抬 1px：这两个按钮是界面上最主要的两条路，动作反馈该比普通按钮明显一点。
-   只动 transform，不给阴影挂过渡 —— 阴影过渡等于每帧重新光栅化。 */
+/* 悬停上移 1px。只动 transform，不给阴影挂过渡（阴影过渡会逐帧重新光栅化）。 */
 .qbtn:hover{border-color:var(--sig);background:var(--surf2);transform:translateY(-1px)}
 .qbtn:active{transform:translateY(0)}
 .qbtn.on{border-color:var(--sig);box-shadow:0 0 0 3px var(--sig-ring)}
@@ -738,9 +677,8 @@ input{font:inherit;color:inherit}
   border:1px solid var(--hair);border-radius:8px;padding:10px 12px;
   color:var(--ink2);max-height:280px;overflow:auto}
 
-/* 提示条：一句结论 + 一个动作。目前只用于"入站未放行"这一件事。
-   Windows 防火墙默认拦掉所有入站，这是"我这边正常、玩家就是连不上"的头号原因，
-   所以提示放在最上面；但要不要放行由用户点，界面不自动改系统。 */
+/* 提示条：一句结论 + 一个动作，用于"入站未放行"。
+   Windows 防火墙默认拦截入站，提示放最上面；放行由用户点击，界面不自动改系统。 */
 .banner{display:flex;align-items:center;gap:var(--s3);padding:11px 14px;
   border:1px solid var(--amber-edge);border-radius:var(--r2);background:var(--amber-soft);
   color:var(--amber-ink);font-size:var(--fs-12-5)}
@@ -749,9 +687,8 @@ input{font:inherit;color:inherit}
 .banner .btn.amber{color:var(--amber-on);background:var(--amber);border-color:transparent}
 .banner .btn.amber:hover:not(:disabled){background:var(--amber);color:var(--amber-on);filter:brightness(1.06)}
 
-/* 日志：两层各一个容器，切换靠显示/隐藏，不重建节点。
-   这里做成一块"槽"（well）—— 边框 + 更深的底 + 内凹阴影，让它读起来是"嵌在面板里的输出面"，
-   而不是又一块与面板同层的卡片。行号与正文用等宽 + 等宽数字，纵向才对得齐。 */
+/* 日志：两层各一容器，切换靠显隐，不重建节点。
+   做成"槽"（边框 + 更深的底 + 内凹阴影）。行号与正文用等宽字体，纵向才对齐。 */
 .logpanel{flex:1;min-height:140px;display:flex;flex-direction:column;padding:var(--s3) var(--s4) var(--s4)}
 .loghead{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-bottom:var(--s2)}
 .loghead .k{margin:0}
@@ -764,12 +701,10 @@ input{font:inherit;color:inherit}
 .linecnt{font:var(--fs-11)/1 var(--mono);color:var(--muted2)}
 .log{flex:1;min-height:0;overflow:auto;padding:var(--s3) 0;
   background:var(--panel);border:1px solid var(--line);border-radius:var(--r2);box-shadow:var(--well)}
-/* 一行一条输出。左侧 2px 的竖条只给"有性质"的行（成功/失败/警告），
-   它让长日志能靠左边缘扫出结论落在哪几行 —— 正文颜色本来就分了，竖条是为了扫得快。 */
+/* 一行一条输出。左侧 2px 竖条只给有性质的行（成功/失败/警告），便于沿左边缘扫读。 */
 .ln{display:flex;gap:10px;font:var(--fs-12-5)/1.66 var(--mono);padding:1px 12px;
   border-left:2px solid transparent;white-space:pre-wrap;word-break:break-word}
-/* 行号：用最低那一级灰阶，但**不再叠 opacity** —— 原来 .6 的透明度把它压到对比度 1.4，
-   等于看不见。层次交给字号与位置，不交给"让人读不到"。 */
+/* 行号用最低那一级灰阶，不再叠 opacity（会压到对比度 1.4）。 */
 .ln .no{flex:0 0 auto;width:34px;text-align:right;color:var(--muted2);-webkit-user-select:none;user-select:none}
 .ln .tx{flex:1;min-width:0}
 .ln.dim .tx{color:var(--muted)}
@@ -780,15 +715,13 @@ input{font:inherit;color:inherit}
 .ln.ok{border-left-color:var(--sig-edge)}
 .ln.bad{border-left-color:var(--rose-edge)}
 .ln.warn{border-left-color:var(--amber-edge)}
-/* 分隔线（输出里的 ==== / ---- / ~~~~）：它只是段落标记，压到最暗一档，不抢视线。
-   .dim 是原始输出层整体调暗的那一档，两者都只改颜色，不改字号行高。 */
+/* 分隔线（==== / ---- / ~~~~）与 .dim 都只改颜色，不改字号行高。 */
 .ln.sep .tx,.ln.sep .no{color:var(--muted2)}
 .ln.sep{opacity:.65}
 .lgempty{padding:30px 16px;text-align:center;color:var(--muted2);font:var(--fs-12)/1.7 var(--mono)}
 
 /* ---- 详情浮层：界面上唯一的浮层 ----
-   操作里那些原理性内容（握手过程、为什么这样做）放在这里，不铺在主界面。
-   设置与说明书都不再走这里 —— 它们是页，不是"点开看完就关掉"的东西。 */
+   操作里的原理性内容放在这里，不铺在主界面。 */
 .modal{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;
   background:var(--panel)}
 .mbox{width:min(760px,92vw);max-height:76vh;display:flex;flex-direction:column;
@@ -800,21 +733,18 @@ input{font:inherit;color:inherit}
   white-space:pre-wrap}
 
 /* ==================== 设置页 ====================
-   三个一级分类，顺序固定，各自只装一类信息：
-     主题外观   —— 配色、背景、特效、排版。全是"看一眼就知道改了什么"的外观项。
-     辅助工具   —— 背景音乐、填表与日志。软件自带的附加能力，关掉任何一项联机照常。
-     关于与状态 —— 只读信息集中在这里（版本、环境、目录、占用），另加维护动作。
-   每个设置项的结构统一为：标题 + 状态标签 / 说明 / 控件 / 悬停可见的更细提示。
-   面板上只放真的会生效的设置 —— 做不到的东西不进来（有用例逐项兜着）。
-   为什么状态信息只在"关于与状态"里出现一次：它以前在顶栏、底栏、设置里各有一份，
-   三处不一致时没人知道该信哪一个。 */
-/* 设置页外壳：占满一页、自己不滚，滚动交给里面的 .mset。
-   玻璃加在这一层而不是那些分类卡上 —— 外壳不动，背后静止背景的模糊结果就能一直复用。 */
+   三个一级分类，顺序固定：
+     主题外观   配色、背景、特效、排版。
+     辅助工具   背景音乐、填表与日志；关掉任何一项不影响联机。
+     关于与状态 只读信息（版本、环境、目录、占用）与维护动作。
+   设置项结构统一为：标题 + 状态标签 / 说明 / 控件 / 悬停可见的更细提示。
+   面板上只放会生效的设置（有用例逐项兜底）；状态信息只在"关于与状态"出现一次。 */
+/* 设置页外壳占满一页、自身不滚，滚动交给内部 .mset。
+   玻璃加在此层而非分类卡上：外壳不动，背后静止背景的模糊结果可复用。 */
 .setpage{display:block;padding:0;overflow:hidden}
 .mset{height:100%;overflow:auto;padding:var(--s5) 22px var(--s5);
   display:flex;flex-direction:column;gap:var(--s4);white-space:normal}
-/* 页首一句话：这一页怎么用。它替掉了原先面板底部那段"没有未保存状态"的说明 ——
-   那句话是给"找不到保存按钮的人"看的，放在最前面才有用。 */
+/* 页首说明：这一页怎么用。 */
 .mintro{font-size:var(--fs-12-5);color:var(--ink2);line-height:1.7;max-width:78ch}
 .mintro b{color:var(--ink)}
 
@@ -826,39 +756,39 @@ input{font:inherit;color:inherit}
 .mcathead .tt{font:600 var(--fs-15)/1.2 var(--disp)}
 .mcathead .sub{flex:1;min-width:0;font-size:var(--fs-11-5);color:var(--muted);line-height:1.5}
 
-/* 设置项：一行一项。左边标题+说明，右边控件 —— 控件位置固定，扫一列就知道改哪个。 */
+/* 设置项：一行一项。左边标题与说明，右边控件；控件位置固定。 */
 .mitem{display:grid;grid-template-columns:minmax(0,1fr) max-content;gap:var(--s2) var(--s5);
   align-items:center;padding:11px 0;border-top:1px solid var(--hair)}
 .mitem:first-child{border-top:0}
 .mi-h{display:flex;align-items:center;gap:var(--s2);margin-bottom:3px}
 .mi-t{font-size:var(--fs-13);font-weight:600;color:var(--ink)}
-/* 状态标签：只说"这一项现在是什么状态"，不重复控件里的信息。 */
+/* 状态标签：只说该项当前状态，不重复控件信息。 */
 .mi-tag{font:var(--fs-10)/1 var(--mono);padding:2px 6px;border-radius:3px;white-space:nowrap;
   border:1px solid var(--line2);color:var(--muted)}
 .mi-tag.chg{border-color:var(--sig-edge);color:var(--sig);background:var(--sig-soft)}
 .mi-d{font-size:var(--fs-11-5);color:var(--muted);line-height:1.6;max-width:64ch}
 .mi-c{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;justify-content:flex-end}
-/* 控件旁边的一小句结果（例如帧率实测的数字）。等宽字体，因为它量的是数字。 */
+/* 控件旁的结果数字，用等宽字体。 */
 .mi-out{font:var(--fs-11-5)/1 var(--mono);color:var(--muted2)}
-/* 分类内部的小标题：用在只读信息与变更记录之间，只做分隔，不再承载分组语义。 */
+/* 分类内小标题：只做分隔，不承载分组语义。 */
 .msub{display:flex;align-items:baseline;gap:var(--s3);margin:var(--s4) 0 var(--s2);
   padding-top:var(--s3);border-top:1px solid var(--hair)}
 .msub:first-child{margin-top:0;padding-top:0;border-top:0}
 .msub .tt{font:var(--fs-11)/1.5 var(--mono);letter-spacing:.12em;color:var(--muted);white-space:nowrap}
 .msub .sp{flex:1}
-/* 窄窗口下控件换到下一行铺开：硬挤在同一行会把说明压成一条缝 */
+/* 窄窗口下控件换行铺开，避免把说明压成一条缝 */
 @media (max-width:760px){
   .mitem{grid-template-columns:1fr}
   .mi-c{justify-content:flex-start}
 }
 
-/* 辅助板块的定位声明：把"这是附加项"写在脸上，而不是让用户去猜 */
+/* 辅助板块定位声明：标明这是附加项 */
 .mbenefit{display:flex;gap:var(--s2);margin:0 0 var(--s3);padding:var(--s2) var(--s3);
   border:1px solid var(--line);border-radius:var(--r1);background:var(--surf2);
   font-size:var(--fs-11-5);line-height:1.6;color:var(--ink2)}
 .mbenefit .ic{flex:0 0 auto;display:flex;color:var(--muted)}
 
-/* 关于与状态：整块只读，不给任何输入控件留位置（有用例守住这一条） */
+/* 关于与状态：整块只读，无输入控件（有用例守住） */
 .mabout{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px var(--s5);margin:0;
   font-size:var(--fs-12)}
 .mabout dt{color:var(--muted)}
@@ -875,8 +805,7 @@ input{font:inherit;color:inherit}
   font-size:var(--fs-11-5);line-height:1.6;color:var(--ink2)}
 .mnotice .ic{flex:0 0 auto;display:flex;color:var(--amber)}
 
-/* 变更记录：就放在"关于与状态"里，不再是一扇独立的门 ——
-   它是状态的一部分（这份配置被谁改过），不是第二个设置页。 */
+/* 变更记录：属于"关于与状态"的一部分。 */
 .mchg{display:flex;flex-direction:column;margin:var(--s2) 0}
 .mchgr{display:flex;align-items:baseline;gap:8px;padding:5px 0;
   border-bottom:1px solid var(--hair);font-size:var(--fs-11-5);color:var(--ink2)}
@@ -886,8 +815,8 @@ input{font:inherit;color:inherit}
 .mchgr .v{flex:0 0 auto;font-family:var(--mono);color:var(--muted)}
 .mchgempty{padding:var(--s3) 2px;color:var(--muted2);font-size:var(--fs-11-5)}
 
-/* ---- 设置控件（统一命名 m 前缀） ----
-   分段器 / 开关 / 输入框 / 色点，四种就够：面板上不该出现第五种控件形态。 */
+/* ---- 设置控件（统一 m 前缀） ----
+   分段器 / 开关 / 输入框 / 色点，共四种。 */
 .mseg{display:flex;border:1px solid var(--line);border-radius:var(--r1);overflow:hidden}
 .mseg button{padding:5px 12px;font-size:var(--fs-12);color:var(--muted);transition:color var(--d2) var(--ease),background var(--d2) var(--ease)}
 .mseg button+button{border-left:1px solid var(--line)}
@@ -899,8 +828,8 @@ input{font:inherit;color:inherit}
   border:1px solid var(--hair2);background:var(--field);color:var(--ink);font-size:var(--fs-12-5)}
 .mtxt:focus{outline:none;border-color:var(--sig-focus);box-shadow:0 0 0 3px var(--sig-soft)}
 .mtxt.small{max-width:120px}
-/* 档位滑杆（毛玻璃 0-10）。拖动时只更新右侧那个数字，松手才落盘 —— 见 uiBind 里那段。
-   它是控件、不是"面"，所以不进玻璃那一段，也不挂 backdrop-filter。 */
+/* 滑杆：拖动时只更新右侧数字，松手才落盘（见 uiBind）。
+   它是控件而非"面"，不挂 backdrop-filter。 */
 .mrange{display:flex;align-items:center;gap:var(--s3)}
 .mrange input[type=range]{-webkit-appearance:none;appearance:none;width:190px;height:4px;
   border-radius:2px;background:var(--line2);cursor:pointer}
@@ -911,24 +840,21 @@ input{font:inherit;color:inherit}
 .mdot{width:22px;height:22px;border-radius:50%;border:1px solid var(--line2);cursor:pointer;padding:0}
 .mdot.on{box-shadow:0 0 0 2px var(--surf),0 0 0 4px var(--sig-edge)}
 
-/* ---- 维护操作：一律集中在这里 ----
-   恢复默认、导出、导入、变更记录、打开数据目录、导出诊断包 —— 全是"动作"而不是设置，
-   所以它们不在上面三个分类里，也不会散落在各分类的标题旁边。
-   恢复默认仍然保留两个范围（当前分类 / 全部），但入口只有一个，点开后再选范围。 */
+/* ---- 维护操作：集中在这里 ----
+   恢复默认、导出、导入、变更记录、打开数据目录、导出诊断包，均为动作而非设置。
+   恢复默认保留两个范围（当前分类 / 全部），入口只有一个，点开后再选范围。 */
 .mmaint{border:1px solid var(--line);border-radius:var(--r3);background:var(--surf);
   padding:var(--s4) var(--s5)}
 .mmaint .acts{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s3)}
 .mmaint .mnote{flex:1 1 100%;margin-top:var(--s2);font-size:var(--fs-11-5);color:var(--muted);line-height:1.6}
-/* 就地确认条：重置是"会连改好几项"的操作，先问一句再动手，不弹系统对话框。 */
+/* 就地确认条：重置会连改多项，先确认再执行，不弹系统对话框。 */
 .mconfirm{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s3);
   padding:var(--s2) var(--s3);border:1px solid var(--amber-edge);border-radius:var(--r1);
   background:var(--amber-soft);font-size:var(--fs-11-5);color:var(--ink2)}
 .mconfirm .sp{flex:1}
 .mconfirm .q{font-size:var(--fs-11-5);color:var(--ink2)}
 
-/* 状态栏：当前任务 + 保存状态 + 常驻小工具 + 快捷键 + 生命周期动作。
-   它以前只放一句任务名和一个版本号（那个版本号还和顶栏重复），中间一大片空白；
-   版本号撤掉、停止/退出挪进来之后，这一条才真的在用。 */
+/* 状态栏：当前任务 + 保存状态 + 常驻小工具 + 快捷键 + 生命周期动作。 */
 .statusbar{display:flex;align-items:center;gap:var(--s3);padding:0 18px;border-top:1px solid var(--line);
   background:var(--chrome);font:var(--fs-11)/1 var(--mono);color:var(--muted2);white-space:nowrap;overflow:hidden}
 .statusbar>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
@@ -937,8 +863,7 @@ input{font:inherit;color:inherit}
 .statusbar .sb-save.bad{color:var(--rose-ink)}
 .statusbar .gap{flex:1;overflow:visible}
 .statusbar .sb-life{flex:0 0 auto;display:flex;align-items:center;gap:var(--s2)}
-/* 状态栏的背景音乐入口：只显示当前曲名，**不做任何动画** —— 常驻区域对动画最不宽容，
-   而且它每 700ms 会跟着状态刷新一次，动画会让这条底线变得很难守。 */
+/* 状态栏音乐入口只显示当前曲名，不做动画：该区域随状态每 700ms 刷新一次。 */
 #bgmName{display:inline-block;max-width:22vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
 
 .toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);z-index:50;
@@ -951,9 +876,7 @@ input{font:inherit;color:inherit}
   .op,.ln{animation:none}
   :root{--vfx-fade:0s}
 }
-/* 窗口被拖窄时，让位的顺序是按"信息是否还有别处"排的：
-   进度链最先走（同样的信息在状态胶囊里也有一份），然后是导航的文字内边距，
-   最后侧栏从"左边一列"改成"上面一块"。身份与状态栏的动作永远留着。 */
+/* 窗口变窄时让位顺序：进度链最先隐藏，其次是导航内边距，最后侧栏由左列改为上块。 */
 @media (max-width:1040px){.linkbar{display:none}}
 @media (max-width:900px){.nav .navi{padding:5px 9px}}
 @media (max-width:960px){

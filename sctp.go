@@ -148,7 +148,7 @@ func verifyProof(proof *idMsg, ch []byte, expectFP [32]byte, who string) error {
 	return nil
 }
 
-// idStream 把身份证明需要的读写抽成接口，便于用内存流做单元测试。
+// idStream 抽象身份证明所需的读写，便于测试替换。
 type idStream interface {
 	Read([]byte) (int, error)
 	Write([]byte) (int, error)
@@ -185,7 +185,7 @@ func readIDMsg(s idStream) (*idMsg, error) {
 	if err := json.Unmarshal(buf[:n], &m); err != nil {
 		return nil, err
 	}
-	// 对端明确拒绝了：把它给的原因转成错误抛出去
+	// 对端明确拒绝：把原因转成错误返回
 	if strings.HasPrefix(string(m.Nonce), idRejectPrefix) {
 		return nil, fmt.Errorf("对端判定身份不合法：%s", strings.TrimPrefix(string(m.Nonce), idRejectPrefix))
 	}
@@ -196,7 +196,7 @@ func readIDMsg(s idStream) (*idMsg, error) {
 func readIDConfirm(s idStream) error {
 	m, err := readIDMsg(s)
 	if err != nil {
-		// 对面已经把原因说清楚了，原样带上去，别再叠一层猜测
+		// 对端已给出原因，原样返回，不再叠加推测
 		if strings.HasPrefix(err.Error(), "对端判定身份不合法") {
 			return err
 		}
@@ -241,7 +241,7 @@ func proveIdentityGuest(s idStream, id *identity, fpSelfAnnounced, fpHostAnnounc
 		rejectIDMsg(s, err)
 		return nil, err
 	}
-	// 我认了对面，现在告诉它"我也认了"。主机收到这个才会宣布绑定成功。
+	// 本方验证通过后回报确认，主机收到确认才宣布绑定成功。
 	if err := writeIDMsg(s, &idMsg{Nonce: []byte(idAckOK)}); err != nil {
 		return nil, fmt.Errorf("发送确认失败：%w", err)
 	}

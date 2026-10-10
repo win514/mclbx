@@ -73,7 +73,7 @@ func isElevated() bool {
 	return elevated != 0
 }
 
-// elevateSelf 用同一份参数把自己重新拉起来，这次带管理员令牌（会弹一次 UAC）。
+// elevateSelf 用同一份参数以管理员令牌重新启动自身（触发一次 UAC）。
 func elevateSelf() error {
 	exe, err := os.Executable()
 	if err != nil {

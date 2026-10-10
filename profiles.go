@@ -1,21 +1,8 @@
 package main
 
-// profiles.go —— 暴露档位。
-//
-// 这个文件回答一个此前散在各处的问题：这台机器愿意对公网暴露多少。
-// 它把“要不要门槛、要不要中继、许不许改系统设置”这些默认值收拢成一次选择，
-// 而不是让用户从十几个开关里自己拼。
-//
-// 三条自我约束，都写成了用例（见 profiles_test.go）：
-//
-//	1. 档位只是预设，不是新链路。每个档位展开后都是一串**现有**参数，落到某个
-//	   已有子命令上。判定方式：展开结果的第一项必须在 main.go 的子命令清单里。
-//	2. 档位不改变默认值。不给 --profile 时，各子命令的行为与引入档位之前完全一致；
-//	   本文件不碰任何现有默认值。
-//	3. 档位不下线任何链路。P0 到 P4 都能落到现有六条链路上的某一条。
-//
-// 字段只保留“策略”粒度（愿不愿意公开、要不要门槛、要不要中继），
-// 端口、域名、后缀这类细节仍归各子命令自己。
+// profiles.go 定义暴露档位：把「门槛、中继、系统设置」等默认值收拢成一次选择。
+// 档位只是预设，展开成一串现有参数，落到已有子命令上；本文件不改变各子命令的默认值。
+// 数据只保留策略粒度（是否公开、要不要门槛、要不要中继），端口与域名等细节归各子命令。
 
 import (
 	"fmt"
@@ -24,10 +11,10 @@ import (
 
 // exposureProfile 一个档位的全部信息。Route 为空表示这一档不需要起入口。
 type exposureProfile struct {
-	ID       string // 稳定标识，出现在命令行输出里
-	Title    string // 一句话名字
-	Tradeoff string // 代价说明，直接列给用户看
-	Note     string // 展开之后是什么，写给用户和排查者看
+	ID       string // 稳定标识，出现在命令行输出中
+	Title    string // 档位名称
+	Tradeoff string // 代价说明，直接列给用户
+	Note     string // 展开之后是什么，写给用户与排查者
 
 	Route      string // 展开成哪个子命令（expose / room）
 	Mode       string // --mode 的取值
@@ -37,7 +24,7 @@ type exposureProfile struct {
 	NoMap      bool   // 是否显式关掉自动端口映射
 }
 
-// exposureProfiles 五个档位。顺序即列表顺序，也是“从最公开到最保守”的方向。
+// exposureProfiles 五个档位，按从最公开到最保守排列。
 var exposureProfiles = []exposureProfile{
 	{
 		ID: "P0", Title: "仅内网",
@@ -91,10 +78,8 @@ func profileByID(id string) (exposureProfile, bool) {
 	return exposureProfile{}, false
 }
 
-// expandProfile 把档位翻译成一串现有参数，首项是子命令。
-//
-// 它是纯函数：不解析命令行、不读配置、不落盘、不改任何默认值。
-// room 与 relay 由调用方给出（缺了该给的输入就报错，而不是悄悄用默认值顶上）。
+// expandProfile 把档位翻译成一串现有参数，首项是子命令；为纯函数。
+// room 与 relay 由调用方给出，缺输入时报错，不套用默认值。
 func expandProfile(p exposureProfile, room, relay string) ([]string, error) {
 	if p.Route == "" {
 		return nil, fmt.Errorf("档位 %s（%s）不需要起入口：%s", p.ID, p.Title, p.Note)
@@ -122,8 +107,7 @@ func expandProfile(p exposureProfile, room, relay string) ([]string, error) {
 	return args, nil
 }
 
-// cmdProfile 只读：列出档位，或打印某一档展开成的命令。
-// 它不改任何设置、不起任何服务，所以可以放心让用户先看再选。
+// cmdProfile 只读：列出档位，或打印某一档展开成的命令；不改设置、不起服务。
 func cmdProfile(args []string) error {
 	if len(args) == 0 {
 		fmt.Println("暴露档位：先选“这台机器愿意暴露多少”，其余默认值由档位展开。")
@@ -146,7 +130,7 @@ func cmdProfile(args []string) error {
 	fmt.Printf("  %s  %s\n", p.ID, p.Title)
 	fmt.Printf("      %s\n", p.Tradeoff)
 
-	// 展开要用的输入用占位符顶上，好让用户看到命令的形状。
+	// 展开用的输入以占位符顶上，便于展示命令形状。
 	room, relay := "", ""
 	if p.NeedRoom {
 		room = "<房间码>"

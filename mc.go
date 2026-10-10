@@ -58,7 +58,7 @@ func (r *bReader) u16() (uint16, error) {
 
 type handshake struct {
 	Protocol  int32
-	Address   string // 玩家输入的那串字
+	Address   string // 玩家输入的地址字符串
 	Port      uint16
 	NextState int32 // 1 = 服务器列表查询，2 = 登录
 }

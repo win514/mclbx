@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// ping.go —— 向目标发一次我的世界 Java 版服务器列表查询（SLP），用于确认链路真的连通。
+// ping.go 向目标发一次《我的世界》Java 版服务器列表查询（SLP），用于确认链路连通。
 
 type slpResponse struct {
 	Version struct {

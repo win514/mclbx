@@ -1,7 +1,7 @@
 package main
 
-// music.go —— 背景音乐：曲库是存档里的 music 目录，播放交给界面里的 <audio>（Chromium 原生解
-// MP3/WAV/FLAC/OGG/M4A，靠 Range 请求拖动进度）；本文件只做：找目录、列曲库、提供文件，播放状态归界面。
+// music.go 背景音乐：曲库是存档里的 music 目录，播放交给界面里的 <audio>（Chromium 原生解
+// MP3/WAV/FLAC/OGG/M4A，靠 Range 请求拖动进度）；本文件只做找目录、列曲库、提供文件，播放状态归界面。
 
 import (
 	"io"
@@ -32,7 +32,7 @@ func isMusicExt(ext string) bool {
 	return false
 }
 
-// mp3FrameAt 判断从这个位置开始是不是一个说得通的 MPEG 音频帧头。
+// mp3FrameAt 判断从这个位置开始是否为一个合法的 MPEG 音频帧头。
 // 只看同步位太容易误判，所以把版本/层/码率/采样率里的保留值一并排掉。
 func mp3FrameAt(b []byte, i int) bool {
 	if i+1 >= len(b) || b[i] != 0xFF || b[i+1]&0xE0 != 0xE0 {
@@ -58,7 +58,7 @@ func mp3FrameAt(b []byte, i int) bool {
 
 // sniffMusicExt 第二层：看文件头，挡掉改了扩展名的非音频文件（能否解码交给界面 <audio> 判）。
 // MP3 不能只看开头：有些下载工具会在文件前塞垃圾，故认不出已知文件头时往前扫帧同步；
-// 要求扫到两个说得通的帧头，纯文本之类才不会被误认成音频。
+// 要求扫到两个合法帧头，纯文本之类才不会被误认成音频。
 func sniffMusicExt(head []byte) string {
 	switch {
 	case len(head) >= 3 && string(head[:3]) == "ID3":
@@ -86,7 +86,7 @@ func sniffMusicExt(head []byte) string {
 	return ""
 }
 
-// musicTrack 是曲库里的一首。界面显示的就是文件名 —— 曲库的真相在磁盘上。
+// musicTrack 是曲库里的一首。界面显示文件名，曲库以磁盘为准。
 type musicTrack struct {
 	Name string `json:"name"`
 	Size int64  `json:"size"`

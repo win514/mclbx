@@ -1,6 +1,6 @@
 package main
 
-// ddns.go 把「短名字 -> 当前地址 + 端口」写入公网 DNS（dynv6），默认 dry-run。
+// ddns.go 把「短名字 -> 地址 + 端口」写入公网 DNS（dynv6），默认只预览不写入。
 
 import (
 	"bytes"

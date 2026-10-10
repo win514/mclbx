@@ -1,6 +1,6 @@
 package main
 
-// relaybox.go —— 本机中继：UDP 中继、TCP 通道与信令信箱；输出的 mclbx:// 链接内含房间码与密钥。
+// relaybox.go 本机中继：UDP 中继、TCP 通道与信令信箱；mclbx:// 链接内含房间码与密钥。
 
 import (
 	"crypto/rand"
@@ -373,15 +373,13 @@ func (b *relaybox) printCard(errs []string, turnMuted, turnMakesSense bool) {
 	}
 	fmt.Printf(" 端口映射 : %s\n", b.openNote)
 	fmt.Printf("------------------------------------------------\n")
-	fmt.Printf(" 将下面这一行发给其他玩家，填入「中继服务器」即可：\n")
+	fmt.Printf(" 将下面这一行发送给其他玩家，填入「中继服务器」即可：\n")
 	fmt.Printf("     %s\n", link)
 	fmt.Printf("   账号与密钥已包含在此行中，无需另行发送密码，请勿公开分享\n")
-	// 这一句必须显眼：链接里的地址就是别人要连的地址，而本机中继跑在本机上 ——
-	// 拿到链接的人连的就是这台机器（流量就在本机落地），它并不像第三方中继那样藏住房主。
-	// 把它当成"藏住自己地址"的中继，是这一处最容易产生的误解，所以写在链接正下方。
+	// 本机中继不隐藏房主地址：链接里的地址即本机对外地址。
 	if b.addr.Public {
-		fmt.Printf(" 地址暴露 : 链接里的地址就是本机对外地址（%s）。\n", b.addr.Addr)
-		fmt.Printf("            拿到它的任何人都能直接连到这台机器 —— 本机中继不隐藏房主地址；\n")
+		fmt.Printf(" 地址暴露 : 链接中的地址即本机对外地址（%s）。\n", b.addr.Addr)
+		fmt.Printf("            拿到它的任何人都能直接连到这台机器：本机中继不隐藏房主地址；\n")
 		fmt.Printf("            要让地址不出现在链接里，需把中继放到另一台机器（VPS / 朋友的机器）上运行。\n")
 	}
 	if b.addr.LAN != "" && b.addr.LAN != b.addr.Addr {

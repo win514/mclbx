@@ -1,6 +1,6 @@
 package main
 
-// doctor.go —— 一键体检：收集各路线探测事实并给出建议；事实收集（collectFacts）与判断（judge，纯函数）分离以便测试。
+// doctor.go 环境体检：收集各路线探测事实并给出建议。取事实（collectFacts）与判断（judge，纯函数）分离，便于测试。
 
 import (
 	"flag"
@@ -65,7 +65,7 @@ func cmdDoctor(args []string) error {
 	fmt.Printf(" %s · 环境检测\n", version)
 	fmt.Printf("================================================\n")
 
-	// 逐步报进度，走 guiDetail（界面归入折叠的「原始输出」，命令行输出不变）。
+	// 逐步报进度，走 guiDetail（界面并入折叠的原始输出，命令行输出不变）。
 	f := collectFacts(*port, *quick, func(format string, a ...any) {
 		guiDetail(" .. %s", fmt.Sprintf(format, a...))
 	})
@@ -237,7 +237,7 @@ func natToken(shape string) string {
 	return "unknown"
 }
 
-// guiCapMarker 将体检事实压成一行机器标记（仅界面模式下返回），值不带空格；界面据 v6、upnp/natpmp/pcp、port+portfree 三项置灰。
+// guiCapMarker 将体检事实压成一行机器标记（仅界面模式下返回），值不带空格；界面据此置灰相关操作。
 func guiCapMarker(f docFacts) string {
 	if !guiMode() {
 		return ""

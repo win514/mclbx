@@ -1,6 +1,7 @@
 package main
 
-// verify.go —— 按真实客户端步骤依次校验地址格式、域名/SRV、入口端口、Java 版握手，每步给出通过或卡点；仅从本机发起，不代表外部可达性。
+// verify.go 按真实客户端步骤校验地址：地址格式、域名/SRV、入口端口、Java 版握手，
+// 每步给出通过或卡点；仅从本机发起，不代表外部可达性。
 
 import (
 	"flag"
@@ -162,7 +163,7 @@ func cmdVerify(args []string) error {
 		fmt.Printf(" - 2/4 域名解析      : 输入为 IP 字面量，跳过\n")
 	}
 
-	// 第 3 步：连接入口端口（端口在 SRV 解析后确定）；基岩版走 UDP，对其实做 TCP 连接必然失败，先明确提示。
+	// 第 3 步：连接入口端口（端口在 SRV 解析后确定）；基岩版走 UDP，TCP 连接必然失败，先给出提示。
 	if note := bedrockPortNote(dialHost, port); note != "" {
 		fmt.Printf(" ✗ 3/4 连接入口端口  : %s\n", note)
 		return fmt.Errorf("目标端口是基岩版的默认端口，本工具仅支持 Java 版")

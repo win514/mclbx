@@ -1,6 +1,6 @@
 package main
 
-// relaylink.go —— 把各种中继部署形态统一解析成 relayPlan：turn:/turns:/tcp:/网址/主机:端口/mclbx:// 链接。
+// relaylink.go 把各种中继部署形态统一解析成 relayPlan：turn:/turns:/tcp:/网址/主机:端口/mclbx:// 链接。
 
 import (
 	"crypto/hmac"
@@ -99,10 +99,10 @@ type relayPlan struct {
 	Raw  string
 	Hops []relayHop
 
-	SignalURL string // 链接里可能捎带信令会合点
-	Room      string // 也可能捎带房间码
+	SignalURL string // 链接里可能携带信令会合点
+	Room      string // 也可能携带房间码
 
-	Notes []string // 需要提醒用户的事（例如"这是自动判断的"）
+	Notes []string // 需要提醒用户的事项
 }
 
 // TurnURLs 将方案转换为 ICE 需要的中继 URL；每次调用重新计算 REST 凭据。
@@ -589,7 +589,7 @@ func udpNetworkAndHost(addr string) (network, host string) {
 // resolveTCPRelayAddr 决定 TCP 兜底通道的地址：--relay > --relay-server 链接 > 环境变量。
 func resolveTCPRelayAddr(relayServer, relayAddr string) (string, error) {
 	if s := strings.TrimSpace(relayAddr); s != "" {
-		return s, nil // 老写法优先，行为不变
+		return s, nil // --relay 优先
 	}
 	if s := strings.TrimSpace(relayServer); s != "" {
 		plan, err := resolveRelayLink(s)

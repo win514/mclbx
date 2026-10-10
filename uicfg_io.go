@@ -1,6 +1,6 @@
 package main
 
-// uicfg_io.go —— 配置导出 / 导入 / 重置 / 变更记录。
+// uicfg_io.go 配置导出 / 导入 / 重置 / 变更记录。
 //
 // 四者共用 uiFieldLabels 这份「字段 → 板块 / 选项名」对照，导出文件、界面、变更记录里的名字因此一致。
 // 导出用带缩进的可读文本；导入对不认识的键跳过并在结果里说明原因；重置只动界面偏好。
@@ -147,15 +147,12 @@ func uiFieldLabel(field string) (face, name string) {
 	return info.Face, info.Name
 }
 
-// uiCorrectedFields 找出**用户提交的取值不合法**、被归一化改掉的字段。
+// uiCorrectedFields 找出用户提交的取值不合法、被归一化改掉的字段。
 //
-// 提交值与生效值不一致时，界面要明确告诉用户"这个值不能用，已经回退"，
-// 而不是安静地改成另一个值 —— 那会让人以为设置没保存，反复重试。
-// 只比对非空提交值：留空表示"回到默认"，那不是被纠正。
-//
-// used 一定是**看得懂的**：归一化常把非法值落成空串（空串在配置里表示"用默认"），
-// 直接报空串会得到「日志保留行数（999999 → ）」这种等于没说的提示 ——
-// 实测跑出来就是这样，所以空串统一显示为「默认」。
+// 提交值与生效值不一致时须明确告知"该值不可用，已回退"，而不是静默改成另一个值。
+// 只比对非空提交值：留空表示"回到默认"，不算被纠正。
+// used 必须看得懂：归一化常把非法值落成空串，直接报空串会得到「（999999 → ）」这类无意义提示，
+// 故空串统一显示为「默认」。
 func uiCorrectedFields(submitted, normalized guiUIState) []map[string]string {
 	sub, got := uiValueMap(submitted), uiValueMap(normalized)
 	out := []map[string]string{}
@@ -178,9 +175,7 @@ func uiCorrectedFields(submitted, normalized guiUIState) []map[string]string {
 }
 
 // ---- 只读展示信息 ----
-//
-// 这一组只读数字，用来把设置面板填满而不新增任何可编辑项。
-// 它们全部来自真实文件与真实目录，不是写死的装饰文本。
+// 这组只读数字用来填充设置面板，不新增可编辑项；全部来自真实文件与目录。
 
 // uiStorageStats 存档目录里各类产物的体积与文件数。
 func uiStorageStats() map[string]any {
@@ -254,9 +249,8 @@ func uiConfigFileState() map[string]any {
 }
 
 // uiConfigEnvelope 导出文件的外层结构。
-//
-// 带 format 与 version 是为了导入时能明确说「这不是本程序的配置文件」，
-// 而不是把随便一个 JSON 当配置读进去、把设置搞乱之后还报成功。
+// 带 format 与 version，导入时可明确判定「不是本程序的配置文件」，
+// 而不是把任意 JSON 当配置读入并报成功。
 type uiConfigEnvelope struct {
 	Format     string                       `json:"format"`
 	Version    int                          `json:"version"`
@@ -267,10 +261,7 @@ type uiConfigEnvelope struct {
 }
 
 // exportUIConfig 把当前全部设置写成一个可读文件，返回落盘路径。
-//
-// 写在存档目录里而不是让浏览器下载：这个界面是内嵌的 WebView，
-// 下载行为在各平台的 WebView2 / WKWebView 上并不一致；
-// 写成文件再告诉用户在哪儿，与导出诊断包的做法一致，也更好找。
+// 写在存档目录而非让浏览器下载：内嵌 WebView 的下载行为在各平台不一致。
 func exportUIConfig() (string, error) {
 	ui := loadUI()
 	var uiMap map[string]any
@@ -332,12 +323,9 @@ type uiImportResult struct {
 }
 
 // importUIConfig 读入一份配置。
-//
 // mode: "overwrite" 覆盖现有设置；"fill" 只补当前仍是默认值的项。
-//
-// 文件里出现本程序不认识的键，逐条跳过并记下原因返回给界面 ——
-// 整份拒绝会让「从新版导出的配置拿到旧版用」变成不可能，
-// 静默丢弃则更糟：用户会以为导入成功了，实际少了一半设置。
+// 不认识的键逐条跳过并记下原因返回界面：整份拒绝会让新版配置无法用于旧版，
+// 静默丢弃则会让用户误以为导入成功。
 func importUIConfig(data []byte, mode string) (uiImportResult, error) {
 	var res uiImportResult
 	if len(data) == 0 {
@@ -445,11 +433,9 @@ func sortStrings(s []string) {
 // ---- 重置 ----
 
 // resetUIScope 把某个范围的可编辑设置恢复成默认。
-//
-// scope 为空或 "all" 表示全部；否则取 uiFaces 里的板块名。
-// 返回真正发生变化的字段数 —— 呼叫方据此决定要不要说「已经是默认值了」。
-//
-// 只动"可编辑设置"：填过的表单值、记住的填写内容、背景图库里的文件都不受影响。
+// scope 为空或 "all" 表示全部，否则取 uiFaces 里的板块名。
+// 返回真正发生变化的字段数，调用方据此决定是否提示「已经是默认值」。
+// 只动可编辑设置：填过的表单值、记住的填写内容、图库文件均不受影响。
 func resetUIScope(scope string) (int, error) {
 	cur := loadUI()
 	if scope != "" && scope != "all" && !isUIFace(scope) {
@@ -520,13 +506,10 @@ func loadChangesLocked() []uiChange {
 }
 
 // recordUIChanges 比对前后两份设置，把差异记进变更记录。
-//
-// 在设计上它**不是**可失败路径：写不进去只是少一条记录，
-// 绝不能因此让保存设置本身报错。
+// 写不进去只是少一条记录，不得让保存设置本身报错。
 func recordUIChanges(prev, next guiUIState) {
-	// 存档目录都不可用时不要记：filepath.Join("", "ui-changes.json") 会变成一个
-	// 相对当前目录的文件名，等于往用户的任意工作目录里丢一个文件。
-	// 这条推论与配置本身是同一条（见 datadir_test.go 末尾那条用例）。
+	// 存档目录不可用时不记：filepath.Join("", "ui-changes.json") 会变成相对当前目录的文件名，
+	// 等于往用户任意工作目录丢文件。同 datadir_test.go 末尾用例。
 	if dataDir() == "" {
 		return
 	}
@@ -569,7 +552,7 @@ func recordUIChanges(prev, next guiUIState) {
 	_ = os.WriteFile(uiChangeFile(), b, 0o600)
 }
 
-// showUIValue 把空值写成「默认」，让记录读起来是句人话。
+// showUIValue 把空值写成「默认」。
 func showUIValue(v string) string {
 	if v == "" {
 		return "（默认）"

@@ -49,11 +49,11 @@ type guiUIState struct {
 	DefRelay     string `json:"defRelay,omitempty"`     // 默认中转服务器；空 = 不干预
 }
 
-// themeValues 主题白名单，须与 CSS 的 :root[data-theme=…] 及 guihtml.go 的 uiThemes() 一致。
+// themeValues 主题白名单，须与 assets/gui.js 的 uiThemes() 及 CSS 的 :root[data-theme=…] 一致。
 // （auto 由首屏脚本解析成 light/dark，不在此列。）
 var themeValues = []string{"dark", "light", "contrast"}
 
-// accentValues 强调色白名单，与 uiAccents() 对应。
+// accentValues 强调色白名单，与 assets/gui.js 的 uiAccents() 对应。
 var accentValues = []string{"blue", "violet"}
 
 // scaleValues 界面字号白名单，是与 Motion/Backdrop 同级的独立维度。
@@ -61,12 +61,8 @@ var scaleValues = []string{"std", "big"}
 
 // 毛玻璃：只有开与关两态。
 //
-// 此前是 0-10 的档位，实测相邻档位看不出差别（0 到 10 的三档不透明度只差 0.35、面板模糊
-// 只差 13px），而每一档都要在 CSS 里维护一块、在设置里解释一遍。一个调了看不出效果的滑杆
-// 比一个开关更糟：用户会以为是自己没调对。
-//
-// 开态就是此前最透明的那一档（见 CSS 里 :root[data-glass="on"] 那一块），不再有中间态，
-// 因此也不必再维护一张档位表 —— 只有"值清单"用来核对取值与 CSS 块是否一一对应。
+// 旧档位（0-10）与更早的 low/mid/high 在 normalizeUI 里迁移到两态。
+// 开态即最透明的那一档（见 CSS 里 :root[data-glass="on"] 块），不再有中间态与档位表。
 const (
 	uiGlassOff     = "off"
 	uiGlassOn      = "on"
@@ -76,11 +72,9 @@ const (
 // glassValues 全部合法取值。用例拿它核对"取值清单与 CSS 逐块对应"。
 var glassValues = []string{uiGlassOff, uiGlassOn}
 
-// 高级显示选项：两个 0-100 的百分比，出厂值都在正中间。
+// 高级显示选项：两个 0-100 的百分比，出厂值在正中间。
 //
-// 出厂值下前端不写任何覆盖（CSS 里的倍率回落到 1），所以"没动过这两根滑杆"的用户拿到的
-// 就是此前那组已核对过可读性的取值。往"更冒险"的方向调 —— 面板更透明、照片更亮 ——
-// 会牺牲文字的可读性；这由用户自己决定，界面上当场提示，不硬卡。
+// 出厂值下前端不写覆盖（CSS 倍率回落到 1）。越偏离出厂值，文字可读性越低，界面当场提示，不硬卡。
 const (
 	uiPctMin     = 0
 	uiPctMax     = 100
@@ -97,8 +91,7 @@ func clampPercent(s string) string {
 }
 
 // radiiValues 界面圆角白名单，与 CSS 的 :root[data-radii=…] 三个块对应。
-//
-// 与 glass 同理：调的是一组预定义圆角令牌而非像素值，可保证层次关系不乱。
+// 调的是一组预定义圆角令牌而非像素值，以保证层次关系不乱。
 var radiiValues = []string{"sharp", "std", "round"}
 
 // railValues 侧边栏样式白名单，与 CSS 的 :root[data-rail=…] 对应。
@@ -128,13 +121,11 @@ func normalizeUI(u guiUIState) guiUIState {
 	if !containsStr(scaleValues, u.Scale) {
 		u.Scale = "std"
 	}
-	// 扁平化与毛玻璃都是 on/off，默认关：默认外观与升级前完全一致。
+	// 扁平化与毛玻璃都是 on/off，默认关。
 	if u.Flat != "on" {
 		u.Flat = "off"
 	}
-	// 毛玻璃只有开与关。旧的数字档（0…10）与更早的 low/mid/high 在这里迁移：
-	// 非零档一律迁到 on（当初调高就是要更透，不该悄悄抹掉），"0" 迁到 off，
-	// 认不出来的值回落到默认（on）。
+	// 旧取值迁移：0 与非零数字档、low/mid/high 分别落到 off/on，认不出的回落到默认（on）。
 	switch strings.ToLower(strings.TrimSpace(u.Glass)) {
 	case uiGlassOff:
 		u.Glass = uiGlassOff
@@ -150,7 +141,7 @@ func normalizeUI(u guiUIState) guiUIState {
 	// 高级选项的两个百分比：越界与非数字一律回到出厂值，不留半个合法值。
 	u.Transparency = clampPercent(u.Transparency)
 	u.WallBright = clampPercent(u.WallBright)
-	// 面板淡入默认开；它属于视觉美化那一层，恒开，没有总开关。
+	// 面板淡入默认开，无总开关。
 	if u.Fade != "off" {
 		u.Fade = "on"
 	}
@@ -190,7 +181,7 @@ func normalizeUI(u guiUIState) guiUIState {
 	return u
 }
 
-// cleanWallPath 收拾背景图路径：去首尾空白，以及「复制文件地址」粘过来时自带的那对引号。
+// cleanWallPath 清理背景图路径：去首尾空白，以及「复制文件地址」粘贴时自带的一对引号。
 func cleanWallPath(p string) string {
 	p = strings.TrimSpace(p)
 	p = strings.Trim(p, `"`)
@@ -216,14 +207,14 @@ func (u guiUIState) logKeep() int {
 }
 
 // htmlAttr 拼出 <html> 的主题属性，由服务端注入以避免首屏闪烁。
-// 视觉美化那几项也注进去（决定首屏是否"先实心再闪成玻璃"），不在 CSS 里用总开关去推。
+// 视觉美化各项一并注入，用于决定首屏观感。
 func (u guiUIState) htmlAttr() string {
 	return fmt.Sprintf(` data-theme="%s" data-accent="%s" data-motion="%s" data-backdrop="%s" data-scale="%s" data-flat="%s" data-glass="%s" data-fade="%s" data-radii="%s" data-rail="%s"`,
 		u.Theme, u.Accent, u.Motion, u.Backdrop, u.Scale, u.Flat, u.Glass, u.Fade, u.Radii, u.Rail)
 }
 
-// wallAttr 拼出背景图片那一段：data-wall 标记加一个行内 --wall 变量；没有可用图片时返回空串。
-// 变量走行内样式，注入点层叠优先级最高，不需要一套「主题 × 图片」的规则。
+// wallAttr 拼出背景图片那一段：data-wall 标记加一个行内 --wall 变量；无可用图片时返回空串。
+// 行内样式注入点层叠优先级最高，无需「主题 × 图片」的规则。
 func wallAttr(w wallResult) string {
 	if !w.on() {
 		return ""
@@ -233,9 +224,8 @@ func wallAttr(w wallResult) string {
 
 // uiStartupJSON 注入页面启动所需字段：跟随系统的原始主题值与日志行数。
 //
-// 外观那几项必须在这里就交给前端：属性注入（htmlAttr）管的是"值直接对应一个 CSS 块"的项，
-// 而高级选项的两个百分比要先在浏览器端换算成倍率，服务端只发取值。少了它们，前端在首屏
-// 无从知道用户调过面板透明度与背景明暗，界面会一直停在出厂观感，直到用户动一次设置。
+// 高级选项的两个百分比需在浏览器端换算成倍率，服务端只发取值，故必须在此下发；
+// 否则前端首屏不知用户调过面板透明度与背景明暗，会停在出厂观感。
 func (u guiUIState) uiStartupJSON() string {
 	b, err := json.Marshal(struct {
 		Theme     string `json:"theme"`
@@ -244,7 +234,7 @@ func (u guiUIState) uiStartupJSON() string {
 		MusicMode string `json:"musicMode"`
 		MusicLoop string `json:"musicLoop"`
 		MusicVol  string `json:"musicVol"`
-		// 视觉美化那一组要在首屏就知道，省一次取设置的往返。
+		// 视觉美化各项需在首屏获知，省一次取设置的往返。
 		Glass string `json:"glass"`
 		Fade  string `json:"fade"`
 		Radii string `json:"radii"`
@@ -328,7 +318,7 @@ var (
 		d := dataDir()
 		if d == "" {
 			// 没有可写位置时返回空串：读退回默认值、写会失败。
-			// 不能让 filepath.Join("", ...) 生效 —— 那会把配置写到当前工作目录。
+			// 不能让 filepath.Join("", ...) 生效：那会把配置写到当前工作目录。
 			return ""
 		}
 		return filepath.Join(d, "config.json")
@@ -358,8 +348,8 @@ func loadConfigLocked() *guiConfig {
 	b, err := os.ReadFile(guiConfigFile())
 	if err == nil && strings.TrimSpace(string(b)) != "" {
 		if e := json.Unmarshal(b, c); e != nil {
-			// 文件在但读不出来：整份丢弃回到默认，并记下这次故障。
-			// 不能只忽略错误继续用 —— json.Unmarshal 出错会把已解析的部分留在 c 里，形成半旧半默认的混合状态。
+			// 文件在但读不出来：整份丢弃回到默认并记故障。
+			// 不能忽略错误继续用：json.Unmarshal 出错会把已解析部分留在 c 里，形成半旧半默认的混合状态。
 			*c = guiConfig{}
 			noteConfigFault(e)
 		}

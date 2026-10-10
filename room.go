@@ -92,7 +92,7 @@ func cmdRoom(args []string) error {
 	}
 	applyRelayFlag(*relayLink, *relayUser, *relayPass)
 
-	// 空串会被换成随机码，所以先记下用户到底给没给（卡片要不要提“房间码不生效”看它）。
+	// 空串会被换成随机码，先记录用户是否显式指定（卡片据此提示房间码是否生效）。
 	roomGiven := strings.TrimSpace(*room) != ""
 	roomCode, err := normalizeRoomCode(*room)
 	if err != nil {
@@ -287,9 +287,9 @@ func serveSoftwareGuests(base, room, to string) {
 				}
 				burst += claimed
 				if burst >= softwareGuestBurstWarn {
-					logf("提醒：一分钟内有 %d 位新玩家在登记（朋友一起进来也是这个样子）。"+
-						"若不是你邀请的人，说明房间地址已经传到外面了 —— 结束房间、"+
-						"换一个房间码重开即可（正在玩的人会断开一次）；想限定名字可用 --allow", burst)
+					logf("提醒：一分钟内有 %d 位新玩家在登记（朋友同时进入也会如此）。"+
+						"若非受邀玩家，说明房间地址已外传：结束房间并更换房间码重开"+
+						"（正在游戏的人会断开一次）；限定名字可用 --allow", burst)
 					burst, burstStart = 0, now
 				}
 			}
@@ -516,13 +516,13 @@ func serveRelayEntry(ref *tunnelRef, room string, entryPort int, allow string) {
 		fmt.Printf(" 将下面这一行发给玩家：\n")
 		fmt.Printf("   「多人游戏 → 直接连接」粘贴：\n\n")
 		fmt.Printf("     %s\n\n", addr.share)
-		// 转发同时占用本机上行与下行，按流量计费时需留意
-		fmt.Printf("  说明：流量经隧道转发到房主 —— 朋友的数据先进本机，再由本机发出去，\n")
-		fmt.Printf("        所以它同时占本机的上行和下行；按流量计费时请留意这一点。\n")
+		// 转发同时占用本机上行与下行，按流量计费的用户需注意
+		fmt.Printf("  说明：流量经隧道转发至房主：朋友的数据先到本机，再由本机发出，\n")
+		fmt.Printf("        因此同时占用本机的上行与下行；按流量计费时请注意。\n")
 		fmt.Printf("        本端退出后该入口关闭。\n")
 		if len(allowList) == 0 {
-			fmt.Printf("        这个入口目前不校验玩家名：拿到上面这一行地址的人都能进，\n")
-			fmt.Printf("        想限定名单就加 --relay-allow Steve,Alex\n")
+			fmt.Printf("        该入口目前不校验玩家名：拿到上面这一行地址的人都能进入，\n")
+			fmt.Printf("        限定名单可加 --relay-allow Steve,Alex\n")
 		} else {
 			fmt.Printf("        仅允许这些玩家名进入：%s\n", strings.Join(allowList, "、"))
 			if note := allowListNote(allowList); note != "" {

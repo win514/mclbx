@@ -1,11 +1,10 @@
 'use strict';
 /* ============================================================================
-   行为层。四条纪律贯穿全篇：
-     · 写 DOM 之前先比一下（setText/setCls/setHidden）—— 轮询每 700ms 一次，
-       无条件写 textContent 等于让页面永远在做样式重算；
-     · 日志分两层各一个容器，只追加新行、不整段重建；层间切换只切显示，不重建节点；
-     · 没有任何 requestAnimationFrame 循环，反馈一律走 CSS 过渡；
-     · 环境能力（来自体检的 ##CAP## 标记）决定哪些操作置灰，原因只写在悬浮提示里。
+   行为层。四条约束：
+     · 写 DOM 前先比较（setText/setCls/setHidden）：轮询间隔 700ms，无条件写 textContent 会让页面持续样式重算；
+     · 日志两层各一容器，只追加新行、不整段重建；层间切换只切显示；
+     · 不使用 requestAnimationFrame 循环，反馈走 CSS 过渡；
+     · 环境能力（##CAP## 标记）决定哪些操作置灰，原因写在悬浮提示里。
    ========================================================================== */
 var $ = function(id){ return document.getElementById(id); };
 function esc(s){
@@ -22,15 +21,12 @@ var tasks = [], groups = [], sel = null;
 var since = 0, jobId = '', running = false, polling = false, quitting = false;
 var userLines = [], rawLines = [], layer = 'user';
 var addr = '', joinCmd = '', roomCode = '', caps = null, capKey = '';
-/* 口令是「房间码」还是「地址本身」（来自 ##GATE## 标记，见 expose.go 的 gateModeValue）。
-   raw / 端口映射 / 公网 IPv4 直连这三种形态下地址本身就是口令，房间码只对「方式二」有意义 ——
-   邀请文本要按这个区别写，否则读起来像是「码才是口令」，好人会去找地方填码，坏人多一句可捡的东西。*/
+/* 口令是「房间码」还是「地址本身」，来自 ##GATE## 标记（见 expose.go 的 gateModeValue）。
+   raw、端口映射与公网 IPv4 直连下地址本身即口令；房间码仅对 dns 形式有意义。 */
 var gateByRoom = false;
 var fwPort = '', fwSkipped = false, fwFixed = false;
-/* 本工具有两个默认入站端口：
-     游戏端口（公网入口，体检的 caps.port）与信令端口 8090（软件入口）。
-   只放行前者会出现「没装工具的玩家能进、装了工具的反而不行」——
-   这条现象用户几乎不可能自己想到，所以一键放行时两个一起放（规则仍限本程序与该端口）。 */
+/* 两个默认入站端口：游戏端口（取体检的 caps.port）与信令端口 8090。
+   一键放行时两个一起放行，规则仍限定本程序与该端口。 */
 var fwSigPort = '8090';
 function fwPortSpec(){ return (fwPort || '25565') + ',' + fwSigPort; }
 var LOG_KEEP = (window.MCLBX_UI && window.MCLBX_UI.logKeep) || 2000;   // 每层留多少行（设置里可改）
@@ -60,33 +56,22 @@ function copy(text){
   }
 }
 /* ------------------------------------------------ 视觉美化（VFX）----
-   【视觉美化，非核心功能】
-   这一段和上面那段 CSS 是一整套，删掉即可：界面回到实心扁平外观，工具功能一件不少。
-
-   它只做一件事 —— 把设置里那几个值写成 <html> 上的属性，其余全交给 CSS。
-   业务代码与它的接触面只有三处，且三处都不看返回值：
-     · 设置生效时  VFX.apply(ui)
-     · 任务启停时  VFX.busy(running)
-     · 首屏        VFX.init(cfg)
-   每个入口都兜了 try，所以这一段自身出问题也影响不到工具本身。
-
-   两件事在这里：
-     · apply()  写属性；浏览器不支持 backdrop-filter 时自动退成"关闭模糊"，不报错也不破版
-     · busy()   任务执行期间摘掉毛玻璃（见 CSS 里那一段的说明）
-   另有一个 VFX.measure()，把帧率量出来交给调用方 —— 设置页那行「帧率实测」与逐档对比测试都靠它。
-   （原来的帧率巡检与"要不要降档"的询问随「帧率自动降级」那一项一起撤销了：那个询问的
-   "以后别再问"只能存在设置里，设置项没了它就会反复开口。） */
+   【视觉美化，非核心功能】与 CSS 中同名段落为一整套，可整段删除。
+   只把设置中的几个值写成 <html> 上的属性，渲染交给 CSS。
+   与业务代码三处接触，均不读取返回值且各兜 try，故本段出错不影响工具：
+     · 设置生效时 VFX.apply(ui)；任务启停时 VFX.busy(running)；首屏 VFX.init(cfg)。
+   apply() 写属性，浏览器不支持 backdrop-filter 时退为关闭模糊；busy() 在任务执行期间摘掉毛玻璃。
+   VFX.measure() 量一段帧率，供设置页「帧率实测」与控制台查看。 */
 var VFX = (function(){
-  /* 毛玻璃只有开与关。GLASS_DEF 与 guiconfig.go 的 uiGlassDefault、面板里 UI_DEF 的那一份
-     必须一致 —— 三处都对不上时症状是"首屏与设置里显示的不是同一个值"。
-     档位（0-10）已经取消：实测相邻档位看不出差别，一根调了没反应的滑杆比一个开关更糟。 */
+  /* GLASS_DEF 与 guiconfig.go 的 uiGlassDefault、面板里 UI_DEF 的那一份必须一致，
+     不一致表现为"首屏与设置里显示的值不同"。 */
   var GLASS_DEF = 'on';
   var st = { glass:GLASS_DEF, level:GLASS_DEF };
   var probe = null;
 
   function root(){ return document.documentElement; }
-  /* 一律收成 "off" / "on"。服务端给的是归一化过的，但 ?vfx= 与旧内存值不保证，
-     所以旧的数字档也要能落到两态上：0 是关，非零是开。 */
+  /* 一律收成 "off" / "on"。服务端给了归一化值，但 ?vfx= 与旧内存值不保证，
+     故数字档也落到两态：0 关，非零开。 */
   function normGlass(v){
     var s = String(v === undefined || v === null ? '' : v).trim().toLowerCase();
     if(s === 'off'){ return 'off'; }
@@ -95,14 +80,14 @@ var VFX = (function(){
     if(!isNaN(n)){ return n === 0 ? 'off' : 'on'; }
     return GLASS_DEF;
   }
-  /* 浏览器到底认不认 backdrop-filter。不认就退成"关闭模糊" —— 半透明底还在，版式不变。 */
+  /* 浏览器是否支持 backdrop-filter。不支持则退为"关闭模糊"，半透明底与版式不变。 */
   function supported(){
     try{
       return !!(window.CSS && CSS.supports && CSS.supports('backdrop-filter','blur(4px)'));
     }catch(e){ return false; }
   }
-  /* 地址栏上的 ?vfx=on|off（旧的 0…10 与 off/low/mid/high 仍然认）：只为对照用，**不落盘**。
-     同一份界面不用改设置就能开关一次毛玻璃，看完刷新即恢复用户自己的设置。 */
+  /* 地址栏 ?vfx=on|off（旧值 0…10 与 off/low/mid/high 仍认）：仅供对照，不落盘。
+     刷新即恢复用户设置。 */
   function forced(){
     try{
       var m = /[?&]vfx=([a-z0-9]+)(?:&|$)/.exec(location.search || '');
@@ -120,7 +105,7 @@ var VFX = (function(){
       if(u.glass !== undefined && u.glass !== null && u.glass !== ''){ st.glass = normGlass(u.glass); }
 
       var lv = st.glass;
-      // 浏览器不认 backdrop-filter 时退成 off：半透明底还在、版式不变，只是不做模糊。
+      // 浏览器不支持 backdrop-filter 时退成 off：半透明底与版式不变，不做模糊。
       if(lv !== 'off' && !supported()){ lv = 'off'; }
       var f = forced();
       if(f){ lv = f; }
@@ -137,8 +122,8 @@ var VFX = (function(){
     }catch(e){}
   }
 
-  /* 量一段帧率：**有界的一小段** —— 连抓约一秒的帧间隔就停，不做常驻 rAF 循环。
-     设置页那行「帧率实测」与逐档对比都走它；它只在被叫到时才跑，页面闲着时不留任何定时器。 */
+  /* 量一段帧率：有界的一小段，抓约一秒帧间隔即停，不做常驻 rAF 循环。
+     仅在调用时运行，页面空闲时不留定时器。 */
   function sample(ms){
     return new Promise(function(res){
       var frames = 0, worst = 0, t0 = 0, last = 0;
@@ -177,7 +162,7 @@ async function api(path, body){
 }
 
 /* ------------------------------------------------------------ 环境能力 ---- */
-/* 体检结论的精简投影：只回答"这台机器能不能走这条操作"。 */
+/* 体检结论的精简投影：只回答本机能否走该操作。 */
 function capState(){
   if(!caps){ return null; }
   return {
@@ -201,8 +186,7 @@ function setCaps(s){
   maybeFwHint();
 }
 function renderCap(){
-  // 还没检测过的时候，以前是四个格子一起写"未检测" —— 四遍同一句话，
-  // 既占地方又没人知道能不能点。并成一个按钮：说清"还没测"和"点这里"。
+  // 未检测时并成一个按钮，说明"还没测"与"点这里"。
   if(!caps){
     setHTML($('cap'), '<button class="capcell unk wide" title="点击开始环境检测">'
       + '<span class="cl">环境检测</span><span class="cv">未检测 · 点击开始</span></button>');
@@ -243,7 +227,7 @@ function renderCap(){
     b.onclick = function(){ if(!caps){ startProbe(); } };
   });
 }
-// 体检正在跑的时候，那一格别还写着"还没做" —— 否则看着像点了没反应。
+// 体检执行中时，该格显示"检测中"，避免看似无响应。
 function setCapBusy(on){
   var b = $('cap').firstChild;
   if(!b || !b.className || b.className.indexOf('wide') < 0){ return; }
@@ -353,10 +337,7 @@ function startProbe(){
 }
 
 /* ------------------------------------------------------------ 主区渲染 ---- */
-// 没选操作时的空缺：这里以前是第二份"创建房间 / 加入房间 / 环境检测"三选一，
-// 和上面那两张卡长得几乎一样。分享出去之后最常收到的一句话就是
-// "两个地方都能点，我该点哪个" —— 所以重复的那份删掉，只留一句话指路。
-// 现在指的路是"侧栏那一列"，不再需要先点开一个「更多功能」才看得到。
+// 未选操作时的空缺：只留一句指路，指向侧栏操作列表。
 function renderIdle(){
   var w = $('workCard');
   w.className = 'panel';
@@ -433,9 +414,8 @@ function buildArgs(t){
   });
   return parts.join(' ');
 }
-/* 状态栏左侧那句"现在在跑什么"。它和顶栏的状态胶囊是**两件事**，不是同一件事的两处：
-   胶囊说的是"程序此刻的状态"（空闲 / 执行中 / 已结束），这里说的是"这一次跑的是哪个操作"。
-   命令行不再挂在这一行（它是给写脚本的人看的），要看等价命令时点开表单右上角的「命令」。 */
+/* 状态栏左侧显示本次操作名，与顶栏状态胶囊是两件事。
+   等价命令在表单右上角的「命令」里。 */
 function syncFoot(){
   setText($('ftTask'), sel ? ('本次操作：' + sel.name) : '未选择操作');
 }
@@ -448,9 +428,9 @@ function setRunningUI(on){
 }
 
 /* ------------------------------------------------- 入站未放行的提示 ---- */
-/* 体检结论里 fw=0 表示本工具还没给这个端口加过入站放行规则。
-   只提示、只置灰按钮，绝不自动改系统；用户点一下才加。
-   加的那条规则范围仅限本程序与该端口（netsh 命令由 firewall 任务生成，界面不自己拼）。 */
+/* 体检结论 fw=0 表示尚未为该端口加入站放行规则。
+   只提示并置灰按钮，用户点击才加；规则范围仅限本程序与该端口
+   （netsh 命令由 firewall 任务生成，界面不自己拼）。 */
 function maybeFwHint(){
   var box = $('fwBanner');
   if(!box){ return; }
@@ -510,7 +490,7 @@ function classify(t){
   var m = /^\s*([✓!✗])\s/.exec(t);
   if(m){ return m[1] === '✓' ? 'ok' : (m[1] === '!' ? 'warn' : 'bad'); }
   if(/^\.\.\s/.test(t)){ return 'dim'; }
-  // 纯分隔线（==== / ---- / ~~~~）只是段落标记，单列一档压暗，不与结论抢同一级亮度
+  // 纯分隔线（==== / ---- / ~~~~）单列一档压暗
   if(/^[-=~─—]{4,}$/.test(t.trim())){ return 'sep'; }
   if(/^结论|^建议|^说明|^处理|^原因/.test(t)){ return 'info'; }
   if(/错误|失败|不可用|拒绝|超时|异常/.test(t)){ return 'bad'; }
@@ -577,7 +557,7 @@ function appendLines(list){
   });
   refreshLog();
 }
-/* 机器标记随日志一起下来，收到就顺手更新界面，不用每次轮询去整段日志里搜 */
+/* 机器标记随日志下发，收到即更新界面，无需每次轮询搜索整段日志 */
 function noteMarker(kind, val){
   if(kind === 'ADDR'){ setAddr(val); }
   else if(kind === 'ROOM'){
@@ -603,15 +583,13 @@ function setAddr(a){
   refreshInvite(); // 地址一变，那段"发给朋友的话"跟着重拼
 }
 function setJoin(j){
-  // 这条命令不再单独占一块地方 —— 它就写在下面那段邀请文本的"方式二"里。
-  // 单独摆一份 = 界面上同一个东西出现两次、配两个复制按钮，反而不知道该复制哪个。
+  // 该命令写在下面邀请文本的"方式二"里，不单独占一块地方。
   if(!j || j === joinCmd){ return; }
   joinCmd = j;
   refreshInvite();
 }
 /* -------------------------------------------------------- 在场玩家 ---- */
-/* 房主侧的名单。时长在这里按当前时间算，而不是由后端每秒重发一遍 ——
-   名单没变就不该让界面重绘。 */
+/* 房主侧名单。时长按当前时间本地计算，名单未变则不重绘。 */
 var guests = [];
 var guestsKey = '';   // 上次画出来的内容指纹（名单 + 分钟数），没变就不重画
 function setGuests(v){
@@ -664,8 +642,8 @@ async function startTask(){
   if(b){ b.disabled = true; }
   var r = await api('/api/start', { key: sel.key, inputs: inputs });
   if(!r.ok && /已经有一个任务在跑/.test(r.err || '')){
-    // 打开界面时会自动跑一次环境检测（约十几秒）。这期间使用者点「运行」是明确意图，
-    // 应当打断那次检测再来 —— 而不是把他挡回去、让他自己去找「停止」。
+    // 打开界面会自动执行一次环境检测（约十几秒）。期间用户点「运行」应打断该检测，
+    // 而不是挡回去让其自行「停止」。
     await api('/api/stop');
     await waitIdle(15000);
     r = await api('/api/start', { key: sel.key, inputs: inputs });
@@ -692,11 +670,10 @@ function quitApp(){
 }
 
 /* ------------------------------------------------------ 一步开局 + 邀请 ---- */
-/* 简化入口：房主只填房间码、玩家只粘贴邀请。两者的完整参数（端口、白名单、中继地址…）
-   仍然在「更多功能」里逐项可调 —— 这里只是把最常走的那条路压到一步。 */
+/* 简化入口：房主只填房间码、玩家只粘贴邀请；完整参数仍在操作列表里逐项可调。 */
 var quickRole = '';
 
-// 等到当前任务真的停下（/api/stop 返回后进程还要几秒才退出，光等固定时间不够）。
+// 等待当前任务真正停止（/api/stop 返回后进程仍需数秒退出，固定等待不足）。
 async function waitIdle(ms){
   var t0 = Date.now();
   while(Date.now() - t0 < (ms || 15000)){
@@ -729,8 +706,8 @@ async function startWith(key, inputs){
   return true;
 }
 
-// 从房主发来的那段话里读地址与房间码。三种形式都要吃得下：
-// 命令行（--host/--room）、纯地址、以及本工具自己生成的那段邀请文本。
+// 从邀请文本里读地址与房间码，兼容三种形式：
+// 命令行（--host/--room）、纯地址、本工具生成的邀请文本。
 function parseInvite(text){
   var t = (text || '').replace(/\r/g, '');
   var out = { host: '', room: '' };
@@ -754,14 +731,13 @@ function parseInvite(text){
   return out;
 }
 
-// 邀请文本：房主唯一需要转发的文本。整段复制即可，玩家按其中步骤操作。
-// 内容按"先公网、后本工具"的顺序排列 —— 这是两条入口的推荐顺序。
+// 邀请文本：房主唯一需要转发的文本，整段复制，玩家按步骤操作。
+// 内容按"先公网、后本工具"排列。
 function buildInvite(){
   if(!addr){ return ''; }
   var s = '【mclbx 房间邀请】\n';
-  // 房间码那一行按「口令是什么」来写。raw / 映射 / 公网 IPv4 直连这三种形态下地址本身就是口令，
-  // 房间码只对「方式二」有意义 —— 写反了会让好人以为要在游戏里填码，也让这段文本看起来
-  // 比实际更像"钥匙"（见坏-1：这类文本被转到大群里的代价）。
+  // 房间码那一行按「口令是什么」来写。raw / 映射 / 公网 IPv4 直连下地址本身即口令，
+  // 房间码只对「方式二」有意义。
   if(gateByRoom){
     s += '房间码：' + (roomCode || '见地址') + '（「方式一」的口令：名称里不含它会被拒绝）\n\n';
   } else {
@@ -787,7 +763,7 @@ function refreshInvite(){
   setHidden(w, false);
 }
 
-// 环境结论一句话：告诉使用者"接下来会发生什么"，而不是让他去读四个指标。
+// 环境结论一句话，让使用者知道接下来会发生什么。
 function qHintFromCaps(raw){
   var h = $('qHint');
   if(!h){ return; }
@@ -848,8 +824,7 @@ async function tick(){
       setLink(entry, room, false);
     } else if(s.done){
       var ok = !(s.err || (s.code && s.code !== 0));
-      // 刚跑完"放行入站"：把提示条收掉。规则是否真的写进去了以任务退出码为准，
-      // 这里只负责别再挂着这条提示。
+      // "放行入站"任务结束后收掉提示条；规则是否写入以任务退出码为准。
       if(s.taskKey === 'firewall' && ok){
         fwFixed = true;
         setHidden($('fwBanner'), true);
@@ -902,11 +877,8 @@ $('qGuestGo').onclick = async function(){
   }
 };
 /* ==================== 页面路由 ====================
-   三个平级页面：工作台 / 设置 / 说明书。导航在顶栏，地址栏的 hash 跟着走。
-   hash 不是"为了做成单页应用"—— 它只解决两件具体的事：刷新后还停在原页，
-   以及浏览器后退能退回上一步。以前这里散着四个查询参数（?settings=1 / ?manual=1 /
-   ?quick=host / ?more=1），每个都只服务于当时的一次截图核对；现在它们全部删掉，
-   只留这一个**真正的**路由。 */
+   三个平级页面：工作台 / 设置 / 说明书。导航在顶栏，地址栏 hash 跟随。
+   hash 解决两件事：刷新后停在原页、浏览器后退退回上一步。 */
 var PAGES = {work:'pageWork', settings:'pageSettings', manual:'pageManual'};
 var page = 'work';
 function go(next){
@@ -926,9 +898,8 @@ function go(next){
 }
 function loadManual(){
   var f = $('manualFrame');
-  // 说明书是另一个文档（自带一套变量），主题得从查询串带过去：不带的话，
-  // 深色主题下点开会得到一整页白 —— 暗环境里那一下很刺眼。
-  // 只在第一次进入时设地址：不打开就不加载，空闲时不占资源。
+  // 说明书是另一个文档（自带变量），主题须从查询串带过去，否则深色主题下会是一整页白。
+  // 只在首次进入时设地址：不打开不加载。
   if(f && !f.getAttribute('src')){
     f.setAttribute('src', '/manual?theme=' + encodeURIComponent(resolvedTheme()));
   }
@@ -937,12 +908,12 @@ window.addEventListener('hashchange', function(){
   var p = (location.hash || '').replace(/^#\//, '');
   if(PAGES[p] && p !== page){ go(p); }
 });
-/* 当前**解析后**的主题：documentElement 上的那个值就是它 —— "跟随系统"在首屏脚本里
-   已经按系统偏好写成了 light 或 dark。 */
+/* 当前解析后的主题：documentElement 上的值即它，"跟随系统"已在首屏脚本里
+   写成 light 或 dark。 */
 function resolvedTheme(){
   return document.documentElement.getAttribute('data-theme') || 'dark';
 }
-/* 说明书开着的时候换了主题：那是个独立文档，属性要单独跟着改（同源，可以直接改） */
+/* 说明书打开时换主题：它是独立文档，需单独同步属性（同源，可直接改） */
 function syncManualTheme(){
   try{
     var f = $('manualFrame');
@@ -952,12 +923,8 @@ function syncManualTheme(){
   }catch(e){ /* 拿不到就算了：那说明它还没加载完，加载时用的已经是对的那一套 */ }
 }
 /* ---------------------------------------------------------------- 设置 ---- */
-/* 设置是"这个程序怎么长、默认怎么表现"，与"这次要跑什么"是两件事：
-   后者的入口是左边的操作列表，前者的入口是这里。
-
-   两件事原来混在一起 —— 比如"打开界面时自动体检"藏在「检测本机环境」的字段里，
-   而"默认中转服务器"干脆没有，每个带这个字段的操作各填一遍。现在它们都归到这里，
-   同时保留原来的入口（原生界面还在用那个勾），读写的是同一个值。 */
+/* 设置 = 程序外观与默认行为，入口在设置页；"这次执行什么"的入口是左侧操作列表。
+   "打开界面时自动体检"仍保留原入口（原生界面用那个勾），读写同一份值。 */
 var ui = null;
 
 function uiEsc(s){
@@ -978,45 +945,41 @@ function uiField(key, cls, val, ph, suffix){
   return '<input class="mtxt ' + cls + '" data-in="' + key + '" value="' + uiEsc(val) +
     '" placeholder="' + uiEsc(ph) + '">' + (suffix ? ' ' + suffix : '');
 }
-/* 档位滑杆：0-10 的整数。拖动时只更新右侧那个数字，**松手（change）才落盘** ——
-   否则每挪一格就发一次保存请求。数字用等宽字体并占固定宽度，跳动时不会把版式撑动。 */
+/* 滑杆：拖动时只更新右侧数字，松手（change）才落盘，避免每挪一格发一次保存请求。
+   数字用等宽字体并占固定宽度。 */
 function uiRange(key, val, min, max){
   var v = (val === '' || val === null || val === undefined) ? String(min) : String(val);
   return '<div class="mrange"><input type="range" data-rng="' + key + '" min="' + min +
     '" max="' + max + '" step="1" value="' + uiEsc(v) + '" aria-label="' + key + '">' +
     '<span class="rv" data-rv="' + key + '">' + uiEsc(v) + '</span></div>';
 }
-/* 强调色圆点自带的预览色。看着和 CSS 重复，但**不能**改成 var(--sig)：
-   点任意一个圆点会立刻保存并套用，data-accent 一变，所有圆点都会变成同一个颜色，
-   预览就失去意义了。它必须是各自独立的色值（口径是"在深浅底上都看得出来的中间调"）。 */
+/* 强调色圆点的预览色，不同于 CSS 中的 var(--sig)：
+   data-accent 变化会令所有圆点同色，预览需要各自独立的色值。 */
 function uiAccents(){
   return [['mint','信号绿','#22C58A'],['blue','蓝','#4A90E2'],['violet','紫','#9B77E8']];
 }
-/* 主题的取值必须与 guiconfig.go 的 normalizeUI 白名单、以及 CSS 里的
-   :root[data-theme=…] 块一一对应；漏一处的症状是"选了但没变"或"永远选不到"。
-   用例 TestThemeOptionsMatchTheCSS 会拿这份名单去比对 CSS。 */
+/* 主题取值须与 guiconfig.go 的 normalizeUI 白名单、CSS 的 :root[data-theme=…] 块一一对应，
+   漏一处表现为"选了不变"或"选不到"。用例 TestThemeOptionsMatchTheCSS 比对这份名单。 */
 function uiThemes(){
   return [['auto','跟随系统'],['dark','深色'],['light','浅色'],['contrast','高对比']];
 }
-/* 背景图与毛玻璃两行的说明文字。它们随另一个设置项变（填没填背景图），
-   保存后要就地重刷，否则会挂着上一次的旧文案。 */
+/* 背景图与毛玻璃两行的说明文字，随另一设置项变化，保存后须就地重刷。 */
 function wallHintText(u){
-  if(u.wallReason){ return '这张图用不了：' + uiEsc(u.wallReason); }
-  return '点「导入图片…」选一张图（JPEG / PNG / GIF，单张上限 32MB）；也可以把图放进存档的 wallpapers 目录再点「刷新」。建议用不透明的图：透明区域转成 JPEG 后会发黑。';
+  if(u.wallReason){ return '该图片不可用：' + uiEsc(u.wallReason); }
+  return '点「导入图片…」选择图片（JPEG / PNG / GIF，单张上限 32MB）；也可将图片放入存档的 wallpapers 目录后点「刷新」。建议使用不透明图片：透明区域转为 JPEG 后会发黑。';
 }
 function glassHintText(u){
   var v = String(u.glass === undefined || u.glass === null ? '' : u.glass).trim().toLowerCase();
   // 旧的数字档也要认：0 是关，非零是开。
   var off = v === 'off' || parseInt(v, 10) === 0;
-  var head = off ? '关：面板实心、不做模糊。' : '开：面板半透明并做模糊，且是最透明那一档。';
-  var tail = off ? '' : '任务执行期间自动让位，跑完立刻恢复。';
+  var head = off ? '关：面板实心，不做模糊。' : '开：面板半透明并做模糊。';
+  var tail = off ? '' : '任务执行期间暂时关闭，结束后恢复。';
   var wall = (!off && u.bgImage) ? '已设背景图，面板会补一点底色。' : '';
   return head + tail + wall;
 }
-/* 图库选择器。
-   配置里存的是「导入后的文件名」，所以这里给下拉列表而不是让用户敲路径 —— 路径那种做法
-   在用户把图挪个地方之后就会静默失效，而「导入」是把图复制进存档，之后怎么动原文件都不影响。
-   列表来自服务端扫描 wallpapers 目录的结果，用户也可以自己往那个目录里丢图。 */
+/* 图库选择器。配置里存「导入后的文件名」，故此处给下拉列表而非路径：
+   路径在图片移动后会静默失效；「导入」把图复制进存档，原文件变动不影响。
+   列表来自服务端扫描 wallpapers 目录的结果。 */
 function uiWallPicker(u){
   var list = u.wallList || [];
   var opts = '<option value="">（不用背景图）</option>';
@@ -1024,19 +987,17 @@ function uiWallPicker(u){
     opts += '<option value="' + uiEsc(n) + '"' + (n === u.bgImage ? ' selected' : '') + '>' + uiEsc(n) + '</option>';
   });
   if(u.bgImage && list.indexOf(u.bgImage) < 0){
-    // 配置里选的那张已经不在图库里了：仍然列出来并选中，好让用户看见"是它丢了"
+    // 所选图片已不在图库：仍列出并选中，让用户看到它已丢失
     opts += '<option value="' + uiEsc(u.bgImage) + '" selected>' + uiEsc(u.bgImage) + '（已不在图库里）</option>';
   }
-  /* 「打开目录」不在这里 —— 整页只有一个「打开数据目录」，放在维护那一块。
-     同一件事在三个地方各留一个按钮的时候，用户得先猜它们是不是同一个目录。 */
+  /* 「打开目录」不在此处，整页只在维护块保留一个「打开数据目录」。 */
   return '<select class="mtxt" data-in="bgImage">' + opts + '</select>' +
     '<input type="file" id="wallFile" accept="image/*" style="display:none">' +
     '<button type="button" class="btn sm" data-act="wallImport">导入图片…</button>' +
     '<button type="button" class="btn sm" data-act="wallRefresh">刷新</button>';
 }
-/* 曲库那一行。曲库的真相在磁盘上，所以这里只报数量 + 一个「刷新」，
-   不做内嵌的播放列表管理 —— 用户用资源管理器管理自己的文件，比在设置里做一套增删更省心。
-   「打开目录」同样交给维护那一块，不在这里再放一个。 */
+/* 曲库那一行只报数量 + 一个「刷新」，不做内嵌播放列表管理。
+   「打开目录」交给维护块。 */
 function uiMusicList(u){
   var list = u.musicList || [];
   var n = list.length;
@@ -1046,17 +1007,16 @@ function uiMusicList(u){
 }
 function musicHintText(u){
   if(!(u.musicList || []).length){
-    return '把音乐文件（MP3 / WAV / FLAC / M4A / OGG）放进存档目录的 music 文件夹，再点「刷新」。只把真正的音频算进曲库：改了后缀的其它文件不会出现在这里。';
+    return '将音乐文件（MP3 / WAV / FLAC / M4A / OGG）放入存档目录的 music 文件夹后点「刷新」。仅音频文件计入曲库，改了后缀的其它文件不会列出。';
   }
-  return '曲库就是存档里的 music 文件夹，你可以自己往里放、改名、删除，点「刷新」后生效。播放时不另占 CPU，关掉窗口就停。某个文件放不了会被标出来，不会静默跳过。';
+  return '曲库即存档的 music 文件夹，可自行添加、改名或删除，点「刷新」后生效。播放不额外占用 CPU，关闭窗口即停止；无法播放的文件会被标出。';
 }
 /* ==================== 设置页 ====================
    三个一级分类：主题外观 / 辅助工具 / 关于与状态；维护动作集中在最后一块。
-   每个可编辑项在服务端都有对应字段与归一化逻辑，没有占位开关。
-   改完即时落盘，最近一次写盘时间显示在状态栏（见 uiSaveState）；非法取值由服务端回退并在 uiSave 里回报。 */
+   每个可编辑项在服务端都有字段与归一化逻辑。改完即时落盘，写盘时间显示在状态栏；
+   非法取值由服务端回退并在 uiSave 里回报。 */
 
-/* 板块与卡片的小图标。内联 SVG，只跟着 currentColor 走 ——
-   不引图标字体也不引外部文件：面板的观感不该给程序添依赖。 */
+/* 板块与卡片的小图标。内联 SVG，跟随 currentColor，不引图标字体或外部文件。 */
 function uiIcon(name){
   var a = 'viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" ' +
     'stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"';
@@ -1074,9 +1034,8 @@ function uiIcon(name){
   return '<svg ' + a + '><circle cx="8" cy="8" r="5.6"/><path d="M8 7.3v3.9"/>' +
     '<path d="M8 5v.1"/></svg>';
 }
-/* 强调色圆点自带的预览色。看着和 CSS 重复，但**不能**改成 var(--sig)：
-   点任意一个圆点会立刻保存并套用，data-accent 一变所有圆点都会变成同一个颜色，
-   预览就失去意义了。它必须是各自独立的色值。 */
+/* 强调色圆点的预览色，同 uiAccents：不能改成 var(--sig)，
+   data-accent 变化会令所有圆点同色。 */
 function uiAccentDots(u){
   return uiAccents().map(function(a){
     return '<button type="button" class="mdot' + (u.accent === a[0] ? ' on' : '') +
@@ -1084,11 +1043,9 @@ function uiAccentDots(u){
       '" style="background:' + a[2] + '"></button>';
   }).join('');
 }
-/* 一个设置项。结构固定为四件：
-     标题 + 状态标签 / 说明 / 控件 / 悬停可见的更细提示。
-   tip 走 title 而不另铺一行字：面板已经有一行说明了，第二行会把一屏能看到的项数砍掉三分之一。
-   key 是服务端字段名：标签由 uiTag() 按它算，而 data-k 让"改完一项"能就地刷新标签，
-   不必重渲染整页（重渲染会把焦点和光标位置一起弄丢）。 */
+/* 一个设置项。结构固定：标题 + 状态标签 / 说明 / 控件 / 悬停提示。
+   tip 走 title 不另铺一行。key 是服务端字段名，data-k 用于就地刷新标签，
+   避免重渲染整页（会丢失焦点与光标位置）。 */
 function uiItem(key, title, control, desc, tip){
   var tag = uiTag(ui, key);
   return '<div class="mitem" data-k="' + key + '"' + (tip ? ' title="' + uiEsc(tip) + '"' : '') + '>' +
@@ -1097,7 +1054,7 @@ function uiItem(key, title, control, desc, tip){
     '</div><div class="mi-d">' + desc + '</div></div>' +
     '<div class="mi-c">' + control + '</div></div>';
 }
-/* 保存之后就地刷「已改动」标签：不重建节点，所以输入框的焦点与光标都留着。 */
+/* 保存后就地刷「已改动」标签，不重建节点，保留焦点与光标。 */
 function uiRefreshTags(){
   var body = $('settingsBody');
   if(!body || !ui){ return; }
@@ -1109,25 +1066,22 @@ function uiRefreshTags(){
     span.className = 'mi-tag' + (tag ? ' chg' : '');
   });
 }
-/* 一级分类。整页只有这一种分类容器，圆角与标题样式统一 ——
-   以前是"板块 + 卡片"两层，每层各写一套标题样式，读代码时看不出它们是一回事。 */
+/* 一级分类。整页只用这一种分类容器，圆角与标题样式统一。 */
 function uiCat(icon, title, sub, body){
   return '<section class="mcat"><div class="mcathead">' +
     '<span class="ic">' + uiIcon(icon) + '</span>' +
     '<span class="tt">' + title + '</span><span class="sub">' + sub + '</span></div>' +
     body + '</section>';
 }
-/* 分类内部的小标题：只用于把只读信息与变更记录分开，不再承载分组语义。 */
+/* 分类内小标题：只用于分隔只读信息与变更记录。 */
 function uiSub(title, extra){
   return '<div class="msub"><span class="tt">' + title + '</span>' +
     (extra ? '<span class="mi-d">' + extra + '</span>' : '') + '<span class="sp"></span></div>';
 }
-/* 高级选项的出厂位置：两根滑杆的默认值都是它，也是"有没有越过出厂"的分界线。
-   写成一个常量而不是散落的字面量 —— Go 那边另有一份同值的 uiPctDefault，
-   两处一旦不一致，"看到的是出厂值、服务端存的却不是"这种错没人查得出来。 */
+/* 高级选项的出厂位置，两根滑杆的默认值。Go 那边另有一份同值的 uiPctDefault，
+   两处一旦不一致，"前端看到出厂值、服务端存的不是"无法察觉。 */
 var ADV_FACTORY = 50;
-/* 高级选项的说明行。越过出厂位置（往更冒险的那一端）就当场提醒 ——
-   警告必须出现在改动的那一刻，只写在说明书里等于没提示。 */
+/* 高级选项的说明行。越过出厂位置即当场提醒。 */
 function advHintText(key, u){
   var v = parseInt(key === 'wallBright' ? u.wallBright : u.transparency, 10);
   if(isNaN(v)){ v = ADV_FACTORY; }
@@ -1135,9 +1089,8 @@ function advHintText(key, u){
   if(v < ADV_FACTORY){ return '比出厂值更保守，文字更容易看清。'; }
   return '出厂值。往左往右都会改变观感。';
 }
-/* 「已改动」标签的判据。默认值这份表与 uiCollect() 里那份是同一个口径 ——
-   两边不一致的症状是"某一项明明是默认值却挂着已改动"，而那种错没人会去查。
-   remember 存的是"关掉"的反面，logKeep 服务端给的是生效值，都要先还原成同一个口径再比。 */
+/* 「已改动」标签的判据。这份表与 uiCollect() 里那份口径一致，不一致表现为
+   "默认值却挂着已改动"。remember 存"关掉"的反面、logKeep 是生效值，都先还原再比。 */
 var UI_DEF = {
   theme:'auto', accent:'mint', flat:'off', radii:'std', backdrop:'on', bgImage:'',
   glass:'on', fade:'on', scale:'std', motion:'full',
@@ -1146,8 +1099,8 @@ var UI_DEF = {
   transparency:String(ADV_FACTORY), wallBright:String(ADV_FACTORY)
 };
 function uiTag(u, key){
-  // 纯动作行（帧率实测、曲库、播放控制、清除…）没有对应的设置字段，key 传空串。
-  // 不加这一句的话它们会全部挂上「已改动」—— 因为空键在两张表里都取不到值，比出来就是"不同"。
+  // 纯动作行（帧率实测、曲库、播放控制等）没有设置字段，key 传空串。
+  // 否则空键在两张表里都取不到值，会被判为"已改动"。
   if(!key){ return null; }
   var v = u ? u[key] : '';
   if(key === 'remember'){ v = (u.remember === '0') ? '0' : ''; }
@@ -1155,7 +1108,7 @@ function uiTag(u, key){
   if(v === undefined || v === null){ v = ''; }
   return (String(v) === UI_DEF[key]) ? null : {text:'已改动', chg:true};
 }
-/* 只读信息：值全部来自服务端，界面上只有文本，没有任何可编辑控件。 */
+/* 只读信息：值全部来自服务端，界面上只有文本。 */
 function uiInfoRow(k, v, mono){
   return '<dt>' + k + '</dt><dd' + (mono ? ' class="mono"' : '') + '>' + (v || '—') + '</dd>';
 }
@@ -1186,13 +1139,12 @@ function uiThemeHTML(u){
       '两层装饰渐变；不影响背景图片。') +
     uiItem('bgImage', '背景图片', uiWallPicker(u), wallHintText(u),
       '按比例铺满；上压一层与主题同色的暗化层。') +
-    /* 视觉特效自成一个分组：这一组管的是"面板长什么样"，
-       与上面那几项（配色、背景）和下面那几项（字号、动效、侧栏）不是一类。 */
-    uiSub('视觉特效', '面板的半透明与模糊；恒开，无总开关') +
+    /* 视觉特效自成一个分组：管"面板长什么样"。 */
+    uiSub('视觉特效', '面板的半透明与模糊') +
     uiItem('glass', '毛玻璃', uiSeg('glass', u.glass, [['off', '关'], ['on', '开']]),
       glassHintText(u),
-      '模糊按层次分配：主容器一档、浮层更强；面板内部卡片只半透明。' +
-      '设了背景图时两者并存，字照样读得清。高对比主题不参与。') +
+      '模糊按层次分配：主容器一档，浮层更强；面板内的卡片只半透明。' +
+      '设了背景图时两者并存，不影响文字可读性。高对比主题不参与。') +
     uiItem('fade', '面板淡入', uiSw('fade', u.fade !== 'off', '浮层出现时淡入'),
       '只动透明度，不动位置。',
       '「动画效果：精简」或系统「减少动态效果」下自动关闭。') +
@@ -1208,8 +1160,8 @@ function uiThemeHTML(u){
     uiItem('rail', '侧边栏样式', uiSeg('rail', u.rail, [['std','标准'],['compact','紧凑']]),
       '去掉操作行说明、收紧行距。',
       '只影响排版；名称、顺序与行为不变。') +
-    /* 高级选项自成一组：调的是同一批观感，但可能比出厂更冒险，代价由用户自己承担。
-       出厂值放正中间，所以往两端都有意义，不是一根只能往一边拉的杆。 */
+    /* 高级选项自成一组：调的是同一批观感，可能比出厂更冒险。
+       出厂值居中，往两端都有意义。 */
     uiSub('高级选项', '出厂值在中间；越过出厂值后文字可能看不清') +
     uiItem('transparency', '面板透明度', uiRange('transparency', u.transparency, 0, 100),
       advHintText('transparency', u),
@@ -1222,7 +1174,7 @@ function uiThemeHTML(u){
 /* ---- 分类二：辅助工具 ---- */
 function uiAuxHTML(u){
   return '<div class="mbenefit">' + uiIcon('aux') +
-    '<span>附加能力；关掉任何一项，联机照常。</span></div>' +
+    '<span>关掉任何一项都不影响联机。</span></div>' +
     uiItem('', '曲库', uiMusicList(u), musicHintText(u),
       '即存档的 music 文件夹；改动后点「刷新」。') +
     uiItem('musicMode', '播放顺序', uiSeg('musicMode', u.musicMode, [['order','顺序'],['shuffle','随机']]),
@@ -1233,7 +1185,7 @@ function uiAuxHTML(u){
       '随机模式不受此项影响。') +
     uiItem('musicVol', '音量', uiRange('musicVol', u.musicVol, 0, 100),
       '0-100，与系统音量相乘；拖动即生效。',
-      '听不见先查系统音量。') +
+      '无声时先检查系统音量。') +
     uiItem('', '播放控制',
       '<button type="button" class="btn sm" data-act="bgmPrev">上一首</button>' +
       '<button type="button" class="btn sm" data-act="bgmPlay">播放 / 暂停</button>' +
@@ -1249,7 +1201,7 @@ function uiAuxHTML(u){
       '不动任何设置。') +
     uiItem('logKeep', '日志保留行数', uiField('logKeep', 'small', u.logKeep, '2000', '行'),
       '两层各留行数，200 ~ 20000。',
-      '超范围回退到默认。') +
+      '超出范围时回到默认值。') +
     uiItem('defPort', '默认游戏端口', uiField('defPort', 'small', u.defPort, '25565', ''),
       '「游戏端口」留空时用它。',
       '任务里填过的优先。') +
@@ -1290,15 +1242,13 @@ function uiAboutHTML(u){
   h += uiChangesHTML(u);
   return h;
 }
-/* 变更记录。它以前是设置面板里的"第二页"（点「变更记录」整块换掉）——
-   那是同一件事的两半：这份配置被谁改过，属于状态，不属于另一个设置页。
-   现在它就是「关于与状态」里的一段，少一个视图状态、少两个按钮。 */
+/* 变更记录："关于与状态"里的一段。 */
 function uiChangesHTML(u){
   var list = (u && u.changes) || [];
   var h = uiSub('设置变更记录', '共 ' + list.length + ' 条，上限 ' + (u.changeMax || 500) + ' 条' +
     (list.length ? '　·　记录只存取值本身，不含与网络环境或个人身份有关的内容' : ''));
   if(!list.length){
-    return h + '<div class="mchgempty">还没有改动记录。改过设置之后，这里会逐条记下时间、分类、' +
+    return h + '<div class="mchgempty">尚无改动记录。改过设置后，这里会逐条记下时间、分类、' +
       '选项名与前后取值。</div>';
   }
   h += '<div class="mchg">';
@@ -1312,15 +1262,13 @@ function uiChangesHTML(u){
   h += '</div>';
   return h;
 }
-/* ---- 维护：所有"动作"集中在这一块 ----
-   恢复默认 / 导出 / 导入 / 打开目录 / 复制版本 / 诊断包。
-   它们不是设置项，所以不在上面三个分类里；也不散落在各分类标题旁边 ——
-   这一条是"重要操作集中放置"的可执行版本。
-   恢复默认仍然保留两个范围，但入口只有一个：点开它之后才选"仅某一类"还是"全部"。 */
+/* ---- 维护：动作集中在这一块 ----
+   恢复默认 / 导出 / 导入 / 打开目录 / 复制版本 / 诊断包，均非设置项。
+   恢复默认保留两个范围，入口只有一个，点开后才选范围。 */
 function uiMaintHTML(){
   return '<section class="mmaint">' +
     '<div class="mcathead"><span class="ic">' + uiIcon('wrench') + '</span>' +
-    '<span class="tt">维护</span><span class="sub">以下是动作而不是设置：作用于整份配置或整个存档目录。</span></div>' +
+    '<span class="tt">维护</span><span class="sub">作用于整份配置或整个存档目录。</span></div>' +
     '<div class="acts">' +
     '<button type="button" class="btn sm" data-act="resetAsk">恢复默认…</button>' +
     '<button type="button" class="btn sm" data-act="exportCfg">导出全部配置</button>' +
@@ -1330,26 +1278,23 @@ function uiMaintHTML(){
     '<button type="button" class="btn sm" data-act="copyVersion">复制版本信息</button>' +
     '<button type="button" class="btn sm" data-act="diag">导出诊断包</button>' +
     '</div>' +
-    '<div class="mnote">改动即时生效也会立刻保存，所以没有「保存」这一步；' +
-    '状态栏上那句「已保存 时:分:秒」就是最近一次写盘的时间。' +
-    '导出的配置文件里含中转凭据，发给别人之前先自己看一眼。' +
-    '「导出诊断包」会把日志、环境信息与设置打成一个文件，排查问题时比截图准。</div>' +
+    '<div class="mnote">改动即时生效并立刻保存；状态栏的「已保存 时:分:秒」是最近一次保存时间。' +
+    '导出的配置文件含中转凭据，发送前请自行确认。' +
+    '诊断包包含日志、环境信息与设置，便于排查。</div>' +
     '</section>';
 }
 function uiSettingsHTML(u){
-  return '<p class="mintro">本页所有选项<b>改完即时生效</b>，不需要重启，也没有「保存」这一步。' +
-    '带<b>已改动</b>标记的是与默认值不同的项；把鼠标停在一行上可以看到更细的说明。</p>' +
-    uiCat('theme', '主题外观', '配色、背景、特效与排版。改完立刻看到。', uiThemeHTML(u)) +
-    uiCat('aux', '辅助工具', '软件附带的附加能力，可按需开关。', uiAuxHTML(u)) +
-    uiCat('info', '关于与状态', '只读信息集中在这里，不重复出现在别处。', uiAboutHTML(u)) +
+  return '<p class="mintro">所有选项<b>改完即时生效</b>，无需重启，也没有「保存」这一步。' +
+    '带<b>已改动</b>标记的项与出厂值不同；悬停一行可见更细的说明。</p>' +
+    uiCat('theme', '主题外观', '配色、背景、特效与排版。', uiThemeHTML(u)) +
+    uiCat('aux', '辅助工具', '附加能力，可按需开关。', uiAuxHTML(u)) +
+    uiCat('info', '关于与状态', '只读信息。', uiAboutHTML(u)) +
     uiMaintHTML() +
     '<input type="file" id="wallFile" accept="image/*" style="display:none">' +
     '<input type="file" id="cfgFile" accept=".json,application/json" style="display:none">';
 }
 
-/* 进设置页：取一次设置、渲染、绑定。
-   重渲染时保留滚动位置 —— 改完一项会被重画（例如取值被回退），
-   滚回顶部会让人以为"刚才那一步跳走了"。 */
+/* 进设置页：取一次设置、渲染、绑定。重渲染时保留滚动位置。 */
 async function renderSettings(){
   var body = $('settingsBody');
   if(!body){ return; }
@@ -1403,10 +1348,8 @@ function uiBind(){
   if(cf){ cf.onchange = function(){ if(cf.files && cf.files[0]){ uiImportCfg(cf.files[0]); } }; }
 }
 /* 收集面板上的全部设置，提交给服务端。
-   **起点必须是服务端那份 ui，不能是写死的默认值。** 现在整页一次渲染全部条目，
-   所以"没渲染的字段不存在"这个坑暂时不会发作 —— 但它随时会：只要有人给设置加一屏、
-   或者把某一类折叠起来，从硬编码默认值起步就会变成"在 A 处改一项、顺手把 B 处打回默认"。
-   这条以前真的发作过（分模块渲染的那一版），所以起点写死成 ui 并留着这条注释。 */
+   起点必须是服务端那份 ui，不能是写死的默认值：一旦改为分屏或折叠渲染，
+   从硬编码默认值起步会把未渲染字段打回默认。 */
 function uiCollect(){
   var u = ui || {};
   var out = {
@@ -1429,9 +1372,8 @@ function uiCollect(){
     var k = c.getAttribute('data-sw');
     if(k === 'autoProbe'){ out.autoProbe = c.checked; }
     if(k === 'remember'){ out.remember = c.checked ? '' : '0'; }
-    // 背景光效：**这里以前漏了**，于是 out.backdrop 永远是写死的 'on' —— 复选框点下去没反应，
-    // 重开面板又勾回来，而且任何一次保存都会把用户手改的 backdrop:"off" 打回 on。
-    // 现在有一条用例（TestEverySwitchInThePanelIsCollected）逐键比对面板上的开关与这里的读取。
+    // 背景光效须在此读取：漏掉会让 out.backdrop 固定为 'on'，复选框无效且保存会把用户的
+    // "off" 打回 on。用例 TestEverySwitchInThePanelIsCollected 逐键比对。
     if(k === 'backdrop'){ out.backdrop = c.checked ? 'on' : 'off'; }
     if(k === 'flat'){ out.flat = c.checked ? 'on' : 'off'; }
     // 【视觉美化，非核心功能】面板淡入
@@ -1440,16 +1382,15 @@ function uiCollect(){
   Array.prototype.forEach.call(document.querySelectorAll('#settingsBody [data-in]'), function(i){
     out[i.getAttribute('data-in')] = (i.value || '').trim();
   });
-  // 滑杆：值就是十进制字符串（档位 0-10、音量 0-100），与服务端收的形态一致，客户端不再猜类型。
+  // 滑杆：值为十进制字符串（音量 0-100），与服务端收取形态一致，客户端不猜类型。
   Array.prototype.forEach.call(document.querySelectorAll('#settingsBody [data-rng]'), function(r){
     out[r.getAttribute('data-rng')] = String(r.value);
   });
   return out;
 }
-/* 高级选项：把两根滑杆的百分比换算成"倍率"，写到 <html> 的内联自定义属性上。
-   倍率 1 = 出厂；透明度往右（更透）倍率小于 1，背景明暗往右（照片更亮）倍率小于 1。
-   出厂值一律用 removeProperty 清掉属性 —— 不写覆盖，出厂观感就与引入这两项之前逐值相同。
-   只改这两个无单位的倍率，颜色与基准不透明度都留在 CSS 里，避免同一组取值写两份。 */
+/* 高级选项：把两根滑杆的百分比换算成倍率，写到 <html> 的内联自定义属性。
+   倍率 1 = 出厂；透明度与背景明暗往右均使倍率小于 1。
+   出厂值用 removeProperty 清掉属性，不写覆盖。颜色与基准不透明度留在 CSS，避免两份取值。 */
 function applyAdvanced(el, transparency, wallBright){
   function pct(v){
     var n = parseInt(v, 10);
@@ -1463,7 +1404,7 @@ function applyAdvanced(el, transparency, wallBright){
   put('--adv-glass', transparency, 0.60);
   put('--adv-scrim', wallBright, 0.75);
 }
-/* 外观各项立刻生效（改完就能看到），其余的存在服务端、下次拼命令时生效 */
+/* 外观各项立即生效；其余存服务端，下次拼命令时生效 */
 function uiApply(u){
   var el = document.documentElement;
   el.setAttribute('data-accent', u.accent || 'mint');
@@ -1471,16 +1412,13 @@ function uiApply(u){
   el.setAttribute('data-backdrop', u.backdrop === 'off' ? 'off' : 'on');
   el.setAttribute('data-scale', u.scale === 'big' ? 'big' : 'std');
   el.setAttribute('data-flat', u.flat === 'on' ? 'on' : 'off');
-  // 圆角与侧边栏这两个是"改了要立刻看见"的项：不写在这里的话，
-  // 面板上选了新档位，界面要等下次刷新才变 —— 看起来就像没保存成功。
+  // 圆角与侧边栏须立即生效：否则选了新档位要等刷新才变，看似未保存成功。
   el.setAttribute('data-radii', u.radii || 'std');
   el.setAttribute('data-rail', u.rail || 'std');
-  // 【视觉美化，非核心功能】data-glass / data-fade 两项交给 VFX 去写。
-  // 集中在那里的原因：档位要先过一遍"浏览器认不认 backdrop-filter"，不支持时降级；
-  // 业务侧只把设置递过去，不参与任何渲染决策，也**不看它的返回值**。
+  // 【视觉美化，非核心功能】data-glass / data-fade 交给 VFX 写：
+  // 取值需先检查 backdrop-filter 支持性并在不支持时降级；业务侧不参与渲染决策。
   VFX.apply(u);
-  // 背景图由服务端缩放并缓存好之后返回地址，这里只负责把它挂上去/摘下来。
-  // 换图与清空都要求立刻生效，否则得关掉界面重开才看得到。
+  // 背景图由服务端缩放缓存后返回地址，此处只挂上/摘下，且须立即生效。
   if(u.wallURL){
     el.setAttribute('data-wall', 'on');
     el.style.setProperty('--wall', "url('" + u.wallURL + "')");
@@ -1488,15 +1426,13 @@ function uiApply(u){
     el.removeAttribute('data-wall');
     el.style.removeProperty('--wall');
   }
-  // 高级选项与背景图相关：两者改的都是"照片与面板的观感"，所以放在同一段里立刻生效。
+  // 高级选项与背景图都改观感，放在同一段里立即生效。
   applyAdvanced(el, u.transparency, u.wallBright);
   if(window.MCLBX_THEME){ window.MCLBX_THEME(u.theme || 'auto'); }
   else{ el.setAttribute('data-theme', u.theme || 'auto'); }
   syncManualTheme();
 }
-/* 保存之后就地把会随别的设置变的那两行说明重刷一遍。
-   只改文字、不重渲染整页 —— 重渲染会把焦点和光标位置一起弄丢，
-   而用户往往正是在输入框里改完直接回车保存的。 */
+/* 保存后就地重刷会随别的设置变化的那两行说明。只改文字，不重渲染整页。 */
 function uiRefreshHints(u){
   var body = $('settingsBody');
   if(!body || !u){ return; }
@@ -1509,9 +1445,7 @@ function uiRefreshHints(u){
     if(hint){ hint.textContent = pr[1]; }
   });
 }
-/* 状态栏上那句保存状态。它是"改动有没有落盘"的唯一答复 ——
-   面板里没有保存按钮，那就得有一句话随时说明此刻的状态，否则「我改了到底存上没」只能靠猜。
-   常驻显示时间戳而不是几秒后消失：这是个会长时间开着的工具，事后回看一眼也知道最后写盘在什么时候。 */
+/* 状态栏保存状态：面板无保存按钮，此处常驻时间戳显示最近写盘时间。 */
 function uiSaveState(txt, bad){
   var s = $('saveState');
   if(!s){ return; }
@@ -1536,30 +1470,28 @@ async function uiSave(){
   uiApply(ui);
   uiRefreshHints(ui);
   uiRefreshTags();
-  // 音量属于"改完立刻生效"那一类：不用等下一首
+  // 音量立即生效，无需等下一首
   if(bgmEl){ bgmEl.volume = bgmGain(); }
-  // logKeep 按十进制字符串收：服务端两条路（读设置 / 保存）给的是同一种形态，客户端不再猜类型
+  // logKeep 按十进制字符串收，与服务端两路（读设置 / 保存）形态一致
   var lk = parseInt(r.logKeep, 10);
   if(!isNaN(lk)){ LOG_KEEP = lk; }
-  // 有取值不合法时把话说清楚：安静地把它改成另一个值，
-  // 用户只会以为"保存没生效"，然后反复试同一个非法输入。
+  // 取值不合法时须明确告知；静默改成别的值会让用户误以为保存未生效。
   var cor = r.corrected || [];
   if(cor.length){
     var parts = cor.slice(0, 3).map(function(c){
       return c.name + '（' + c.sent + ' → ' + c.used + '）';
     });
-    uiSaveState('已回退 ' + cor.length + ' 项非法取值 ' + clockNow(), true);
-    toast('有 ' + cor.length + ' 项取值不合法，已回退：' + parts.join('、') +
+    uiSaveState('已修正 ' + cor.length + ' 项取值 ' + clockNow(), true);
+    toast('有 ' + cor.length + ' 项取值不合法，已改回合法值：' + parts.join('、') +
       (cor.length > 3 ? ' 等' : ''), true);
-    // 重画一次，让控件上显示的是真正生效的值，而不是用户刚敲进去的那个。
-    // 同时把「已改动」标签一起刷新 —— 值是服务端归一化之后的，标签得跟着它走。
+    // 重画一次，使控件显示服务端归一化后真正生效的值，并刷新「已改动」标签。
     renderSettings();
     return;
   }
   uiSaveState('已保存 ' + clockNow());
 }
-/* 导入一张图片。走上传而不是把路径交给服务端去读 —— 导入的意义就是把图复制进存档，
-   存完之后原文件改名、移走、删掉都不影响。 */
+/* 导入图片：走上传而非把路径交给服务端。导入即把图复制进存档，
+   此后原文件改名、移走、删除均不影响。 */
 async function uiImportWall(file){
   var fd = new FormData();
   fd.append('file', file, file.name);
@@ -1575,13 +1507,10 @@ async function uiImportWall(file){
   toast('已导入并设为背景图');
 }
 /* ---- 背景音乐 ----
-   播放归界面这一侧：<audio> 原生解 MP3/WAV/FLAC/OGG/M4A，音量对所有格式都有效（实测 MCI 在
-   WAV 那一档设备上不支持音量），拖动进度靠服务端 /music/ 的 Range 支持，播完有 ended 事件。
-   于是不需要轮询、不需要定时器，Go 侧也不用维护一套播放状态机。
-
-   曲库的真相在磁盘上：列表来自服务端扫描 music 目录的结果。界面只记住「放哪一首」与偏好
-   （顺序、循环、音量），偏好存进 config.json。
-   放不了的文件的记在 bgmBad 里并显示出来 —— 静默跳过会让用户不知道有一首是坏的。 */
+   播放交给界面侧：<audio> 原生解 MP3/WAV/FLAC/OGG/M4A；拖动进度靠服务端 /music/ 的 Range；
+   播完有 ended 事件。故无需轮询与定时器，Go 侧也不维护播放状态机。
+   曲库来自服务端扫描 music 目录的结果；界面只记住「放哪一首」与偏好（顺序、循环、音量）。
+   无法播放的文件记在 bgmBad 并显示出来。 */
 var bgmEl = null, bgmList = [], bgmIdx = -1, bgmBad = {};
 
 /* 配置里是 0-100 的字符串，<audio>.volume 要 0-1。 */
@@ -1592,7 +1521,7 @@ function bgmGain(){
   if(v > 100){ v = 100; }
   return v / 100;
 }
-/* 底栏那一行只有曲名，没有别的花样，也没有任何动画。 */
+/* 底栏只显示曲名，无动画。 */
 function bgmPaint(){
   var el = $('bgmName');
   if(!el){ return; }
@@ -1602,8 +1531,8 @@ function bgmPaint(){
   el.textContent = (bgmEl && !bgmEl.paused ? '正在放：' : '已暂停：') + n;
 }
 function bgmSetList(list){
-  // 载荷里每首是 {name, size}，这里统一成文件名 —— 早先这里直接当字符串用了，
-  // 于是每首都去请求 /music/[object Object]，现象是「列得出来但一首也放不了」。
+  // 载荷里每首是 {name, size}，此处统一成文件名；直接当字符串会导致
+  // 请求 /music/[object Object]，表现为「列得出来但放不了」。
   bgmList = (list || []).map(function(x){
     return (x && x.name) ? x.name : String(x);
   });
@@ -1631,8 +1560,8 @@ function bgmPlayAt(i){
   bgmEl.src = '/music/' + encodeURIComponent(bgmList[i]);
   bgmEl.volume = bgmGain();
   var p = bgmEl.play();
-  // play() 返回 Promise：被自动播放策略拦下或格式不支持都会在这里被拒。
-  // 不接这个拒绝就是"点了没反应" —— 那正是这个项目最不想要的失败方式。
+  // play() 返回 Promise：被自动播放策略拦截或格式不支持都在此被拒。
+  // 不接这个拒绝即"点了无反应"。
   if(p && p.catch){
     p.catch(function(e){
       var n = bgmList[bgmIdx];
@@ -1653,8 +1582,7 @@ function bgmEnded(){
   }
   bgmPlayAt(bgmNextIndex());
 }
-/* 某个文件放不了：记下来、说出来，再跳到还没失败过的一首。
-   没有"全部失败就停"这个判断的话，它会一首一首转下去。 */
+/* 某文件放不了：记下并提示，跳到尚未失败的一首；全部失败则停止。 */
 function bgmFailed(){
   var n = bgmList[bgmIdx];
   if(n){ bgmBad[n] = '放不了（格式不支持或文件损坏）'; }
@@ -1666,7 +1594,7 @@ function bgmFailed(){
   if(!left){ toast('曲库里的音乐都放不了', true); return; }
   bgmPlayAt(bgmNextIndex());
 }
-/* 曲库要等真正用的时候才去取：不点播放就不碰磁盘，也不占首屏。 */
+/* 曲库在首次使用时才取：不点播放不碰磁盘，不占首屏。 */
 async function bgmEnsure(){
   if(bgmList.length){ return true; }
   try{
@@ -1681,7 +1609,7 @@ async function bgmToggle(){
   if(bgmIdx < 0 || !bgmEl.src){
     if(!(await bgmEnsure())){ toast('读不到曲库', true); return; }
     if(!bgmList.length){
-      toast('曲库还是空的：把音乐放进存档的 music 文件夹，再在设置里点「刷新」', true);
+      toast('曲库为空：将音乐放入存档的 music 文件夹，再在设置里点「刷新」', true);
       return;
     }
     bgmPlayAt(bgmNextIndex());
@@ -1697,9 +1625,8 @@ async function bgmStep(delta){
   if(!bgmList.length){ toast('曲库里还没有音乐', true); return; }
   bgmPlayAt(delta > 0 ? bgmNextIndex() : bgmPrevIndex());
 }
-/* 恢复默认前的确认条。就地插在维护那一块里，不弹系统对话框 ——
-   那几个框在 WebView 里的行为各平台不一致，而这里恰恰需要让用户看清"影响范围"这句话。
-   范围写在按钮的 data-board 上：三个范围共用同一个动作名，uiAction 只认那个属性。 */
+/* 恢复默认前的就地确认条，不弹系统对话框（各平台 WebView 行为不一致）。
+   范围写在按钮的 data-board 上，三个范围共用同一动作名。 */
 function uiAskReset(){
   var old = $('mConfirm');
   if(old && old.parentNode){ old.parentNode.removeChild(old); }
@@ -1740,10 +1667,9 @@ async function uiImportCfgSend(text){
   toast('已导入，生效 ' + r.applied + ' 项' +
     (skip.length ? '，跳过 ' + skip.length + ' 项（本程序没有的键）' : ''), !!skip.length);
 }
-/* 设置页上的按钮都从这里走。第二个参数是按钮本身 ——
-   有几个动作的范围写在按钮属性上（例如"恢复哪一类"），比按动作名再拼字符串更不容易走偏。 */
+/* 设置页按钮的入口。第二个参数是按钮本身：部分动作的范围写在按钮属性上。 */
 async function uiAction(a, btn){
-  // 【视觉美化，非核心功能】就地量一秒帧率。不落盘、不改设置，只为回答"这一档配不配这台机器"
+  // 【视觉美化，非核心功能】就地量一秒帧率，不落盘、不改设置。
   if(a === 'vfxMeasure'){
     var span = $('vfxStats');
     if(span){ span.textContent = '测量中…'; }
@@ -1756,8 +1682,7 @@ async function uiAction(a, btn){
     return;
   }
   /* ---- 配置管理：导出 / 导入 / 恢复默认 / 变更记录 / 复制版本 ----
-     导出与导入都走服务端的专用接口，而不是拼一个下载链接 ——
-     写成文件再告诉用户在哪，与导出诊断包是同一套做法，也避开了各平台 WebView 下载行为不一的问题。 */
+     导出与导入走服务端专用接口而非下载链接，避开各平台 WebView 下载行为不一致的问题。 */
   if(a === 'exportCfg'){
     var er = await api('/api/settings/export', {});
     if(!er || !er.ok){ toast((er && er.err) || '导出失败', true); return; }
@@ -1779,9 +1704,7 @@ async function uiAction(a, btn){
     toast('已清空 ' + ((cl && cl.cleared) || 0) + ' 条记录');
     return;
   }
-  /* 恢复默认只有一个入口，范围在这里选。
-     以前每个板块标题旁边各挂一个"恢复本板块默认"，加底部一个"重置全部设置" ——
-     同一个动作三个按钮，还得先分清它们的范围差在哪。 */
+  /* 恢复默认只有一个入口，范围在此选。 */
   if(a === 'resetAsk'){ uiAskReset(); return; }
   if(a === 'resetCancel'){
     var cd = $('mConfirm');
@@ -1795,7 +1718,7 @@ async function uiAction(a, btn){
     if(!rr || !rr.ok){ toast((rr && rr.err) || '恢复默认失败', true); return; }
     var cd2 = $('mConfirm');
     if(cd2 && cd2.parentNode){ cd2.parentNode.removeChild(cd2); }
-    if(!rr.changed){ toast(label + '本来就是默认值'); return; }
+    if(!rr.changed){ toast(label + '已是默认值'); return; }
     ui = rr.ui;
     uiApply(ui);
     renderSettings();
@@ -1818,8 +1741,7 @@ async function uiAction(a, btn){
   if(a === 'wallImport'){ var fi = $('wallFile'); if(fi){ fi.value = ''; fi.click(); } return; }
   if(a === 'wallRefresh'){ renderSettings(); return; }
   if(a === 'diag'){
-    // 导出诊断包是个真正的"操作"，所以照操作那条路走（会出现在日志区里）。
-    // 走之前先回工作台 —— 结果和日志都在那一页，留在设置页会看不到自己刚做了什么。
+    // 导出诊断包走操作那条路（结果出现在日志区）。先回工作台，否则看不到结果与日志。
     closeModal();
     go('work');
     var j = await api('/api/start', { key:'diag', inputs:{} });
@@ -1833,9 +1755,7 @@ async function uiAction(a, btn){
 }
 
 /* 起手：先按地址栏的 hash 决定落在哪一页，再铺界面、开始轮询。
-   只认 #/work、#/settings、#/manual 三个值，其它（包括空）都落到工作台。
-   这里以前有四条查询串深链（?manual=1 / ?settings=1 / ?quick=host / ?quick=guest / ?more=1），
-   每条都只服务于当时的一次自动化截图核对 —— 它们已随新界面一并删除。 */
+   只认 #/work、#/settings、#/manual 三个值，其它（含空）落到工作台。 */
 $('btnWork').onclick = function(){ go('work'); };
 $('btnSettings').onclick = openSettings;
 $('btnManual').onclick = function(){ go('manual'); };
@@ -1844,11 +1764,11 @@ if(!PAGES[startPage]){ startPage = 'work'; }
 page = '';            // 先清空，好让第一次 go() 真的把三页的显隐与导航高亮铺一遍
 go(startPage);
 $('fwSkip').onclick = function(){ fwSkipped = true; setHidden($('fwBanner'), true); };
-// 底栏的背景音乐入口。曲库与曲目要等真正用的时候才去取，所以这里只绑事件、不拉数据。
+// 底栏背景音乐入口：此处只绑事件，曲库与曲目在首次使用时才取。
 bgmEl = $('bgm');
 if(bgmEl){
   bgmEl.onended = bgmEnded;
-  // 文件解不开时 <audio> 只发 error 事件、不抛异常，不接的话就是"点了没反应"
+  // 文件解不开时 <audio> 只发 error 事件、不抛异常，不接即"点了无反应"
   bgmEl.onerror = bgmFailed;
   bgmEl.volume = bgmGain();
 }
@@ -1858,12 +1778,10 @@ $('btnQuit').onclick = quitApp;
 $('btnClear').onclick = resetLog;
 $('btnCopyLog').onclick = function(){ copy((layer === 'user' ? userLines : rawLines).join('\n')); };
 $('btnCopyAddr').onclick = function(){ copy(addr); };
-/* ---- 浮层的键盘契约（对齐 WAI-ARIA 的 dialog 模式）----
-   打开时把焦点移进对话框、Tab 只在框内循环、关闭时把焦点还给当初打开它的那个按钮。
-   少任何一条，键盘用户要么"掉"到后面的页面上，要么关掉之后不知道自己在哪、只能从头 Tab。
-   关闭入口有四条（关闭按钮、点背板、Esc、导出诊断包之后），全部走 closeModal ——
-   所以"直接把 hidden 设成 true"这句话只准出现在 closeModal 里，别处再写一遍，
-   焦点归还就会有的时候有、有的时候没有。 */
+/* ---- 浮层的键盘契约（对齐 WAI-ARIA dialog 模式）----
+   打开时焦点移入对话框、Tab 只在框内循环、关闭时焦点还给打开它的按钮。
+   关闭入口有四处（关闭按钮、点背板、Esc、导出诊断包之后），全部走 closeModal；
+   "直接把 hidden 设成 true"只许出现在 closeModal 内，否则焦点归还时有时无。 */
 var modalOpener = null;
 function modalFocusable(){
   var box = document.querySelector('.mbox');
@@ -1885,8 +1803,8 @@ function closeModal(){
   if(modalOpener && modalOpener.focus){ try{ modalOpener.focus(); }catch(e){} }
   modalOpener = null;
 }
-/* Tab 不许跑出框：正向的最后一个、反向的第一个都拦下来送到另一端。
-   框里一个可聚焦元素都没有时把焦点按在框上，别让它漏到后面的页面。 */
+/* Tab 不越出框：正向最后一个、反向第一个拦下送到另一端；
+   无可聚焦元素时把焦点按在框上。 */
 function modalTrap(e){
   if(e.key !== 'Tab'){ return; }
   var box = document.querySelector('.mbox');
@@ -1900,19 +1818,14 @@ function modalTrap(e){
 }
 $('modalClose').onclick = function(){ closeModal(); };
 $('modal').onclick = function(e){ if(e.target === $('modal')){ closeModal(); } };
-/* 状态栏那个音符按钮：左键播放/暂停（原有行为），右键下一首。
-   右键不是"再点一次左键"的等价物 —— 它省掉"先暂停、再进设置挑歌"那一串动作，
-   而它走的还是「下一首」按钮用的同一个 bgmStep(1)，两条入口不会各写一套逻辑。
-   必须拦掉 contextmenu：不然弹出的会是 WebView2 自带的菜单，右键就成了"看起来没反应"。
-   这里**不加 aria-label**：那会把按钮当前的曲名与播放状态一起盖掉，而那个状态比"能点什么"更该被读到。
-   键盘用户的通路是设置里那三个显式按钮（上一首 / 播放·暂停 / 下一首），所以不另外发明快捷键。 */
+/* 状态栏音符按钮：左键播放/暂停，右键下一首。右键复用「下一首」的 bgmStep(1)，不另写一套。
+   必须拦掉 contextmenu，否则弹出 WebView2 自带菜单。
+   不加 aria-label：那会盖掉按钮当前的曲名与播放状态。键盘通路是设置里的三个显式按钮。 */
 $('bgmToggle').oncontextmenu = function(e){ e.preventDefault(); bgmStep(1); };
-/* 【视觉美化，非核心功能】启动美化层。
-   它只把设置写成 <html> 上的属性，不落盘、也不回头改设置 —— 改档位仍然只从设置面板那一条路走。 */
+/* 【视觉美化，非核心功能】启动美化层：只把设置写成 <html> 属性，不落盘、不改设置。 */
 VFX.init(window.MCLBX_UI || null);
-/* 高级选项的两项也要在首屏生效。倍率的唯一写入口是 applyAdvanced，而它平时只被 uiApply
-   叫到 —— uiApply 只在保存设置时跑，于是重开程序后界面会一直停在出厂观感，直到用户动
-   任何一项设置才跳回自己的取值。这里补上首屏这一次；出厂值仍走 removeProperty，不写覆盖。 */
+/* 高级选项两项需在首屏生效：applyAdvanced 平时只由 uiApply（保存时）调用，
+   故此处补上首屏一次；出厂值仍走 removeProperty。 */
 (function(){
   var u = window.MCLBX_UI;
   if(!u){ return; }
@@ -1934,8 +1847,8 @@ document.addEventListener('keydown', function(e){
   if(e.key === 'Enter' && tag !== 'INPUT'){ startTask(); }
 });
 
-/* 顶部提示条：界面只有一扇窗，所以"本来会弹个黑框告诉你"的事都改成写在这里。
-   服务端在退回浏览器时会带上 ?notice=原因。 */
+/* 顶部提示条：原会弹系统提示的事改在这里显示。
+   服务端退回浏览器时带上 ?notice=原因。 */
 (function(){
   var m = /[?&]notice=([^&]*)/.exec(location.search);
   if(!m){ return; }

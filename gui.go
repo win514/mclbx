@@ -29,7 +29,7 @@ import (
 	"unicode/utf8"
 )
 
-// 界面用的本地动画库（离线引用，不走 CDN）。
+// 内嵌界面资源，离线引用，不走 CDN。
 //
 //go:embed assets
 var guiAssetFS embed.FS
@@ -129,12 +129,11 @@ func listenArg(v string) string {
 	return s
 }
 
-// renderGuiPage 将界面设置注入 HTML 骨架，主题等属性须由服务端注入以避免首屏闪烁。
-// 样式与脚本不在这个字符串里：它们是 assets/gui.css 与 assets/gui.js，
-// 由浏览器按骨架里的引用各自去取 —— 服务端只负责发骨架与状态（见 guiassets.go）。
+// renderGuiPage 把界面设置注入 HTML 骨架；主题属性须服务端注入，避免首屏闪烁。
+// 样式与脚本在 assets/gui.css 与 assets/gui.js，由浏览器按骨架引用自取。
 func renderGuiPage() string {
 	ui := loadUI()
-	// 背景图与主题属性一起注入：两者都要在首屏之前定下来，否则会先闪一下默认外观
+	// 背景图与主题属性一起注入，都要在首屏前定下来。
 	attrs := ui.htmlAttr() + wallAttr(wallFromConfig(ui.BgImage))
 	p := strings.Replace(guiShellHTML, "@@UIATTRS@@", attrs, 1)
 	return strings.Replace(p, "@@UIJSON@@", ui.uiStartupJSON(), 1)
@@ -159,33 +158,33 @@ func settingsPayload(ui guiUIState) map[string]any {
 		// 高级选项：面板透明度与背景图明暗，都是 0-100、出厂 50。
 		"transparency": ui.Transparency,
 		"wallBright":   ui.WallBright,
-		// 图库里的图片名。配置里存的就是这些名字之一，所以面板不需要用户敲路径。
+		// 图库里的图片名，配置存的就是其中之一。
 		"wallList": listWallImages(),
-		// 曲库：真相在存档的 music 目录里，这里只把扫出来的清单交给界面
+		// 曲库清单取自存档的 music 目录
 		"musicList": listMusicTracks(),
 		"musicMode": ui.MusicMode,
 		"musicLoop": ui.MusicLoop,
 		"musicVol":  ui.MusicVol,
 		"remember":  ui.Remember,
-		// 背景图已经缩放缓存好，这里只把地址交给界面；读不出来时 wallReason 给一句原因
+		// 背景图已缩放缓存，这里只把地址交给界面；读不出时 wallReason 给原因
 		"wallURL":    wall.URL,
 		"wallReason": wall.Reason,
-		// 显示生效值而非原始配置：未配置时也给出实际默认
+		// 显示生效值而非原始配置；未配置时给出实际默认
 		"logKeep":   strconv.Itoa(ui.logKeep()),
 		"defPort":   ui.DefPort,
 		"defRelay":  ui.DefRelay,
 		"autoProbe": autoProbeOn(),
 		"dataDir":   dataDir(),
 		"version":   version,
-		// 运行环境：只读展示用。系统与架构来自编译期，运行时版本说明这份 exe 是用什么工具链出的。
+		// 运行环境只读展示：系统与架构来自编译期，版本来自运行时
 		"platform": runtime.GOOS + " " + runtime.GOARCH + " · " + runtime.Version(),
-		// 变更记录由服务端持有：它是跨会话的，界面刷新不该丢
+		// 变更记录由服务端持有，跨会话保存，界面刷新不丢
 		"changes":   loadChanges(),
 		"changeMax": uiChangeMax,
-		// 只读展示信息：全部来自真实文件与真实目录，界面上不给编辑入口。
+		// 只读展示信息，界面上不给编辑入口
 		"storage":    uiStorageStats(),
 		"configFile": uiConfigFileState(),
-		// 配置文件损坏时给一句原因；空串表示正常。界面会明确告知，而不是让用户自己发现设置变了。
+		// 配置文件损坏的原因；空串表示正常。
 		"configFault": configFaultReason(),
 	}
 }
@@ -233,7 +232,7 @@ func linkCarriesRoom(link string) bool {
 
 var guiTasks = []guiTask{
 	{
-		// 开界面时会自动跑一次（见 autoProbeOn）
+		// 打开界面时自动执行一次，见 autoProbeOn
 		Key: "probe", Group: "环境检测", Name: "检测本机环境",
 		Desc: "检测网络环境并给出建议的连接方式",
 		Help: "检测项包括公网 IPv6 地址、IPv4 出口与 NAT 类型、路由器端口映射能力、游戏端口占用情况，以及已配置的 Windows 入站规则。结论用于确定本次可用的连接方式。",
@@ -298,7 +297,7 @@ var guiTasks = []guiTask{
 		},
 	},
 	{
-		// 同组任务必须连续，否则列表会出现重复的分组标题
+		// 同组任务必须连续，否则列表出现重复分组标题
 		Key: "ice-host", Group: "房主模式", Name: "直连模式（房主）", Long: true,
 		Desc: "接受玩家直连并转发至本机端口",
 		Help: "与玩家侧的「直连模式（玩家）」配对使用。启动后等待玩家接入，通道建立后将流量转发至指定的本机游戏端口。",
@@ -319,7 +318,7 @@ var guiTasks = []guiTask{
 		Fields: []guiField{
 			{ID: "host", Label: "房主地址", Placeholder: "[2408:...]:8090", Hint: "已包含在中继链接中时可留空"},
 			{ID: "room", Label: "房间码", Placeholder: "abc123", Hint: "链接中已包含时可留空"},
-			// 本机监听端口与等待时长也开放到界面，供「本机也开游戏」「网络较慢」使用
+			// 本机监听端口与等待时长开放到界面
 			{ID: "local", Label: "本机监听端口", Placeholder: "25565", Hint: "本机自己也开着游戏时改成别的，例如 25566"},
 			{ID: "wait", Label: "等待房主候选（秒）", Placeholder: "60", Hint: "网络较慢时可调大，例如 120"},
 			{ID: "relay", Label: "同时开启中继转发", Kind: "check", Hint: "将本机地址也作为入口"},
@@ -597,7 +596,7 @@ var guiTasks = []guiTask{
 		Desc: "为双方交换连接信息",
 		Help: "房主无法被直接连接时，双方通过该服务交换当前可用的地址，再按新地址重试。记录条数与保留时间均有限，过期条目会被自动清理；等待中的一方会定期重新登记。",
 		Fields: []guiField{
-			// 默认值与命令行一致（defaultListenAddr），以便同时接受 IPv6 连接
+			// 默认值与命令行一致（defaultListenAddr），以便接受 IPv6 连接
 			{ID: "listen", Label: "监听地址", Default: defaultListenAddr},
 		},
 		build: func(in map[string]string) ([]string, error) {
@@ -616,9 +615,9 @@ type guiJob struct {
 	done    bool
 	code    int
 	errMsg  string
-	killed  bool // 是否已收过，避免重复清理
+	killed  bool // 已清理标记，避免重复清理
 
-	// auto 表示本次任务由打开界面自动触发，可被用户任务顶掉。
+	// auto 表示本次任务由打开界面自动触发，可被用户任务抢占。
 	auto bool
 
 	mu    sync.Mutex
@@ -693,15 +692,14 @@ func (j *guiJob) pushLocked(line string) {
 	// 落盘集中在此，保证诊断包日志与界面显示一致
 	guiSessionLog.write(j.id, line)
 	if len(j.lines) > guiMaxLines {
-		// 原地丢弃老行，避免底层数组增长并释放旧字符串
+		// 原地丢弃老行，避免底层数组增长
 		n := len(j.lines) - guiMaxLines
 		j.lines = append(j.lines[:0], j.lines[n:]...)
 	}
 }
 
 // pumpLines 逐行读取子进程输出并交给 emit。
-//
-// 管道有缓冲上限，必须持续读取；单行过长仅截断，绝不停读，否则子进程写满会阻塞。
+// 管道有缓冲上限，必须持续读取；单行过长只截断，不停读，否则子进程写满会阻塞。
 func pumpLines(r io.Reader, emit func(string)) {
 	br := bufio.NewReaderSize(r, 64*1024)
 	var buf []byte
@@ -745,7 +743,7 @@ func pumpLines(r io.Reader, emit func(string)) {
 
 func emitLine(b []byte, truncated bool, emit func(string)) {
 	if truncated {
-		// 截断点退到完整字符边界，避免把一个多字节字符劈成两半
+		// 截断点退到完整字符边界，避免劈开多字节字符
 		b = trimPartialRune(b)
 	}
 	s := strings.TrimRight(string(b), "\r")
@@ -821,7 +819,7 @@ func (j *guiJob) kill() {
 	j.errMsg = "已手动停止"
 	j.mu.Unlock()
 	if runtime.GOOS == "windows" {
-		// 连同子进程树一起杀；须设无窗口控制台，否则 taskkill 会闪出黑框
+		// 连同子进程树一起结束；须设无窗口控制台，否则 taskkill 会闪出黑框
 		tk := exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(j.cmd.Process.Pid))
 		tk.SysProcAttr = hiddenConsoleProcAttr()
 		_ = tk.Run()
@@ -839,7 +837,7 @@ func (c *guiController) start(t guiTask, in map[string]string) (*guiJob, error) 
 	return c.startJob(t, in, false)
 }
 
-// startJob 启动一个任务；auto=true 表示界面自动触发，可被用户任务顶掉。
+// startJob 启动一个任务；auto=true 表示界面自动触发，可被用户任务抢占。
 func (c *guiController) startJob(t guiTask, in map[string]string, auto bool) (*guiJob, error) {
 	args, err := t.build(in)
 	if err != nil {
@@ -850,7 +848,7 @@ func (c *guiController) startJob(t guiTask, in map[string]string, auto bool) (*g
 		return nil, fmt.Errorf("找不到自己的可执行文件：%w", err)
 	}
 
-	// 检查是否有任务在跑；自动任务不占用，可被直接顶掉
+	// 检查是否有任务在运行；自动任务不占用，可被直接抢占
 	if blockedBy, preempt := c.checkBusy(auto); blockedBy != "" {
 		return nil, fmt.Errorf("已经有一个任务在跑（%s），先点「停止」再来", blockedBy)
 	} else if preempt != nil {
@@ -860,7 +858,7 @@ func (c *guiController) startJob(t guiTask, in map[string]string, auto bool) (*g
 	cmd := exec.Command(exe, args...)
 	cmd.Env = append(os.Environ(), "MCLBX_GUI=1")
 	cmd.Stdin = nil
-	// 必须给子进程无窗口控制台，否则每跑一个任务都会闪出黑框
+	// 必须给子进程无窗口控制台，否则每次任务都会闪出黑框
 	cmd.SysProcAttr = hiddenConsoleProcAttr()
 
 	stdout, err := cmd.StdoutPipe()
@@ -891,7 +889,7 @@ func (c *guiController) startJob(t guiTask, in map[string]string, auto bool) (*g
 		j.mu.Unlock()
 		return nil, err
 	}
-	// 把子进程收进 Job Object，避免其成为占用端口的孤儿进程
+	// 把子进程收进 Job Object，避免成为占用端口的孤儿进程
 	adoptChild(cmd.Process.Pid)
 	go j.pump(stdout)
 	go j.pump(stderr)
@@ -908,7 +906,7 @@ func (c *guiController) stop() {
 	}
 }
 
-// checkBusy 判断能否启动新任务：blockedBy 非空表示被占用，preempt 非空表示可顶掉。
+// checkBusy 判断能否启动新任务：blockedBy 非空表示被占用，preempt 非空表示可抢占。
 func (c *guiController) checkBusy(auto bool) (blockedBy string, preempt *guiJob) {
 	c.mu.Lock()
 	j := c.job
@@ -963,11 +961,9 @@ func guiAllowedHost(addr string) bool {
 	return host == "127.0.0.1" || host == "localhost" || host == "::1"
 }
 
-// guiNoStorePath 返回内容随 exe 变化的路径：界面本体、JSON 接口，以及界面的样式与脚本。
-// 不设缓存头时浏览器会按启发式规则缓存旧文件，换上新版 exe 后打开的仍是上一份界面 ——
-// 拆成外链之后这件事更要紧：页面已经是新的、样式或脚本却还是旧的，问题看起来会更离奇。
-// 这两个文件是从内存里读的、走的是本机回环，不做缓存省不下什么。
-// 音频与背景图不在此列：/music/ 用 no-cache 以免拖动进度整段重下，/bg/ 靠名字里的内容哈希做 immutable。
+// guiNoStorePath 列出内容随 exe 变化的路径：界面本体、JSON 接口、样式与脚本。
+// 不设缓存头时浏览器会缓存旧文件，换新版 exe 后打开的仍是上一份界面。
+// 音频与背景图不在此列：/music/ 用 no-cache，/bg/ 靠内容哈希做 immutable。
 func guiNoStorePath(p string) bool {
 	return p == "/" || strings.HasPrefix(p, "/api/") || p == guiCSSPath || p == guiJSPath
 }
@@ -981,13 +977,10 @@ func guiCachePolicy(next http.Handler) http.Handler {
 	})
 }
 
-// guiAssetHandler 把内嵌的 assets/ 挂到 /assets/ 下：页面图标、界面样式、界面脚本都从这里出去。
-// 返回 false 表示内嵌目录取不到（构建时没把 assets 打进来），调用方不挂这条路由。
-//
-// 样式与脚本的 Content-Type 写死，不交给扩展名推断：Windows 上 mime.TypeByExtension 会去读注册表，
-// 而 .js 的类型各机器不一样（本机实测拿到 application/javascript，别处常见 text/plain）。
-// 一旦落到 text/plain，浏览器会以"类型不对"为由拒绝执行脚本（样式同理），界面整块失效，
-// 而错误只出现在浏览器的控制台里 —— 程序这一侧看不出任何异常，所以这里不留这个变数。
+// guiAssetHandler 把内嵌的 assets/ 挂到 /assets/ 下。
+// 返回 false 表示内嵌目录取不到，调用方不挂这条路由。
+// 样式与脚本的 Content-Type 写死，不按扩展名推断：Windows 上该类型随机器而异，
+// 落到 text/plain 时浏览器会拒绝执行，且错误只出现在浏览器控制台。
 func guiAssetHandler() (http.Handler, bool) {
 	sub, err := iofs.Sub(guiAssetFS, "assets")
 	if err != nil {
@@ -1028,8 +1021,8 @@ func cmdGui(args []string) error {
 		return fmt.Errorf("界面服务只允许绑定 127.0.0.1（当前为 %s）：该服务仅在本机可用，不应对外暴露", addrStr)
 	}
 
-	// 单实例：若已有实例在跑，则把其窗口置前并返回。
-	// 必须放在此处，确保桌面快捷方式（gui）第二次点击也走单实例判断。
+	// 单实例：已有实例在运行则把其窗口置前并返回。
+	// 必须放在此处，桌面快捷方式（gui）第二次点击也走此判断。
 	if handled, err := guiReuseRunning(addrStr, *noOpen, *useBrowser); handled {
 		return err
 	}
@@ -1038,11 +1031,11 @@ func cmdGui(args []string) error {
 	// 只有修改防火墙入站规则需要管理员；提权失败则照常以普通权限继续。
 	if !*noElevate && !envNoElevate() && !*noOpen && !isElevated() {
 		if err := elevateSelf(); err == nil {
-			return nil // 已经交给提权后的实例，本进程不必再往下走
+			return nil // 已交给提权后的实例，本进程不再继续
 		}
 	}
 
-	// --native：原生界面（Windows 自带控件，不起浏览器引擎）
+	// --native：原生界面，Windows 自带控件，不起浏览器引擎
 	if useNative && runtime.GOOS == "windows" {
 		if !*keepConsole {
 			// FreeConsole 释放控制台，否则关闭终端会导致程序退出
@@ -1231,7 +1224,7 @@ func cmdGui(args []string) error {
 	}))
 
 	mux.HandleFunc("/api/settings/import", post(func(w http.ResponseWriter, r *http.Request) error {
-		// 界面用 <input type=file> 读内容再 POST 上来，「导入哪一份」由用户在系统对话框里决定。
+		// 界面用 <input type=file> 读内容再 POST 上来，导入哪一份由用户决定。
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, uiImportMaxLen+4096))
 		if err != nil {
 			return fmt.Errorf("读取上传内容失败：%w", err)
@@ -1282,7 +1275,7 @@ func cmdGui(args []string) error {
 	}))
 
 	// 导入背景图：网页界面用 <input type=file> 取到文件再 POST 上来。
-	// 走上传而非服务端按路径读取，「导入」即把图复制进存档，之后原文件改名/移走/删掉都不影响。
+	// 上传后即复制进存档，原文件改名或删除都不影响。
 	mux.HandleFunc("/api/wall/import", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		fail := func(msg string) {
@@ -1314,7 +1307,7 @@ func cmdGui(args []string) error {
 			fail(err.Error())
 			return
 		}
-		// 导入即选中：省掉「导入完还要再去列表里点一下」这一步
+		// 导入即选中
 		cur := loadUI()
 		cur.BgImage = name
 		ui, err := saveUI(cur)
@@ -1330,7 +1323,7 @@ func cmdGui(args []string) error {
 		err := json.NewEncoder(w).Encode(map[string]any{"ok": true})
 		go func() {
 			guiLog("界面请求退出")
-			// 先把关闭请求交给界面线程（先隐藏窗口），再停任务与关闭
+			// 先把关闭请求交给界面线程（隐藏窗口），再停任务并关闭
 			if requestClose() {
 				// 窗口关闭后走正常退出流程
 				return
@@ -1343,7 +1336,7 @@ func cmdGui(args []string) error {
 	}))
 
 	srv := &http.Server{
-		// 缓存策略在此统一决定：新增 /api/ 接口不会漏掉，也不会顺手抹掉音频的 Range 缓存。
+		// 缓存策略在此统一决定，新增 /api/ 接口不会漏掉
 		Handler: guiCachePolicy(mux),
 		// 各阶段均设明确时限，避免单个卡住的连接阻塞其他请求
 		ReadHeaderTimeout: 5 * time.Second,
@@ -1491,7 +1484,7 @@ func guiLog(format string, a ...any) {
 	defer guiLogMu.Unlock()
 	dir := dataDir()
 	if dir == "" {
-		return // 一个能写的位置都没有：这条日志只能放弃，但不能因此阻塞界面
+		return // 没有可写位置时放弃这条日志，不阻塞界面
 	}
 	path := filepath.Join(dir, "gui.log")
 	if st, err := os.Stat(path); err == nil && st.Size() > guiLogMax {

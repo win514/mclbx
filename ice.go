@@ -21,7 +21,7 @@ import (
 
 // ice.go 用 ICE（RFC 8445，pion/ice 实现）打通 NAT，并在其数据报连接上做极简长度分帧。
 
-// 一个极简「信箱」：两方各放一份候选清单，各取对方那份。
+// 信令信箱：双方各登记一份候选清单，并读取对方的一份。
 type candBlob struct {
 	Ufrag       string   `json:"ufrag"`
 	Pwd         string   `json:"pwd"`
@@ -29,7 +29,7 @@ type candBlob struct {
 	Fingerprint string   `json:"fp,omitempty"`   // 本端 DTLS 证书的 SHA-256 指纹
 	Room        string   `json:"room,omitempty"` // 房间码，软件入场也要校验。
 
-	// Gen 是「第几次尝试」的代次号，断线重连时递增。
+	// Gen 为尝试代次号，断线重连时递增。
 	Gen int `json:"gen,omitempty"`
 }
 
@@ -42,14 +42,14 @@ type mailboxEntry struct {
 type mailbox struct {
 	mu  sync.Mutex
 	m   map[string]mailboxEntry
-	rev uint64 // 每次写入自增，供 /rev 判断有没有人来过。
+	rev uint64 // 每次写入自增，供 /rev 判断是否有变化。
 
-	// 「信箱满了」的记账与速率限制。
+	// 信箱满的记账与速率限制。
 	fullCount  int
 	fullLogged time.Time
 }
 
-// noteFullLocked 记一次「信箱满了」并播一行日志，调用方须已持锁。
+// noteFullLocked 记录一次信箱满并输出日志，调用方须已持锁。
 func (mb *mailbox) noteFullLocked(now time.Time) {
 	mb.fullCount++
 	if now.Sub(mb.fullLogged) < 30*time.Second {
@@ -59,7 +59,7 @@ func (mb *mailbox) noteFullLocked(now time.Time) {
 	mb.fullCount = 0
 	mb.fullLogged = now
 	logf("[信令] 信箱已满（上限 %d 条），拒绝了新登记：本段时间内共 %d 次。"+
-		"若不是你邀请的人，说明房间地址已经传出去了 —— 结束房间并换一个房间码重开即可", mailboxMaxSides, n)
+		"若非受邀玩家，说明房间地址已外传：结束房间并更换房间码重开。", mailboxMaxSides, n)
 }
 
 func newMailbox() *mailbox { return &mailbox{m: map[string]mailboxEntry{}} }
@@ -89,7 +89,7 @@ func (mb *mailbox) sweepLocked(now time.Time) int {
 }
 
 func (mb *mailbox) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// /rev 返回自增计数，供房主判断有没有人来过。
+	// /rev 返回自增计数，供房主判断是否有变化。
 	if r.URL.Path == "/rev" && r.Method == http.MethodGet {
 		mb.mu.Lock()
 		mb.sweepLocked(time.Now())
@@ -100,10 +100,10 @@ func (mb *mailbox) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// /blobs 列出登记表，供房主发现新来的客机。
+	// /blobs 列出登记表，供房主发现新客机。
 	if r.URL.Path == "/blobs" && r.Method == http.MethodGet {
 		mb.mu.Lock()
-		mb.sweepLocked(time.Now()) // 顺手回收，列出的不含过期项
+		mb.sweepLocked(time.Now()) // 回收过期项，列出结果不含过期条目
 		keys := make([]string, 0, len(mb.m))
 		for k := range mb.m {
 			keys = append(keys, k)
@@ -148,7 +148,7 @@ func (mb *mailbox) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	case http.MethodGet:
 		mb.mu.Lock()
-		mb.sweepLocked(time.Now()) // 过期条目对取信方等于「还没有」
+		mb.sweepLocked(time.Now()) // 过期条目对取信方等同于不存在
 		e, ok := mb.m[side]
 		mb.mu.Unlock()
 		if !ok {
@@ -206,7 +206,7 @@ func newBlobKeeper(base, side string, b candBlob) *blobKeeper {
 	return &blobKeeper{base: base, side: side, blob: b, last: time.Now()}
 }
 
-// tick 到点就重发一次，返回是否真的重发过。
+// tick 到期重发一次，返回是否重发。
 func (k *blobKeeper) tick(now time.Time, timeout time.Duration) bool {
 	if now.Sub(k.last) < mailboxKeepAlive {
 		return false
@@ -235,7 +235,7 @@ func listBlobs(base string, timeout time.Duration) ([]string, error) {
 	return keys, err
 }
 
-// mailboxRev 读信箱自增计数；ok=false 表示接口不可用，调用方应按「有变化」处理。
+// mailboxRev 读信箱自增计数；ok=false 表示接口不可用，调用方应按有变化处理。
 func mailboxRev(base string, timeout time.Duration) (uint64, bool) {
 	client := &http.Client{Timeout: timeout}
 	resp, err := client.Get(base + "/rev")
@@ -405,7 +405,7 @@ func gatherCandidates(a *ice.Agent, timeout time.Duration, label string) ([]stri
 		logf("  选中的候选对：本地 %s(%s)  <->  对端 %s(%s)",
 			l.Address(), l.Type().String(), r.Address(), r.Type().String())
 	})
-	// 状态回调由 newIceAgent 统一装一次，这里不再装。
+	// 状态回调由 newIceAgent 统一注册，此处不重复注册。
 
 	if err := a.GatherCandidates(); err != nil {
 		return nil, err
@@ -432,7 +432,7 @@ func dumpPair(a *ice.Agent) {
 		p.Remote.Address(), p.Remote.Port(), p.Remote.Type().String())
 }
 
-// 数据报上的极简字节流：仅做长度分帧，不保证送达。
+// 数据报上的字节流：仅做长度分帧，不保证送达。
 const (
 	msgOpen  = 1
 	msgData  = 2
@@ -481,7 +481,7 @@ func readLoop(c net.Conn, onOpen func(), onData func([]byte), onClose func()) {
 // defaultListenAddr 是对外服务的默认监听地址：只给端口不给主机，以走双栈绑定。
 const defaultListenAddr = ":8090"
 
-// listenSignal 同步绑定信令信箱监听口，失败时返回可照做的错误。
+// listenSignal 同步绑定信令信箱监听口，失败时返回含处理建议的错误。
 func listenSignal(addr string) (net.Listener, error) {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {

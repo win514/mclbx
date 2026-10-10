@@ -1,6 +1,6 @@
 package main
 
-// tcptunnel.go —— TCP 兜底通道：UDP 走不通时联机；明文转发，房间码是唯一门槛。
+// tcptunnel.go TCP 兜底通道：UDP 不可用时联机；明文转发，房间码是唯一门槛。
 // 帧为 [类型1][连接号4][长度4][数据]，类型 1=新连接 2=数据 3=关闭。
 
 import (
@@ -515,7 +515,7 @@ func tcpTunnelGuestOn(relay, room string, ln net.Listener) error {
 		mu.Lock()
 		defer mu.Unlock()
 		idSeq++
-		for locals[idSeq] != nil { // 撞了就往后挪
+		for locals[idSeq] != nil { // 端口号冲突则递增
 			idSeq++
 		}
 		return idSeq

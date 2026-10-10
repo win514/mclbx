@@ -1,6 +1,6 @@
 package main
 
-// natmap.go —— 主动请求路由器开洞（UPnP IGD / NAT-PMP / PCP）；全部失败则如实报错。
+// natmap.go 主动请求路由器开放端口（UPnP IGD / NAT-PMP / PCP）；全部失败则如实报错。
 
 import (
 	"bytes"
@@ -84,7 +84,7 @@ func (m *natMapping) Addr() string {
 
 // 统一入口
 
-// natMapPlan 一次开洞尝试的完整结果（可能多个协议各开一条）
+// natMapPlan 一次映射尝试的完整结果（可能多个协议各开一条）
 type natMapPlan struct {
 	Mappings []*natMapping
 	Tried    []string // 每种方式的尝试结论，给用户看

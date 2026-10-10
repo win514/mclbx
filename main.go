@@ -1,4 +1,4 @@
-// mclbx —— 我的世界 Java 版联机工具。
+// mclbx 是《我的世界》Java 版联机工具。
 package main
 
 import (
@@ -7,14 +7,14 @@ import (
 	"time"
 )
 
-// 版本号做成变量，打包时可以用 -ldflags "-X main.version=..." 覆盖
+// 版本号可用 -ldflags "-X main.version=..." 覆盖。
 var version = "mclbx 0.1"
 
 func logf(format string, a ...any) {
 	fmt.Printf("[%s] %s\n", time.Now().Format("15:04:05"), fmt.Sprintf(format, a...))
 }
 
-// usageText 是程序的帮助文本原文。
+// usageText 是帮助文本原文。
 const usageText = `mclbx —— 我的世界 Java 版联机工具
 
 用法：
@@ -237,12 +237,12 @@ func usage() {
 }
 
 func main() {
-	// GDI+ 的释放是进程级收尾，放在这里而非关窗口时。
+	// GDI+ 释放属进程级收尾，放在这里而非关窗口处。
 	defer gpStop()
 
-	// 双击本体（不带参数）直接打开界面。
+	// 不带参数（双击本体）时打开界面。
 	if len(os.Args) < 2 {
-		// 单实例判断由 cmdGui 统一处理。
+		// 单实例判断由 cmdGui 处理。
 		os.Args = append(os.Args, "gui")
 	}
 	var err error
@@ -303,7 +303,7 @@ func main() {
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "错误：%v\n", err)
-		// 补充中文提示与下一步（见 errhint.go）。
+		// 补充中文提示与下一步，见 errhint.go。
 		for _, h := range explainError(err.Error()) {
 			fmt.Fprintln(os.Stderr, h.text)
 		}

@@ -1,6 +1,6 @@
 package main
 
-// relaycheck.go 实现中继自检：把 TURN 与 TCP 两条数据通路完整跑一遍并报告卡住的步骤。
+// relaycheck.go 中继自检：完整走一遍 TURN 与 TCP 两条数据通路并报告卡住的步骤。
 
 import (
 	"flag"

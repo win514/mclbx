@@ -19,7 +19,7 @@ import (
 type gateState struct {
 	mu        sync.Mutex
 	room      string
-	roomGiven bool // 房间码是用户自己给的，而不是程序随机生成的
+	roomGiven bool // 房间码由用户显式指定，而非随机生成
 	entryPort int
 	gamePort  int
 	address   string
@@ -34,7 +34,7 @@ type gateState struct {
 	// 上游：默认本机游戏端口，中转使用时换成隧道里的新流。
 	openUpstream func() (io.ReadWriteCloser, error)
 
-	// IPv4 直连：路由器开的洞（无则 nil）
+	// IPv4 直连：路由器端口映射（无则 nil）
 	v4map    *natMapping
 	v4info   string // 展示给用户的一句话
 	stunV4   string // STUN 看到的公网 IPv4，映射无外网地址时兜底
@@ -404,7 +404,7 @@ func cmdExpose(args []string) error {
 		return err
 	}
 
-	// 房间码校验统一走 normalizeRoomCode。空串会被换成随机码，所以先记下用户到底给没给。
+	// 房间码校验统一走 normalizeRoomCode；空串会换成随机码，先记录用户是否显式指定。
 	roomGiven := strings.TrimSpace(*room) != ""
 	rc, rcErr := normalizeRoomCode(*room)
 	if rcErr != nil {
@@ -439,7 +439,7 @@ type gateSetup struct {
 	gamePort  int
 	entryPort int
 	room      string
-	roomGiven bool // 房间码是用户自己给的（而不是随机生成的）
+	roomGiven bool // 房间码由用户显式指定（而非随机生成）
 	suffix    string
 	mode      string
 	webAddr   string
@@ -474,21 +474,18 @@ func (r *gateReady) close() {
 	}
 }
 
-// addrFormFor 决定拿到 IPv6 之后实际使用的地址形式。纯函数，便于把"门槛与形式的关系"钉住。
-//
-// 它只回答"用哪种形式"，不回答"玩家连不连得上" —— 域名形式能否用，还要看解析结果，
-// 那一步在 startZeroInstallGate 里按 auto / 显式 dns 分别处理。
+// addrFormFor 按 mode 与是否需要门槛决定地址形式；只决定形式，不判断玩家能否连上。
 func addrFormFor(mode string, wantGate bool) string {
 	switch mode {
 	case "raw":
-		return "raw" // 用户点名要字面量，尊重它
+		return "raw" // 用户指定字面量
 	case "dns":
-		return "dns" // 用户点名要域名，哪怕他不会要门槛
+		return "dns" // 用户指定域名
 	}
 	if !wantGate {
-		return "raw" // auto 且没有门槛诉求：没必要为门槛去引第三方 DNS
+		return "raw" // auto 且无门槛诉求：无需为门槛引入第三方 DNS
 	}
-	return "dns" // auto 且要门槛：房间码得有地方写，只有域名形式承载得了
+	return "dns" // auto 且需门槛：房间码须由域名形式承载
 }
 
 func startZeroInstallGate(o gateSetup) (*gateReady, error) {
@@ -565,13 +562,13 @@ func startZeroInstallGate(o gateSetup) (*gateReady, error) {
 	}
 
 	// 门卫策略：dns 模式靠名字含房间码；raw 模式靠地址本身（IPv6 无法被全网扫描）。
-	// wantGate 是“这一轮要不要门槛”：默认要，只有 --no-gate 才不要。
+	// wantGate 表示本轮是否需要门槛：默认需要，仅 --no-gate 关闭。
 	wantGate := !o.noGate
 	gateRoom := true
 	has6 := len(g.v6) > 0
 	shareHost := ""
 
-	// 字面量形式单独抽出来：它在两处用得上 —— 用户明确要 raw，以及 auto 下域名走不通时的退回。
+	// 字面量形式单独抽出：用于用户指定 raw，以及 auto 下域名走不通时的退回。
 	applyRaw := func() {
 		// 临时地址会变，不用于分享
 		shareHost = pickShareIPv6(g.v6)
@@ -586,17 +583,14 @@ func startZeroInstallGate(o gateSetup) (*gateReady, error) {
 		fmt.Printf(" 地址形式         : IPv6 字面量，无第三方依赖\n")
 	}
 
-	// 地址形式先定下来再动手。这段把"要不要门槛"与"用哪种形式"的关系写在一处：
-	//   raw —— 用户点名要字面量；或 auto 且没有门槛诉求（不必为此引第三方 DNS）
-	//   dns —— 其余情况：auto 且要门槛（房间码得有地方写），或用户点名要域名
+	// 按 form 落地址：raw 用 IPv6 字面量，其余用通配域名。
 	form := addrFormFor(modeVal, wantGate)
 	switch {
 	case has6 && form == "raw":
 		applyRaw()
 
 	case has6:
-		// auto 且要门槛时也落在这里：房间码得有地方写，而只有域名形式承载得了它。
-		// 这是“门槛设为默认”的落点 —— 宁可多一项第三方依赖，也不给一个看着有门槛、其实没有的入口。
+		// 需门槛时用域名形式承载房间码。
 		pick := pickShareIPv6(g.v6)
 		g.shareV6 = pick
 		g.addrKind = "v6dns"
@@ -622,13 +616,12 @@ func startZeroInstallGate(o gateSetup) (*gateReady, error) {
 		if err != nil || !ok {
 			fmt.Printf("失败：%v\n", err)
 			if modeVal != "dns" {
-				// auto：宁可给一个连得上、但如实说明“没有门槛”的地址，也不要给一个解析不通的域名。
+				// auto 模式退回字面量，避免给玩家一个解析不通的域名。
 				fmt.Println("  退回 IPv6 字面量（--mode auto）：这一形式没有房间码门槛")
 				applyRaw()
 				break
 			}
-			// 用户点名要域名形式（档位 P2/P3/P4 也是这么写的）：这时不能给一个解析不通的地址 ——
-			// 玩家连不上，而卡片还会宣称有门槛。直接失败，把选择权交回用户。
+			// 用户指定 dns 形式时必须解析成功，否则直接报错返回。
 			_ = ln.Close()
 			return nil, fmt.Errorf("域名 %s 解析不通，不能作为玩家要填的地址：房间码要编进名字里，"+
 				"就必须有一条能用的通配域名。可改用 --mode raw（该形式没有房间码门槛），"+
@@ -641,14 +634,14 @@ func startZeroInstallGate(o gateSetup) (*gateReady, error) {
 		fmt.Println("  房主改用 --mode raw 重开一次即可 —— raw 直接给 IPv6 字面量，不经过任何 DNS")
 
 	case publicV4Direct(g.stunV4):
-		// 本机直接挂在公网 IPv4 上：无需开洞或第三方，地址即本机地址。
+		// 本机直连公网 IPv4：无需端口映射或第三方，地址即本机地址。
 		shareHost = g.stunV4
 		if ep == 25565 {
 			g.address = shareHost
 		} else {
 			g.address = fmt.Sprintf("%s:%d", shareHost, ep)
 		}
-		// 公网 IPv4 可被全网扫描，房间码挡不住，故不做房门校验，靠名字白名单。
+		// 公网 IPv4 可被全网扫描，房间码无法阻拦，故不做房门校验，改用名字白名单。
 		gateRoom = false
 		g.addrKind = "v4direct"
 		fmt.Printf(" 地址形式         : 公网 IPv4 直连，无第三方依赖\n")
@@ -749,8 +742,7 @@ func startZeroInstallGate(o gateSetup) (*gateReady, error) {
 		}()
 	}
 
-	// 软件入场的地址要能直接拨：域名形式时用回 IPv6 字面量，免得"给直连不好使的人
-	// 准备的兜底"本身又依赖公网 DNS。
+	// 软件入场地址须可直连：域名形式时改用 IPv6 字面量，避免兜底路径依赖公网 DNS。
 	softHost := shareHost
 	if g.shareV6 != "" {
 		softHost = g.shareV6
@@ -759,8 +751,7 @@ func startZeroInstallGate(o gateSetup) (*gateReady, error) {
 	return &gateReady{
 		state: g, listener: ln, entryPort: ep,
 		address: g.address, host: softHost, webAddr: o.webAddr,
-		// gateRoom 是**生效的**门槛，不是“这一形式本来支不支持”——
-		// 分享卡片按它写字，写错就会出现“卡片说校验房间码、实际谁都能进”。
+		// gateRoom 为实际生效的门槛；分享卡片据此输出，避免提示与实际不符。
 		gateRoom: !o.noGate && gateRoom,
 		noGate:   o.noGate,
 	}, nil
@@ -798,11 +789,7 @@ func gateModeValue(byRoom bool) string {
 	return "addr"
 }
 
-// gateOffExplanation 返回“这一档没有门槛”时该如实说给用户的话。
-//
-// 分几种情形是因为后果完全不同：IPv6 字面量难以被全网扫到，公网 IPv4 却可以被全网扫描。
-// 卡片此前对二者都说“无法被全网扫描”，对 v4 形式来说那是错的 —— 会让用户以为只有
-// 被告知的人才连得上，而实际上扫到端口的人都能进。
+// gateOffExplanation 返回无门槛时对用户的说明；IPv6 难以被全网扫描，公网 IPv4 可被扫描。
 func gateOffExplanation(addrKind, room string, noGate, roomGiven bool) []string {
 	var out []string
 	switch {
@@ -817,15 +804,13 @@ func gateOffExplanation(addrKind, room string, noGate, roomGiven bool) []string 
 	default:
 		out = append(out, "  说明：本模式没有房间码门槛")
 	}
-	// 给了房间码却落不到实处，必须指出来：否则用户以为门槛开着，其实没有。
-	// 但只在用户自己给了房间码时才提醒 —— 程序随机生成的那种用户根本没见过，
-	// 拿它去说“不生效”只会让人困惑。
+	// 用户给出了房间码但该形式无法承载时，仅在用户显式指定房间码的情况下提示。
 	if !noGate && roomGiven && addrKind != "v6dns" {
 		out = append(out, fmt.Sprintf("  注意：你给了房间码 %s，但这种地址形式没有地方承载它 —— "+
 			"房间码在本模式下不生效，需要它生效请用 --mode dns", room))
 	}
 	if len(out) > 0 {
-		out[len(out)-1] += "\n" // 卡片里这几行后面留一个空行，与旧版排版一致
+		out[len(out)-1] += "\n" // 这几行后留一个空行
 	}
 	return out
 }

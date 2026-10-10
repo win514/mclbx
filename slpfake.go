@@ -1,6 +1,6 @@
 package main
 
-// slpfake.go —— 排查用假服务端：只响应服务器列表查询，用 MOTD 区分客户端实际连的端口。
+// slpfake.go 排查用假服务端：只响应服务器列表查询，用 MOTD 区分客户端实际连的端口。
 
 import (
 	"bufio"
