@@ -346,8 +346,8 @@ func fillRoundGrad(hdc uintptr, r rectT, top, bottom uint32, rad int32) {
 	fillRound(hdc, r, top, rad)
 }
 
-// fillRoundGlass 卡片：淡竖向渐变 + 1px 高光边。
-func fillRoundGlass(hdc uintptr, r rectT, top, bottom, border uint32, rad int32) {
+// fillRoundCard 卡片：淡竖向渐变 + 1px 高光边。
+func fillRoundCard(hdc uintptr, r rectT, top, bottom, border uint32, rad int32) {
 	fillRoundGrad(hdc, r, top, bottom, rad)
 	if border != 0 {
 		strokeRound(hdc, r, border, 1, rad)

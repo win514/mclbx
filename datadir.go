@@ -1,6 +1,6 @@
 package main
 
-// datadir.go 本程序的两个目录只在此处算一次：存档 dataDir()（用户可见、可整个拷走：配置、日志、图片、音乐）
+// datadir.go 本程序的两个目录只在此处算一次：存档 dataDir()（用户可见、可整个拷走：配置、日志、曲库）
 // 与内部 internalDir()（机器产物：WebView2 用户目录、解出的 DLL，不进存档）。
 // 「可写」用探测文件判断而非 Stat：Windows 的 mode 位反映不了 ACL、只读属性与 UAC 虚拟化。
 
@@ -14,15 +14,15 @@ import (
 // 存档目录名。放在 exe 同级时用这个名字，一眼能看出是干什么的。
 const archiveDirName = "mclbx-data"
 
-// 两个接缝，测试用它们把目录指到临时位置（与 guiConfigFile / wallCacheDir 同一套做法）。
+// 两个可替换的入口：需要把目录指到别处时使用（与 guiConfigFile 同一套做法）。
 var (
 	archiveDirOverride  string
 	internalDirOverride string
 )
 
-// exePath 与 tempRoots 也是接缝：
-//   - os.Executable 的结果由运行方式决定，测试没法把它改成「放在非临时目录里的 exe」；
-//   - t.TempDir 本身就在临时目录下，不给 tempRoots 留口子就构造不出「exe 在普通目录」的情形。
+// exePath 与 tempRoots 同样可替换：
+//   - os.Executable 的结果由运行方式决定，无法把它换成「放在非临时目录里的 exe」；
+//   - 临时目录本身就在系统临时位置，不给 tempRoots 留口子就构造不出「exe 在普通目录」的情形。
 var (
 	exePath   = os.Executable
 	tempRoots = func() []string { return []string{os.Getenv("TEMP"), os.Getenv("TMP"), os.TempDir()} }

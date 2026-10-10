@@ -4,8 +4,8 @@ package main
 //
 // 骨架文本不编在本文件里：构建时放入 frontend/ 后经 //go:embed 嵌入（见 guiassets.go）。
 // 界面按信号链组织（本机 → 入口 → 房间 → 玩家），空闲时无无限动画。
-// 只有 DOM 骨架与资源引用：样式与脚本同样来自 frontend/，由本程序托管在 /assets/ 下。
-// Go 侧不操作 DOM、不生成动画逻辑，只把当前设置写进 <html> 属性与首屏 JSON。
+// 页面内容只有基础结构与资源引用：样式与脚本同样来自 frontend/，由本程序托管在 /assets/ 下。
+// 程序不操作页面、不生成动画，只把当前设置写进 <html> 属性与初始数据。
 //
 // 未随附界面时 guiShellHTML 为空串，renderGuiPage 改发一份说明页。
 
@@ -21,9 +21,8 @@ func renderGuiPage() string {
 		return guiPlaceholderPage()
 	}
 	ui := loadUI()
-	// 背景图与主题属性一起注入，都要在首屏前定下来。
-	attrs := ui.htmlAttr() + wallAttr(wallFromConfig(ui.BgImage))
-	p := strings.Replace(guiShellHTML, "@@UIATTRS@@", attrs, 1)
+	// 主题等首屏属性须在页面加载前注入，避免闪烁。
+	p := strings.Replace(guiShellHTML, "@@UIATTRS@@", ui.htmlAttr(), 1)
 	return strings.Replace(p, "@@UIJSON@@", ui.uiStartupJSON(), 1)
 }
 

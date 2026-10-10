@@ -95,18 +95,11 @@ type uiFieldInfo struct {
 // 只有真正会被读取、会改变行为的字段才允许进来，只读展示项不进这里。
 var uiFieldLabels = map[string]uiFieldInfo{
 	// 主题外观
-	"theme":   {"主题外观", "主题"},
-	"accent":  {"主题外观", "强调色"},
-	"flat":    {"主题外观", "材质"},
-	"radii":   {"主题外观", "圆角大小"},
-	"bgImage": {"主题外观", "背景图片"},
-	"glass":   {"主题外观", "毛玻璃"},
-	"scale":   {"主题外观", "界面字号"},
-	"motion":  {"主题外观", "动画效果"},
-	"rail":    {"主题外观", "侧边栏样式"},
-	// 高级选项与上面同属主题外观：它们改的也是观感，只是代价由用户自己承担。
-	"transparency": {"主题外观", "面板透明度"},
-	"wallBright":   {"主题外观", "背景图明暗"},
+	"theme":  {"主题外观", "主题"},
+	"accent": {"主题外观", "强调色"},
+	"scale":  {"主题外观", "界面字号"},
+	"motion": {"主题外观", "动画效果"},
+	"rail":   {"主题外观", "侧边栏样式"},
 	// 辅助工具
 	"musicPlay": {"辅助工具", "播放方式"},
 	"musicVol":  {"辅助工具", "音量"},
@@ -183,14 +176,12 @@ func uiStorageStats() map[string]any {
 	if dir == "" {
 		return out
 	}
-	// 分类口径与用户关心的东西对齐：背景图缓存、音乐、壁纸原图，再加配置与日志两个单文件
+	// 分类口径与用户关心的东西对齐：曲库占一份，配置作为单文件另计
 	buckets := []struct {
 		key string
 		sub string
 	}{
-		{"cache", filepath.Join(dir, "ui-cache")},
 		{"music", filepath.Join(dir, "music")},
-		{"wall", filepath.Join(dir, "wallpapers")},
 	}
 	total := int64(0)
 	files := 0
@@ -434,7 +425,7 @@ func sortStrings(s []string) {
 // resetUIScope 把某个范围的可编辑设置恢复成默认。
 // scope 为空或 "all" 表示全部，否则取 uiFaces 里的板块名。
 // 返回真正发生变化的字段数，调用方据此决定是否提示「已经是默认值」。
-// 只动可编辑设置：填过的表单值、记住的填写内容、图库文件均不受影响。
+// 只动可编辑设置：填过的表单值与记住的填写内容均不受影响。
 func resetUIScope(scope string) (int, error) {
 	cur := loadUI()
 	if scope != "" && scope != "all" && !isUIFace(scope) {

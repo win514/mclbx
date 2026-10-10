@@ -25,25 +25,18 @@ type guiConfig struct {
 
 // guiUIState 界面偏好；读取时统一归一化，非法取值回落到默认。
 type guiUIState struct {
-	Theme   string `json:"theme,omitempty"`   // auto（跟随系统）/ dark / light / contrast
-	Accent  string `json:"accent,omitempty"`  // mint / blue / violet
-	Motion  string `json:"motion,omitempty"`  // full / lite
-	Scale   string `json:"scale,omitempty"`   // std / big（界面字号，独立于主题）
-	Flat    string `json:"flat,omitempty"`    // on / off（扁平化，独立于主题）
-	Glass   string `json:"glass,omitempty"`   // on / off（毛玻璃）：off = 实心不做模糊，on = 最透明那一档
-	BgImage string `json:"bgImage,omitempty"` // 背景图片名（存档 wallpapers 目录里的一个文件）；空 = 不用
-	Radii   string `json:"radii,omitempty"`   // sharp / std / round（界面圆角大小）
-	Rail    string `json:"rail,omitempty"`    // std / compact（侧边栏样式）
+	Theme  string `json:"theme,omitempty"`  // auto（跟随系统）/ dark / light / contrast
+	Accent string `json:"accent,omitempty"` // mint / blue / violet
+	Motion string `json:"motion,omitempty"` // full / lite
+	Scale  string `json:"scale,omitempty"`  // std / big（界面字号，独立于主题）
+	Rail   string `json:"rail,omitempty"`   // std / compact（侧边栏样式）
 
-	// 高级选项：两个 0-100 的百分比，出厂都是 50。只在离开出厂值时才覆盖样式。
-	Transparency string `json:"transparency,omitempty"` // 面板透明度：越大面板越透
-	WallBright   string `json:"wallBright,omitempty"`   // 背景图明暗：越大照片越清楚
-	MusicPlay    string `json:"musicPlay,omitempty"`    // loop / shuffle / one（循环播放 / 随机播放 / 单曲循环）
-	MusicVol     string `json:"musicVol,omitempty"`     // 0-100，十进制字符串
-	Remember     string `json:"remember,omitempty"`     // "0" = 不记住填写内容；空 = 记住
-	LogKeep      string `json:"logKeep,omitempty"`      // 日志每层保留行数
-	DefPort      string `json:"defPort,omitempty"`      // 默认游戏端口；空 = 不干预
-	DefRelay     string `json:"defRelay,omitempty"`     // 默认中转服务器；空 = 不干预
+	MusicPlay string `json:"musicPlay,omitempty"` // loop / shuffle / one（循环播放 / 随机播放 / 单曲循环）
+	MusicVol  string `json:"musicVol,omitempty"`  // 0-100，十进制字符串
+	Remember  string `json:"remember,omitempty"`  // "0" = 不记住填写内容；空 = 记住
+	LogKeep   string `json:"logKeep,omitempty"`   // 日志每层保留行数
+	DefPort   string `json:"defPort,omitempty"`   // 默认游戏端口；空 = 不干预
+	DefRelay  string `json:"defRelay,omitempty"`  // 默认中转服务器；空 = 不干预
 
 	// 旧配置遗留：音乐原有的两个设置项，仅用于把老配置迁移到 MusicPlay。
 	// 它们不再是可编辑设置，见 uiLegacyFields —— 面板、导出、导入与重置都不认它们。
@@ -63,41 +56,6 @@ var scaleValues = []string{"std", "big"}
 
 // musicPlayValues 背景音乐播放方式白名单，与 frontend/gui.js 的 uiSeg('musicPlay') 一致。
 var musicPlayValues = []string{"loop", "shuffle", "one"}
-
-// 毛玻璃：只有开与关两态。
-//
-// 旧档位（0-10）与更早的 low/mid/high 在 normalizeUI 里迁移到两态。
-// 开态即最透明的那一档（见 CSS 里 :root[data-glass="on"] 块），不再有中间态与档位表。
-const (
-	uiGlassOff     = "off"
-	uiGlassOn      = "on"
-	uiGlassDefault = uiGlassOn
-)
-
-// glassValues 全部合法取值。用例拿它核对"取值清单与 CSS 逐块对应"。
-var glassValues = []string{uiGlassOff, uiGlassOn}
-
-// 高级显示选项：两个 0-100 的百分比，出厂值在正中间。
-//
-// 出厂值下前端不写覆盖（CSS 倍率回落到 1）。越偏离出厂值，文字可读性越低，界面当场提示，不硬卡。
-const (
-	uiPctMin     = 0
-	uiPctMax     = 100
-	uiPctDefault = 50
-)
-
-// clampPercent 把 0-100 的百分比收成合法值：非数字、越界、空值一律回到出厂值。
-func clampPercent(s string) string {
-	n, err := strconv.Atoi(strings.TrimSpace(s))
-	if err != nil || n < uiPctMin || n > uiPctMax {
-		return strconv.Itoa(uiPctDefault)
-	}
-	return strconv.Itoa(n)
-}
-
-// radiiValues 界面圆角白名单，与 CSS 的 :root[data-radii=…] 三个块对应。
-// 调的是一组预定义圆角令牌而非像素值，以保证层次关系不乱。
-var radiiValues = []string{"sharp", "std", "round"}
 
 // railValues 侧边栏样式白名单，与 CSS 的 :root[data-rail=…] 对应。
 var railValues = []string{"std", "compact"}
@@ -123,35 +81,9 @@ func normalizeUI(u guiUIState) guiUIState {
 	if !containsStr(scaleValues, u.Scale) {
 		u.Scale = "std"
 	}
-	// 扁平化与毛玻璃都是 on/off，默认关。
-	if u.Flat != "on" {
-		u.Flat = "off"
-	}
-	// 旧取值迁移：0 与非零数字档、low/mid/high 分别落到 off/on，认不出的回落到默认（on）。
-	switch strings.ToLower(strings.TrimSpace(u.Glass)) {
-	case uiGlassOff:
-		u.Glass = uiGlassOff
-	case uiGlassOn, "low", "mid", "high":
-		u.Glass = uiGlassOn
-	default:
-		if n, err := strconv.Atoi(strings.TrimSpace(u.Glass)); err == nil && n == 0 {
-			u.Glass = uiGlassOff
-		} else {
-			u.Glass = uiGlassDefault
-		}
-	}
-	// 高级选项的两个百分比：越界与非数字一律回到出厂值，不留半个合法值。
-	u.Transparency = clampPercent(u.Transparency)
-	u.WallBright = clampPercent(u.WallBright)
-	// 圆角与侧边栏样式：白名单之外一律回落到默认（取值直接命中 CSS 里对应的块）。
-	if !containsStr(radiiValues, u.Radii) {
-		u.Radii = "std"
-	}
 	if !containsStr(railValues, u.Rail) {
 		u.Rail = "std"
 	}
-	// 旧配置存的是路径，在此换成导入进存档的副本（读写两条路都经过这里，迁移一次即可）。
-	u.BgImage = adoptLegacyWallPath(cleanWallPath(u.BgImage))
 	// 背景音乐：旧的 musicMode / musicLoop 合并为一个 musicPlay，取值 loop / shuffle / one。
 	// 迁移只看老配置：musicMode=shuffle 直接落到 shuffle；否则按 musicLoop 映射，
 	// one → one，off 与 all → loop，认不出的回落 loop。迁移完成后清空遗留字段。
@@ -197,13 +129,6 @@ func migrateMusicPlay(mode, loop string) string {
 	}
 }
 
-// cleanWallPath 清理背景图路径：去首尾空白，以及「复制文件地址」粘贴时自带的一对引号。
-func cleanWallPath(p string) string {
-	p = strings.TrimSpace(p)
-	p = strings.Trim(p, `"`)
-	return strings.TrimSpace(p)
-}
-
 func (u guiUIState) rememberOn() bool { return u.Remember != "0" }
 
 func containsStr(list []string, v string) bool {
@@ -223,25 +148,12 @@ func (u guiUIState) logKeep() int {
 }
 
 // htmlAttr 拼出 <html> 的主题属性，由服务端注入以避免首屏闪烁。
-// 视觉美化各项一并注入，用于决定首屏观感。
 func (u guiUIState) htmlAttr() string {
-	return fmt.Sprintf(` data-theme="%s" data-accent="%s" data-motion="%s" data-scale="%s" data-flat="%s" data-glass="%s" data-radii="%s" data-rail="%s"`,
-		u.Theme, u.Accent, u.Motion, u.Scale, u.Flat, u.Glass, u.Radii, u.Rail)
-}
-
-// wallAttr 拼出背景图片那一段：data-wall 标记加一个行内 --wall 变量；无可用图片时返回空串。
-// 行内样式注入点层叠优先级最高，无需「主题 × 图片」的规则。
-func wallAttr(w wallResult) string {
-	if !w.on() {
-		return ""
-	}
-	return fmt.Sprintf(` data-wall="on" style="--wall:url('%s')"`, w.URL)
+	return fmt.Sprintf(` data-theme="%s" data-accent="%s" data-motion="%s" data-scale="%s" data-rail="%s"`,
+		u.Theme, u.Accent, u.Motion, u.Scale, u.Rail)
 }
 
 // uiStartupJSON 注入页面启动所需字段：跟随系统的原始主题值与日志行数。
-//
-// 高级选项的两个百分比需在浏览器端换算成倍率，服务端只发取值，故必须在此下发；
-// 否则前端首屏不知用户调过面板透明度与背景明暗，会停在出厂观感。
 func (u guiUIState) uiStartupJSON() string {
 	b, err := json.Marshal(struct {
 		Theme     string `json:"theme"`
@@ -249,23 +161,14 @@ func (u guiUIState) uiStartupJSON() string {
 		LogKeep   int    `json:"logKeep"`
 		MusicPlay string `json:"musicPlay"`
 		MusicVol  string `json:"musicVol"`
-		Glass     string `json:"glass"`
-		Radii     string `json:"radii"`
 		Rail      string `json:"rail"`
-		// 高级选项的两个百分比：倍率由前端算，服务端只把取值发下去。
-		Transparency string `json:"transparency"`
-		WallBright   string `json:"wallBright"`
 	}{
-		Theme:        u.Theme,
-		FollowOS:     u.Theme == "auto",
-		LogKeep:      u.logKeep(),
-		MusicPlay:    u.MusicPlay,
-		MusicVol:     u.MusicVol,
-		Glass:        u.Glass,
-		Radii:        u.Radii,
-		Rail:         u.Rail,
-		Transparency: u.Transparency,
-		WallBright:   u.WallBright,
+		Theme:     u.Theme,
+		FollowOS:  u.Theme == "auto",
+		LogKeep:   u.logKeep(),
+		MusicPlay: u.MusicPlay,
+		MusicVol:  u.MusicVol,
+		Rail:      u.Rail,
 	})
 	if err != nil {
 		return "{}"

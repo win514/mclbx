@@ -146,7 +146,7 @@ func explainAllocError(err error) string {
 	}
 }
 
-// checkTurnHop 把 TURN 通路从头到尾跑一遍。
+// checkTurnHop 按顺序走完 TURN 通路。
 func checkTurnHop(h relayHop, timeout time.Duration) error {
 	addr := h.addr()
 
@@ -293,7 +293,7 @@ func checkTurnHop(h relayHop, timeout time.Duration) error {
 	return nil
 }
 
-// checkTCPHop 把 TCP 中继通路跑一遍：连两次 → 等配对 → 走一帧读回来。
+// checkTCPHop 按顺序走完 TCP 中继通路：连两次 → 等配对 → 走一帧读回来。
 func checkTCPHop(addr, room string, timeout time.Duration) error {
 	if strings.TrimSpace(room) == "" {
 		room = fmt.Sprintf("relaycheck%d", os.Getpid())

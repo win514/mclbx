@@ -59,7 +59,7 @@ mclbx join --host [2408:xxxx::1]:8090 --room abc123
 
 ## 构建
 
-需要 Go 1.24 或更高版本。仓库是单包 `main`，没有外部代码生成步骤。
+需要 Go 1.24 或更高版本。项目是单个 Go 包，没有代码生成步骤。
 
 ```powershell
 git clone https://github.com/win514/mclbx.git
@@ -90,9 +90,9 @@ $env:GOOS='linux';   $env:GOARCH='arm64'; go build -o dist/mclbx-linux-arm64 .
 
 ## 界面实现不在本仓库
 
-`frontend/` 里只有一份说明文件。界面实现（`gui.html`、`gui.css`、`gui.js`）不随本仓库提供；构建时把它们放进 `frontend/` 即可经 `//go:embed` 内嵌，未放入时程序的 `/` 页显示一张占位说明页，`/assets/` 下的资源与业务接口仍然可用。
+`frontend/` 里只有一份说明文件。界面实现（`gui.html`、`gui.css`、`gui.js`）不随本仓库提供；构建时把它们放进 `frontend/` 即可经 `//go:embed` 内嵌，未放入时程序的 `/` 页显示一张占位说明页，`/assets/` 下的资源与接口仍然可用。
 
-Go 侧只渲染页面骨架、托管静态资源并提供业务接口，不操作 DOM、不参与动画逻辑。界面默认使用网页版（WebView2），加 `--native` 切换到 Windows 原生控件界面，内存占用明显更低；WebView2 运行时缺失时自动改用系统浏览器打开。
+本程序只渲染页面骨架、托管界面文件并提供接口，不参与页面表现与动画。界面默认使用网页版（WebView2），加 `--native` 切换到 Windows 原生控件界面，内存占用明显更低；WebView2 运行时缺失时自动改用系统浏览器打开。
 
 ## 命令行
 
@@ -163,7 +163,7 @@ mclbx://主机?turn=3478&tcp=8090&sig=8090&room=abc123&user=u&pass=p
 | 项目 | 取值 |
 | --- | --- |
 | 程序本体 | 单个可执行文件，无需安装，仅依赖系统库 |
-| 运行数据 | 默认在 exe 同级的 `mclbx-data`，同级不可写时退到 `%LOCALAPPDATA%\mclbx`：配置 `config.json`、日志 `gui.log`、导入的图片 `wallpapers`、背景音乐 `music` 与缩放缓存 `ui-cache` |
+| 运行数据 | 默认在 exe 同级的 `mclbx-data`，同级不可写时退到 `%LOCALAPPDATA%\mclbx`：配置 `config.json`、日志 `gui.log` 与背景音乐 `music` |
 | 界面服务 | 默认 `127.0.0.1:19870`，仅绑定本机 |
 | Minecraft 默认端口 | `25565`（Java 版） |
 | 本工具入站端口 | 两个：游戏端口（公网入口）与信令端口 `8090`（软件入口，可用 `--signal` 改） |
@@ -210,7 +210,7 @@ mclbx firewall --port 25565,8090
 | `lab.go`、`slpfake.go`、`punch.go`、`ping.go`、`verify.go`、`mc.go` | 内置 STUN/TURN 服务端与信令信箱、假服务端、打洞诊断、游戏协议查询与地址校验 |
 | `reconnect.go` | 断线自动重连：玩家侧监督循环与房主侧按代次接纳 |
 | `gui.go`、`webui.go`、`guiassets.go`、`guihtml.go`、`manual.go` | 网页版控制台、本地管理页与说明书的内嵌渲染 |
-| `guiconfig.go`、`uicfg_io.go`、`datadir.go`、`wallpaper.go`、`music.go` | 界面设置与填写内容的存取、导出导入、目录解析、背景图片与背景音乐 |
+| `guiconfig.go`、`uicfg_io.go`、`datadir.go`、`music.go` | 界面设置与填写内容的存取、导出导入、目录解析与背景音乐 |
 | `winnative.go`、`winwebview.go`、`winjob_windows.go`、`winelev.go`、`gdiplus.go` | Windows 原生界面、WebView2 宿主、子进程作业对象、提权与绘图层 |
 | `errhint.go`、`elevate_env.go` | 在英文原始报错下补中文提示，以及提权开关的读取 |
 

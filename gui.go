@@ -132,31 +132,18 @@ func listenArg(v string) string {
 
 // settingsPayload 返回设置面板所需的字段；autoProbe 只读不存。
 func settingsPayload(ui guiUIState) map[string]any {
-	wall := wallFromConfig(ui.BgImage)
 	return map[string]any{
-		"ok":      true,
-		"theme":   ui.Theme,
-		"accent":  ui.Accent,
-		"motion":  ui.Motion,
-		"scale":   ui.Scale,
-		"flat":    ui.Flat,
-		"glass":   ui.Glass,
-		"bgImage": ui.BgImage,
-		"radii":   ui.Radii,
-		"rail":    ui.Rail,
-		// 高级选项：面板透明度与背景图明暗，都是 0-100、出厂 50。
-		"transparency": ui.Transparency,
-		"wallBright":   ui.WallBright,
-		// 图库里的图片名，配置存的就是其中之一。
-		"wallList": listWallImages(),
+		"ok":     true,
+		"theme":  ui.Theme,
+		"accent": ui.Accent,
+		"motion": ui.Motion,
+		"scale":  ui.Scale,
+		"rail":   ui.Rail,
 		// 曲库清单取自存档的 music 目录
 		"musicList": listMusicTracks(),
 		"musicPlay": ui.MusicPlay,
 		"musicVol":  ui.MusicVol,
 		"remember":  ui.Remember,
-		// 背景图已缩放缓存，这里只把地址交给界面；读不出时 wallReason 给原因
-		"wallURL":    wall.URL,
-		"wallReason": wall.Reason,
 		// 显示生效值而非原始配置；未配置时给出实际默认
 		"logKeep":   strconv.Itoa(ui.logKeep()),
 		"defPort":   ui.DefPort,
@@ -948,7 +935,7 @@ func guiAllowedHost(addr string) bool {
 
 // guiNoStorePath 列出内容随 exe 变化的路径：界面本体、JSON 接口、样式与脚本。
 // 不设缓存头时浏览器会缓存旧文件，换新版 exe 后打开的仍是上一份界面。
-// 音频与背景图不在此列：/music/ 用 no-cache，/bg/ 靠内容哈希做 immutable。
+// 音频不在此列：/music/ 用 no-cache。
 func guiNoStorePath(p string) bool {
 	return p == "/" || strings.HasPrefix(p, "/api/") || p == guiCSSPath || p == guiJSPath
 }
@@ -1101,8 +1088,6 @@ func cmdGui(args []string) error {
 		mux.Handle("/assets/", h)
 	}
 
-	// 背景图片：只按内容哈希取缓存好的那一份，不接受任何路径参数
-	mux.HandleFunc("/bg/", serveWall)
 	// 曲库里的音频：界面用 <audio> 直接播，拖动进度靠 Range 请求
 	mux.HandleFunc("/music/", serveMusic)
 
@@ -1258,50 +1243,6 @@ func cmdGui(args []string) error {
 			"ok": true, "changed": changed, "ui": settingsPayload(loadUI()),
 		})
 	}))
-
-	// 导入背景图：网页界面用 <input type=file> 取到文件再 POST 上来。
-	// 上传后即复制进存档，原文件改名或删除都不影响。
-	mux.HandleFunc("/api/wall/import", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		fail := func(msg string) {
-			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "err": msg})
-		}
-		if r.Method != http.MethodPost {
-			fail("只接受 POST")
-			return
-		}
-		// 上限挡在解析之前：请求体一超就直接断，不先把内容读进内存
-		r.Body = http.MaxBytesReader(w, r.Body, wallImportMaxBytes)
-		if err := r.ParseMultipartForm(wallImportMaxBytes); err != nil {
-			fail("图片超过 32MB 或上传中断了")
-			return
-		}
-		f, hdr, err := r.FormFile("file")
-		if err != nil {
-			fail("没有收到图片")
-			return
-		}
-		defer f.Close()
-		data, err := io.ReadAll(f)
-		if err != nil {
-			fail("读取上传内容失败")
-			return
-		}
-		name, err := importWallFile(hdr.Filename, data)
-		if err != nil {
-			fail(err.Error())
-			return
-		}
-		// 导入即选中
-		cur := loadUI()
-		cur.BgImage = name
-		ui, err := saveUI(cur)
-		if err != nil {
-			fail("图片已存下，但设置没能写入：" + err.Error())
-			return
-		}
-		_ = json.NewEncoder(w).Encode(settingsPayload(ui))
-	})
 
 	mux.HandleFunc("/api/quit", post(func(w http.ResponseWriter, r *http.Request) error {
 		// 先写回执，再异步执行关闭

@@ -1364,7 +1364,7 @@ func (u *nativeUI) paintTo(hdc uintptr, w, h int32) {
 	// 地址卡片先铺底（影子 + 渐变 + 高光边）再画字
 	if u.hasAddress() {
 		shadowRound(mem, addr, u.px(10), 0x88)
-		fillRoundGlass(mem, addr, natSurf2, natBgLite, natLine, u.px(10))
+		fillRoundCard(mem, addr, natSurf2, natBgLite, natLine, u.px(10))
 	}
 	// 所有文字按 contentTexts 的数据绘制（自检共用同一份数据）。
 	for _, tx := range u.contentTexts(w, h) {

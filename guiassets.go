@@ -1,9 +1,9 @@
 package main
 
 // guiassets.go 界面资源：骨架、样式与脚本随构建装入后内嵌。
-// Go 侧只做三件事：渲染基础 HTML 模板、托管静态资源、提供业务接口。
-// 它不操作 DOM、不参与动画逻辑；动效、交互、状态过渡、rAF 全在界面文件里由浏览器执行。
-// 服务端只把业务状态（当前设置、任务状态）写进页面属性与首屏 JSON，其表现由浏览器决定。
+// 程序自身只做三件事：渲染基础页面、托管界面文件、提供接口。
+// 页面表现、交互与动画全部由界面文件在浏览器里完成。
+// 程序只把当前设置与任务状态写进页面属性与初始数据，展示方式由界面决定。
 //
 // 界面实现不随本项目提供：构建时把 gui.html、gui.css、gui.js 放入 frontend/ 后经
 // //go:embed 嵌入；未放入时 renderGuiPage 改发说明页（见 guihtml.go）。
@@ -43,11 +43,11 @@ func guiAssetString(name string) string {
 // guiPageHTML 是把两份外链资源摊平回页面后的完整源码：骨架 + 样式 + 脚本。
 //
 // 生产路径不用它：服务端只发骨架，样式与脚本由浏览器各自到 /assets/ 取。
-// 保留拼好的字符串供用例与排障使用；未装入前端时为空串。
-var guiPageHTML = guiPageFlat()
+// 保留拼好的字符串供排障使用；未装入界面文件时为空串。
+var guiPageHTML = guiPageInlined()
 
-// guiPageFlat 把骨架里的两处资源引用换回内联块。
-func guiPageFlat() string {
+// guiPageInlined 把骨架里的两处资源引用换回内联块。
+func guiPageInlined() string {
 	shell, ok := guiFrontFile("gui.html")
 	if !ok {
 		return ""
