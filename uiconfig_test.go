@@ -1,15 +1,14 @@
 package main
 
-// uiconfig_test.go 覆盖设置面板的两条规约、配置读写、以及重置与变更记录。
+// uiconfig_test.go 覆盖设置配置读写、重置与变更记录。
 //
-// 一、面板上每项都须是真正生效的设置，不得有改了无反应的开关。
-// 二、只读区不得出现任何可编辑控件。
+// 面板上的每项是否真正生效、只读区是否混入可编辑控件等「扫前端源码」的用例，
+// 随前端实现一同移出仓库（见 frontend/说明.txt 与 D:\mclbx-frontend\tests）。
 
 import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 )
@@ -24,136 +23,6 @@ func withTempArchive(t *testing.T) string {
 		archiveDirOverride = old
 	})
 	return dir
-}
-
-// ---- 规约一：面板上只有生效的设置 ----
-
-// 面板上每个可编辑控件都须有服务端字段（登记在 uiFieldLabels 里）；
-// 登记过的每一项也须出现在面板上，guiUIState 的每个字段也须登记过。
-// 三向须对齐，任一侧多出或缺失都判为失败。
-func TestPanelOnlyShowsRealSettings(t *testing.T) {
-	panel := bodyBetween(t, "function uiThemeHTML(u){", "function uiAboutHTML(u){")
-	keyRe := regexp.MustCompile(`ui(?:Seg|Sw|Field|Range)\('([A-Za-z]+)'`)
-	seen := map[string]bool{}
-	for _, m := range keyRe.FindAllStringSubmatch(panel, -1) {
-		seen[m[1]] = true
-	}
-	// 强调色用圆点控件而非分段控件，单独识别
-	if strings.Contains(panel, "uiAccentDots(u)") {
-		seen["accent"] = true
-	}
-	// 背景图用自定义控件 uiWallPicker（下拉选图 + 导入）。
-	// 既须确认面板调用了它，也须确认它绑在 bgImage 字段上，只认前者会漏掉控件换字段名的情况。
-	if strings.Contains(panel, "uiWallPicker(") {
-		picker := bodyBetween(t, "function uiWallPicker(u){", "function uiMusicList(u){")
-		if !strings.Contains(picker, `data-in="bgImage"`) {
-			t.Error("背景图控件没有绑在 bgImage 字段上 —— 在那里选图不会落到任何设置上")
-		}
-		seen["bgImage"] = true
-	}
-	// 面板里若有内联的输入控件，也一并算上
-	for _, m := range regexp.MustCompile(`data-in="([A-Za-z]+)"`).FindAllStringSubmatch(panel, -1) {
-		seen[m[1]] = true
-	}
-	// 自定义滑杆控件同理：识别它的 data- 钩子。
-	for _, m := range regexp.MustCompile(`data-rng="([A-Za-z]+)"`).FindAllStringSubmatch(panel, -1) {
-		seen[m[1]] = true
-	}
-	if len(seen) == 0 {
-		t.Fatal("一个可编辑控件都没解析出来 —— 面板函数改名了，这条检查等于没做")
-	}
-
-	for k := range seen {
-		if _, ok := uiFieldLabels[k]; !ok {
-			t.Errorf("面板上有可编辑项 %q，但它不在 uiFieldLabels 里 —— "+
-				"要么它没有服务端字段（那就是个改了没反应的假开关），要么忘了登记", k)
-		}
-	}
-	for f, info := range uiFieldLabels {
-		if !seen[f] {
-			t.Errorf("清单里的 %s（%s / %s）没有出现在面板上 —— 有字段却没人找得到它", f, info.Face, info.Name)
-		}
-	}
-	for _, f := range uiFieldNames() {
-		if _, ok := uiFieldLabels[f]; !ok {
-			t.Errorf("guiUIState 有字段 %q 却不在 uiFieldLabels 里 —— 它会生效，但清单上查不到", f)
-		}
-	}
-}
-
-// ---- 规约三：面板上的每个按钮都有处理者 ----
-
-// 面板里带 data-act 的按钮都须落到真实处理者：客户端的 uiAction / uiBind，
-// 或服务端 /api/settings 的 action 分支。三处都不认的按钮点了不会发生任何事。
-func TestEveryPanelActionHasAHandler(t *testing.T) {
-	client := bodyBetween(t, "async function uiAction(a, btn){", "\n/* 起手：先按地址栏的 hash")
-	bind := bodyBetween(t, "function uiBind(){", "function uiCollect(){")
-
-	// 服务端的 action 分支：只取 settingsSave 里的 switch，不纳入文件中其它 switch
-	src, err := os.ReadFile("gui.go")
-	if err != nil {
-		t.Fatalf("读不到 gui.go：%v", err)
-	}
-	server := ""
-	if i := strings.Index(string(src), "switch req.Action {"); i >= 0 {
-		if j := strings.Index(string(src)[i:], "\n\t\t}"); j >= 0 {
-			server = string(src)[i : i+j]
-		}
-	}
-	if server == "" {
-		t.Fatal("没能从 gui.go 里抠出 /api/settings 的 action 分支 —— 这条检查会误报，先修它")
-	}
-
-	acts := map[string]bool{}
-	for _, m := range regexp.MustCompile(`data-act="([A-Za-z]+)"`).FindAllStringSubmatch(guiPageHTML, -1) {
-		acts[m[1]] = true
-	}
-	if len(acts) == 0 {
-		t.Fatal("面板里一个 data-act 都没解析出来 —— 这条检查等于没做")
-	}
-	for act := range acts {
-		handled := strings.Contains(client, "'"+act+"'") ||
-			strings.Contains(bind, "'"+act+"'") ||
-			strings.Contains(server, `case "`+act+`":`)
-		if !handled {
-			t.Errorf("面板上的按钮 data-act=%q 没有任何处理者 —— 点了不会有任何反应", act)
-		}
-	}
-}
-
-// 分段控件的取值须与服务端白名单一致。
-//
-// 界面多一个取值：选了它不生效（归一化打回默认）。
-// 服务端多一个取值：该档位永远选不到。字号另见 scale_test.go。
-func TestNewSegmentOptionsMatchTheWhitelist(t *testing.T) {
-	for _, c := range []struct {
-		key  string
-		want []string
-	}{
-		{"radii", radiiValues},
-		{"rail", railValues},
-	} {
-		got := segOptions(t, c.key)
-		if strings.Join(got, ",") != strings.Join(c.want, ",") {
-			t.Errorf("界面上的 %s 选项 %v 与 normalizeUI 的白名单 %v 对不上 —— "+
-				"多一个就是死档位，少一个就是选不到", c.key, got, c.want)
-		}
-	}
-}
-
-// ---- 规约二：只读区不得有可编辑控件 ----
-
-func TestReadonlyBlockHasNoEditableControls(t *testing.T) {
-	ro := bodyBetween(t, "function uiAboutHTML(u){", "function uiMaintHTML(){")
-	for _, bad := range []string{"uiSeg(", "uiSw(", "uiField(", "uiItem(", "data-in=", "data-sw=", "data-seg=", "data-accent="} {
-		if strings.Contains(ro, bad) {
-			t.Errorf("「关于与状态」里出现了 %s —— 这一块是纯展示，不许留任何编辑入口", bad)
-		}
-	}
-	// 反向确认这段确实在渲染内容，而非空函数
-	if !strings.Contains(ro, "uiInfoRow(") || !strings.Contains(ro, "uiStat(") {
-		t.Error("只读区没有渲染任何信息行 —— 这条检查等于没做")
-	}
 }
 
 // ---- 取值不合法要回报 ----

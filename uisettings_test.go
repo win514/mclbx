@@ -9,6 +9,11 @@ import (
 )
 
 func TestRenderGuiPageInjectsSettings(t *testing.T) {
+	// 页面骨架不在本仓库（见 frontend/说明.txt）：未装入前端时 / 走占位页，
+	// 注入逻辑与界面节拍由前端专用用例在带前端的一侧验证，此处跳过。
+	if guiShellHTML == "" {
+		t.Skip("未装入前端，跳过页面注入检查")
+	}
 	withTempConfig(t)
 	if _, err := saveUI(guiUIState{Theme: "light", Accent: "blue", Motion: "lite", LogKeep: "500"}); err != nil {
 		t.Fatal(err)
@@ -42,6 +47,9 @@ func TestRenderGuiPageInjectsSettings(t *testing.T) {
 
 // 设置面板入口与相关脚本须存在于页面中。
 func TestGuiPageHasSettingsEntry(t *testing.T) {
+	if guiShellHTML == "" {
+		t.Skip("未装入前端，跳过页面内容检查")
+	}
 	for _, want := range []string{
 		`id="btnSettings"`, "$('btnSettings').onclick = openSettings;",
 		"function openSettings", "function uiCollect", "function uiApply",

@@ -29,7 +29,8 @@ import (
 	"unicode/utf8"
 )
 
-// 内嵌界面资源，离线引用，不走 CDN。
+// 内嵌 assets\：页面图标与来源许可文件，离线引用，不走 CDN。
+// 界面样式与脚本不在本仓库，构建时装入 frontend\ 后另经 //go:embed 嵌入（见 guiassets.go）。
 //
 //go:embed assets
 var guiAssetFS embed.FS
@@ -127,16 +128,6 @@ func listenArg(v string) string {
 		return "127.0.0.1:" + s
 	}
 	return s
-}
-
-// renderGuiPage 把界面设置注入 HTML 骨架；主题属性须服务端注入，避免首屏闪烁。
-// 样式与脚本在 assets/gui.css 与 assets/gui.js，由浏览器按骨架引用自取。
-func renderGuiPage() string {
-	ui := loadUI()
-	// 背景图与主题属性一起注入，都要在首屏前定下来。
-	attrs := ui.htmlAttr() + wallAttr(wallFromConfig(ui.BgImage))
-	p := strings.Replace(guiShellHTML, "@@UIATTRS@@", attrs, 1)
-	return strings.Replace(p, "@@UIJSON@@", ui.uiStartupJSON(), 1)
 }
 
 // settingsPayload 返回设置面板所需的字段；autoProbe 只读不存。
@@ -971,10 +962,11 @@ func guiCachePolicy(next http.Handler) http.Handler {
 	})
 }
 
-// guiAssetHandler 把内嵌的 assets/ 挂到 /assets/ 下。
-// 返回 false 表示内嵌目录取不到，调用方不挂这条路由。
+// guiAssetHandler 把内嵌资源挂到 /assets/ 下：图标来自 assets\，样式与脚本来自 frontend\。
+// 返回 false 表示内嵌的 assets/ 取不到，调用方不挂这条路由。
 // 样式与脚本的 Content-Type 写死，不按扩展名推断：Windows 上该类型随机器而异，
 // 落到 text/plain 时浏览器会拒绝执行，且错误只出现在浏览器控制台。
+// 未装入前端（新克隆的仓库）时 gui.css / gui.js 取不到，页面走占位页，不影响启动。
 func guiAssetHandler() (http.Handler, bool) {
 	sub, err := iofs.Sub(guiAssetFS, "assets")
 	if err != nil {
@@ -984,12 +976,25 @@ func guiAssetHandler() (http.Handler, bool) {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case guiCSSPath:
-			w.Header().Set("Content-Type", "text/css; charset=utf-8")
+			guiServeFrontAsset(w, "gui.css", "text/css; charset=utf-8")
+			return
 		case guiJSPath:
-			w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+			guiServeFrontAsset(w, "gui.js", "text/javascript; charset=utf-8")
+			return
 		}
 		files.ServeHTTP(w, r)
 	}), true
+}
+
+// guiServeFrontAsset 直接把内嵌的前端文件写出；未装入前端时返回 404。
+func guiServeFrontAsset(w http.ResponseWriter, name, ctype string) {
+	body, ok := guiFrontFile(name)
+	if !ok {
+		http.NotFound(w, nil)
+		return
+	}
+	w.Header().Set("Content-Type", ctype)
+	_, _ = io.WriteString(w, body)
 }
 
 func cmdGui(args []string) error {
@@ -1091,7 +1096,7 @@ func cmdGui(args []string) error {
 		_, _ = w.Write([]byte(renderGuiPage()))
 	})
 
-	// 静态资源从内嵌文件系统提供（图标、界面样式、界面脚本）
+	// 静态资源从内嵌文件系统提供（图标来自 assets\，界面样式与脚本来自 frontend\）
 	if h, ok := guiAssetHandler(); ok {
 		mux.Handle("/assets/", h)
 	}

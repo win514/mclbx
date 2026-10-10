@@ -51,17 +51,17 @@ type guiUIState struct {
 	MusicLoop string `json:"musicLoop,omitempty"`
 }
 
-// themeValues 主题白名单，须与 assets/gui.js 的 uiThemes() 及 CSS 的 :root[data-theme=…] 一致。
+// themeValues 主题白名单，须与 frontend/gui.js 的 uiThemes() 及 CSS 的 :root[data-theme=…] 一致。
 // （auto 由首屏脚本解析成 light/dark，不在此列。）
 var themeValues = []string{"dark", "light", "contrast"}
 
-// accentValues 强调色白名单，与 assets/gui.js 的 uiAccents() 对应。
+// accentValues 强调色白名单，与 frontend/gui.js 的 uiAccents() 对应。
 var accentValues = []string{"blue", "violet"}
 
 // scaleValues 界面字号白名单，是与 Motion 同级的独立维度。
 var scaleValues = []string{"std", "big"}
 
-// musicPlayValues 背景音乐播放方式白名单，与 assets/gui.js 的 uiSeg('musicPlay') 一致。
+// musicPlayValues 背景音乐播放方式白名单，与 frontend/gui.js 的 uiSeg('musicPlay') 一致。
 var musicPlayValues = []string{"loop", "shuffle", "one"}
 
 // 毛玻璃：只有开与关两态。

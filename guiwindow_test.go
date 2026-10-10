@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strconv"
-	"strings"
 	"testing"
 )
 
@@ -121,14 +120,5 @@ func TestGuiReuseRunningWithWindowFocusesIt(t *testing.T) {
 	handled, err := guiReuseRunning("127.0.0.1:1", false, false)
 	if !handled || err != nil {
 		t.Fatalf("已经有窗口时应当接手：handled=%v err=%v", handled, err)
-	}
-}
-
-// 页面须包含提示条 notice。
-func TestGuiPageHasNoticeBar(t *testing.T) {
-	for _, want := range []string{`id="notice"`, `id="noticeText"`, "notice=", ".notice{"} {
-		if !strings.Contains(guiPageHTML, want) {
-			t.Errorf("界面 HTML 里应当有 %q（它承担「把话说清楚」这件事）", want)
-		}
 	}
 }

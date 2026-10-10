@@ -29,3 +29,7 @@ Desktop.ini
 
 # Go
 /vendor/
+
+# 前端实现：构建时从本机前端目录装入，仓库只提交说明文件
+/frontend/*
+!/frontend/说明.txt
