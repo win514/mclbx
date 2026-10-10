@@ -1,4 +1,8 @@
 // mclbx 是《我的世界》联机工具。
+//
+// 构建：go build -trimpath -ldflags "-s -w -H=windowsgui" .
+// -H=windowsgui 让产物不创建控制台窗口，双击启动不再多出一个窗口；
+// 命令行的输出由 attachConsole 挂到调用它的终端上（见 winconsole_windows.go）。
 package main
 
 import (
@@ -236,6 +240,21 @@ func usage() {
 	fmt.Print(usageText)
 }
 
+// consoleWanted 判断这次运行是否需要挂到调用它的终端上。
+// 界面命令默认不要：它的状态在界面里看，双击时也不该多出窗口；
+// 带 --console（要看输出）或 --no-open（由脚本或浏览器调用）时例外。
+func consoleWanted(args []string) bool {
+	if len(args) == 0 || args[0] != "gui" {
+		return true
+	}
+	for _, a := range args[1:] {
+		if a == "--console" || a == "--no-open" {
+			return true
+		}
+	}
+	return false
+}
+
 func main() {
 	// GDI+ 释放属进程级收尾，放在这里而非关窗口处。
 	defer gpStop()
@@ -246,6 +265,11 @@ func main() {
 		os.Args = append(os.Args, "gui")
 	}
 	var err error
+	// 从终端运行时挂到该终端上，保证命令行的输出可见。
+	// 双击启动没有可挂的终端，因此不会多出控制台窗口（见 winconsole_windows.go）。
+	if consoleWanted(os.Args[1:]) {
+		attachConsole()
+	}
 	switch os.Args[1] {
 	case "gui":
 		err = cmdGui(os.Args[2:])
